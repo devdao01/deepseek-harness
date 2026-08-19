@@ -1,0 +1,3 @@
+[submodule "apps/frontend"]
+	path = apps/frontend
+	url = git@github-devdao01:devdao01/frontend-deepseek-harness.git
