@@ -1,0 +1,4055 @@
+{
+  "info": {
+    "name": "DeepSeek Harness — Local Backend API",
+    "description": "DeepSeek Harness local backend API (packages/host/apiproxy + fetch carrier). The GUI you run (e.g. http://127.0.0.1:3080) serves these endpoints.\n\n## Wire protocol\n- **Unary RPC**: `POST /api/<method>` with `Content-Type: application/json` (anything else → HTTP 415). Body is the ClientRequest envelope: `{ \"type\": \"client-request\", \"rpcId\": \"<uuid>\", \"method\": \"<method>\", \"payload\": {…} }`. `rpcId` is any unique string you mint (this collection uses the Postman dynamic variable `{{$guid}}`); responses echo it.\n- **Response**: ServerResponse envelope. **Business errors ride HTTP 200** with `result.ok === false` and `result.error = { code, message, details }`. HTTP status describes only the carrier: 404 unknown path, 415 non-JSON media type, 400 body not JSON, 500 handler crash.\n- **Streams**: on the standard GUI, `GET /api/events.mux` and `GET /api/events.host` are **WebSocket** downlinks (`ws://127.0.0.1:3080/api/events.mux`) — open them as Postman WebSocket requests. A plain HTTP GET against the GUI answers \"upgrade required\"; the pure fetch carrier implements the SSE GET form instead.\n- **Download**: `GET /api/session.export?sessionId=…&includeDescendants=…` streams a ZIP (no envelope).\n- **Respond**: `POST /api/respond` carries the ClientResponse answering an approval/question ServerRequest received on a stream.\n\n## Variables\n- `baseUrl` — default `http://127.0.0.1:3080` (the harness Web GUI address).\n- `sessionId`, `workspaceId`, `parentSessionId`, `childSessionId` — fill them from the response of `session.list` / `workspace.list` / `subagent.list` (or use a Postman test script to persist values automatically).\n\n## Notes\n- Single-user local service: no auth. Loopback-only by default; some methods (settings/credentials/agentPreset authoring, host.openPath) are loopback-pinned by the carrier trust fence.\n- Postman is not a browser, so no CORS applies.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3080",
+      "type": "string"
+    },
+    {
+      "key": "wsBaseUrl",
+      "value": "ws://127.0.0.1:3080",
+      "type": "string"
+    },
+    {
+      "key": "sessionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "workspaceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "parentSessionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "childSessionId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Sessions",
+      "item": [
+        {
+          "name": "session.list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/session.list",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "session.list"
+              ]
+            },
+            "description": "Lists persisted sessions (updatedAt descending). v1 returns everything; `cursor` is a reserved seat, unimplemented.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"session.list\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"items\": [\n        {\n          \"sessionId\": \"<session-id>\",\n          \"updatedAt\": 1724000000000,\n          \"running\": false,\n          \"blank\": true\n        }\n      ]\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "session.search",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/session.search",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "session.search"
+              ]
+            },
+            "description": "Searches the current user/assistant/steering message surface across sessions visible to `session.list`. Results: at most 20 sessions; `hasMore` asks the client to refine the query.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"session.search\",\n  \"payload\": {\n    \"query\": \"deepseek harness\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"items\": [\n        {\n          \"sessionId\": \"<session-id>\",\n          \"snippet\": \"…matching snippet…\"\n        }\n      ],\n      \"hasMore\": false\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "session.create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/session.create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "session.create"
+              ]
+            },
+            "description": "Creates a real session and its idle agent. At most ONE of `workspaceId` / `cwd` is accepted (both → bad-request); omitted project uses the Host cwd. Optional `sessionId` preallocates an id (retry with same id+cwd → same session; different cwd → session-conflict). Optional `agentPreset` names the composition.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"session.create\",\n  \"payload\": {\n    \"cwd\": \"/Users/dev01/Desktop/test1\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"sessionId\": \"<new-session-id>\"\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "session.history",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/session.history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "session.history"
+              ]
+            },
+            "description": "Reads a window of history events; page boundaries align to append-origin message boundaries. `beforeSeq` pages backward (tail page when absent, and only the tail page may carry `projections`). Reading never resumes or publishes an Agent.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"session.history\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\",\n    \"maxMessages\": 50\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"events\": [\n        {\n          \"event\": {\n            \"type\": \"user/message\",\n            \"seq\": 1,\n            \"time\": 1724000000000,\n            \"data\": {}\n          }\n        }\n      ],\n      \"hasMore\": false\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "session.models",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/session.models",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "session.models"
+              ]
+            },
+            "description": "Reads a fresh advisory model directory for an ordinary session. `current` = the session's model selection; `routable` = whether an adapter currently serves it (a session cannot start a turn when false).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"session.models\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"current\": {\n        \"provider\": \"deepseek\",\n        \"model\": \"deepseek-chat\"\n      },\n      \"routable\": true,\n      \"groups\": [],\n      \"failures\": []\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "session.selectModel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/session.selectModel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "session.selectModel"
+              ]
+            },
+            "description": "Selects the complete model selection for this session. Optional `reasoningEffort` is validated by the adapter.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"session.selectModel\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\",\n    \"provider\": \"deepseek\",\n    \"model\": \"deepseek-chat\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"selected\": {\n        \"provider\": \"deepseek\",\n        \"model\": \"deepseek-chat\"\n      }\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "session.rename",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/session.rename",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "session.rename"
+              ]
+            },
+            "description": "Renames a session: appends a `session/title` event (user source) which pins the title against automatic regeneration. A title that normalizes to empty fails with `title-invalid`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"session.rename\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\",\n    \"title\": \"My session\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"title\": \"My session\",\n      \"seq\": 3\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "session.fork",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/session.fork",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "session.fork"
+              ]
+            },
+            "description": "Forks a new session from a completed-turn prefix of the source. `atSeq` anchors the cut (first `turn/end` at or after it); omitted → last completed turn. An in-log anchor whose turn is still open fails with `fork-unavailable`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"session.fork\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"sessionId\": \"<forked-session-id>\"\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "session.prompt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/session.prompt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "session.prompt"
+              ]
+            },
+            "description": "Sends a message to an ordinary session Agent after durable host admission. `mode`: queue→send, steer→steer. `content`: text and/or image parts (image = {mediaType, data(base64), name?}). A single text block starting with \"/\" dispatches a slash command instead (never sent to the model). Optional `clientTimeZone` is validated IANA zone recorded on that message.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"session.prompt\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\",\n    \"mode\": \"queue\",\n    \"content\": [\n      {\n        \"type\": \"text\",\n        \"text\": \"Hello! Please list the files in this project.\"\n      }\n    ],\n    \"clientTimeZone\": \"Asia/Ho_Chi_Minh\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"accepted\": true\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "session.attachment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/session.attachment",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "session.attachment"
+              ]
+            },
+            "description": "Reads one durable image after proving that this session's log references its id. `attachmentId` comes from history events / prompt content.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"session.attachment\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\",\n    \"attachmentId\": \"<attachment-id>\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"attachment\": {\n        \"attachmentId\": \"<attachment-id>\",\n        \"mediaType\": \"image/png\",\n        \"bytes\": 1234,\n        \"width\": 100,\n        \"height\": 100\n      },\n      \"data\": \"<base64>\"\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "session.updateQueue",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/session.updateQueue",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "session.updateQueue"
+              ]
+            },
+            "description": "Edits, removes, or strictly steers ONE pending queued occurrence on an ordinary session. `action`: {kind:\"edit\", content:[…]} | {kind:\"remove\"} | {kind:\"steer\"}. Unknown item → queue-item-not-found.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"session.updateQueue\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\",\n    \"itemId\": \"<message-id>\",\n    \"action\": {\n      \"kind\": \"remove\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"accepted\": true\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "session.cancel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/session.cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "session.cancel"
+              ]
+            },
+            "description": "Stops an ordinary session's active turn, preserving pending inbox work that resumes in FIFO order after cancellation settles.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"session.cancel\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"accepted\": true\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Subagents",
+      "item": [
+        {
+          "name": "subagent.list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/subagent.list",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "subagent.list"
+              ]
+            },
+            "description": "Lists direct session-backed children of a parent session without loading either side. `parentAvailable` is a hint only.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"subagent.list\",\n  \"payload\": {\n    \"parentSessionId\": \"{{parentSessionId}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"entries\": [],\n      \"parentAvailable\": true\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "subagent.history",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/subagent.history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "subagent.history"
+              ]
+            },
+            "description": "Reads one healthy catalog child's transcript (in-memory snapshot of a live child, persisted log of a cold one) with message-aligned pagination — no Agent activation. `mode` must be `one-shot` or `continuable`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"subagent.history\",\n  \"payload\": {\n    \"parentSessionId\": \"{{parentSessionId}}\",\n    \"childSessionId\": \"{{childSessionId}}\",\n    \"mode\": \"one-shot\",\n    \"maxMessages\": 50\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"events\": [],\n      \"hasMore\": false\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "subagent.prompt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/subagent.prompt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "subagent.prompt"
+              ]
+            },
+            "description": "Delivers human content to a continuable child through the exact live parent's continuation owner. Success identifies the message accepted by the child's FIFO inbox.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"subagent.prompt\",\n  \"payload\": {\n    \"parentSessionId\": \"{{parentSessionId}}\",\n    \"childSessionId\": \"{{childSessionId}}\",\n    \"mode\": \"continuable\",\n    \"content\": [\n      {\n        \"type\": \"text\",\n        \"text\": \"Continue with the next step.\"\n      }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"messageId\": \"<accepted-message-id>\"\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "subagent.interrupt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/subagent.interrupt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "subagent.interrupt"
+              ]
+            },
+            "description": "Interrupts a live continuable child's current turn under the address's durable direct-parent authority. Fire-and-return: `accepted` acknowledges the admitted cancel signal, not target quiescence.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"subagent.interrupt\",\n  \"payload\": {\n    \"parentSessionId\": \"{{parentSessionId}}\",\n    \"childSessionId\": \"{{childSessionId}}\",\n    \"mode\": \"continuable\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"accepted\": true\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Host",
+      "item": [
+        {
+          "name": "host.describe",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/host.describe",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "host.describe"
+              ]
+            },
+            "description": "One-shot host snapshot: version, cwd (root for persistence/tools), default provider/model, attachedSessions, canOpenPath.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"host.describe\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"version\": \"0.1.0\",\n      \"cwd\": \"/Users/dev01/Desktop/test1\",\n      \"provider\": \"deepseek\",\n      \"model\": \"deepseek-chat\",\n      \"attachedSessions\": 1,\n      \"canOpenPath\": true\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "host.pickDirectory",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/host.pickDirectory",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "host.pickDirectory"
+              ]
+            },
+            "description": "Opens the OS single-directory picker; cancellation returns `null`. Only served under the `native` capability; otherwise directory-picker-unavailable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"host.pickDirectory\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"path\": \"/Users/dev01/Desktop\"\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "host.listDirectory",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/host.listDirectory",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "host.listDirectory"
+              ]
+            },
+            "description": "Lists one directory level for the in-app browser; absent `path` lists the host account's home directory. Only served under the `browse` capability; unreadable/missing targets fail with directory-unreadable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"host.listDirectory\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"path\": \"/Users/dev01\",\n      \"home\": \"/Users/dev01\",\n      \"crumbs\": [],\n      \"entries\": [],\n      \"truncated\": false\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "host.createDirectory",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/host.createDirectory",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "host.createDirectory"
+              ]
+            },
+            "description": "Creates one child directory under an existing parent (\"New folder\"). Existing child → directory-exists; other FS failures → directory-create-failed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"host.createDirectory\",\n  \"payload\": {\n    \"path\": \"/Users/dev01/Desktop\",\n    \"name\": \"new-folder\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"path\": \"/Users/dev01/Desktop/new-folder\"\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "host.openPath",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/host.openPath",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "host.openPath"
+              ]
+            },
+            "description": "Opens a filesystem path with the operating system's default application (Finder/Explorer/xdg-open hand-off).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"host.openPath\",\n  \"payload\": {\n    \"path\": \"/Users/dev01/Desktop/test1\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"opened\": true\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Workspace",
+      "item": [
+        {
+          "name": "workspace.list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/workspace.list",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "workspace.list"
+              ]
+            },
+            "description": "Lists all workspaces in the registry's durable display order, plus the registry-global archived-session set.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"workspace.list\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"items\": [],\n      \"archivedSessionIds\": []\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "workspace.create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/workspace.create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "workspace.create"
+              ]
+            },
+            "description": "Creates (or idempotently resolves) a workspace over an EXISTING directory (no mkdir; missing/non-directory → workspace-invalid-path). Already-owned path returns that workspace with `created: false`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"workspace.create\",\n  \"payload\": {\n    \"path\": \"/Users/dev01/Desktop/test1\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"workspace\": {\n        \"workspaceId\": \"<workspace-id>\",\n        \"path\": \"/Users/dev01/Desktop/test1\",\n        \"title\": \"test1\",\n        \"sessionIds\": [],\n        \"createdAt\": \"2024-01-01T00:00:00.000Z\",\n        \"updatedAt\": \"2024-01-01T00:00:00.000Z\"\n      },\n      \"created\": true\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "workspace.rename",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/workspace.rename",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "workspace.rename"
+              ]
+            },
+            "description": "Renames a workspace. `title` is trimmed and must be non-empty (schema-enforced); a title equal to another workspace's → workspace-name-conflict.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"workspace.rename\",\n  \"payload\": {\n    \"workspaceId\": \"{{workspaceId}}\",\n    \"title\": \"My Workspace\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"workspace\": {\n        \"workspaceId\": \"{{workspaceId}}\",\n        \"path\": \"/Users/dev01/Desktop/test1\",\n        \"title\": \"My Workspace\",\n        \"sessionIds\": [],\n        \"createdAt\": \"\",\n        \"updatedAt\": \"\"\n      }\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "workspace.delete",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/workspace.delete",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "workspace.delete"
+              ]
+            },
+            "description": "Removes one Workspace registration only — the directory, user files and session logs remain untouched; those sessions become ungrouped.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"workspace.delete\",\n  \"payload\": {\n    \"workspaceId\": \"{{workspaceId}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"deleted\": true\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "workspace.insertBefore",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/workspace.insertBefore",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "workspace.insertBefore"
+              ]
+            },
+            "description": "Moves one Workspace within the registry display order (DOM-insertBefore-like); omitted `beforeWorkspaceId` appends to the end.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"workspace.insertBefore\",\n  \"payload\": {\n    \"workspaceId\": \"{{workspaceId}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"workspaceIds\": []\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "workspace.insertSessionBefore",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/workspace.insertSessionBefore",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "workspace.insertSessionBefore"
+              ]
+            },
+            "description": "Moves an accounted session within its workspace's manual order; `beforeSessionId` inserts before the anchor, omitted appends. Unknown workspace → workspace-not-found; unknown session/anchor → workspace-move-invalid.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"workspace.insertSessionBefore\",\n  \"payload\": {\n    \"workspaceId\": \"{{workspaceId}}\",\n    \"sessionId\": \"{{sessionId}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"workspace\": {\n        \"workspaceId\": \"{{workspaceId}}\",\n        \"path\": \"/Users/dev01/Desktop/test1\",\n        \"title\": \"test1\",\n        \"sessionIds\": [],\n        \"createdAt\": \"\",\n        \"updatedAt\": \"\"\n      }\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "workspace.archiveSession",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/workspace.archiveSession",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "workspace.archiveSession"
+              ]
+            },
+            "description": "Adds one session to the registry-global archive set (hidden from grouping surfaces, log + workspace slot kept). Idempotent. Returns the full updated set.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"workspace.archiveSession\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"archivedSessionIds\": []\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Skills",
+      "item": [
+        {
+          "name": "skill.list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/skill.list",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "skill.list"
+              ]
+            },
+            "description": "Lists the user-invocable skill catalog for the session's project (resolved from the session header cwd — the client never submits a path). Invocation itself is a plain `session.prompt` starting with \"/name\".",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"skill.list\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"skills\": [\n        {\n          \"name\": \"my-skill\",\n          \"description\": \"Does something\",\n          \"whenToUse\": \"When …\",\n          \"modelInvocable\": true\n        }\n      ]\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Agent Presets",
+      "item": [
+        {
+          "name": "agentPreset.list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/agentPreset.list",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "agentPreset.list"
+              ]
+            },
+            "description": "Lists every preset the deployment currently supplies, in root-precedence order. `authorable` = whether a user root exists for copying; `hasDocument` = whether openDocument can hand a directory to a native opener.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"agentPreset.list\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"presets\": [],\n      \"authorable\": false,\n      \"hasDocument\": false\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "agentPreset.select",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/agentPreset.select",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "agentPreset.select"
+              ]
+            },
+            "description": "Recomposes one session's agent from a different preset. Only allowed while the session is blank (no turn has run); otherwise agent-preset-locked.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"agentPreset.select\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\",\n    \"agentPreset\": \"base\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"agentPreset\": \"base\"\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "agentPreset.read",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/agentPreset.read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "agentPreset.read"
+              ]
+            },
+            "description": "Reads one preset's composition text for the read-only viewer. Privileged: a composition names the plugins a session runs (loopback-pinned).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"agentPreset.read\",\n  \"payload\": {\n    \"agentPreset\": \"base\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"agentPreset\": \"base\",\n      \"trust\": \"system\",\n      \"content\": \"# composition text …\",\n      \"name\": \"Base\"\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "agentPreset.copy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/agentPreset.copy",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "agentPreset.copy"
+              ]
+            },
+            "description": "Creates a locally authored preset by copying an existing one whole. Copy-only authoring: no composition text and no path crosses the wire.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"agentPreset.copy\",\n  \"payload\": {\n    \"from\": \"base\",\n    \"agentPreset\": \"my-preset\",\n    \"name\": \"My Preset\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"agentPreset\": \"my-preset\"\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "agentPreset.openDocument",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/agentPreset.openDocument",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "agentPreset.openDocument"
+              ]
+            },
+            "description": "Hands one locally authored preset's DIRECTORY to the platform opener (request carries an id, never a path). Shipped presets refused. No native opener → {opened:false, path}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"agentPreset.openDocument\",\n  \"payload\": {\n    \"agentPreset\": \"my-preset\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"opened\": true\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "agentPreset.remove",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/agentPreset.remove",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "agentPreset.remove"
+              ]
+            },
+            "description": "Deletes a locally authored preset. Shipped presets are refused (agent-preset-read-only).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"agentPreset.remove\",\n  \"payload\": {\n    \"agentPreset\": \"my-preset\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {}\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Goals",
+      "item": [
+        {
+          "name": "goal.create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/goal.create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "goal.create"
+              ]
+            },
+            "description": "Creates and arms a goal for an ordinary session. The read side is the `goal` session projection; this mutation answers with the new CAS ref.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"goal.create\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\",\n    \"objective\": \"Refactor the auth module and add tests.\",\n    \"maxGoalRounds\": 3\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"ref\": {\n        \"id\": \"<goal-id>\",\n        \"revision\": 1\n      }\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "goal.edit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/goal.edit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "goal.edit"
+              ]
+            },
+            "description": "Edits objective and/or round cap without changing phase. `ref` is the compare-and-set identity of the exact revision.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"goal.edit\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\",\n    \"ref\": {\n      \"id\": \"<goal-id>\",\n      \"revision\": 1\n    },\n    \"objective\": \"Refactor the auth module.\",\n    \"maxGoalRounds\": 5\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"ref\": {\n        \"id\": \"<goal-id>\",\n        \"revision\": 2\n      }\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "goal.pause",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/goal.pause",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "goal.pause"
+              ]
+            },
+            "description": "Pauses an active goal and disarms automatic continuation.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"goal.pause\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\",\n    \"ref\": {\n      \"id\": \"<goal-id>\",\n      \"revision\": 2\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"ref\": {\n        \"id\": \"<goal-id>\",\n        \"revision\": 3\n      }\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "goal.resume",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/goal.resume",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "goal.resume"
+              ]
+            },
+            "description": "Resumes and arms a stopped goal.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"goal.resume\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\",\n    \"ref\": {\n      \"id\": \"<goal-id>\",\n      \"revision\": 3\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"ref\": {\n        \"id\": \"<goal-id>\",\n        \"revision\": 4\n      }\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "goal.complete",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/goal.complete",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "goal.complete"
+              ]
+            },
+            "description": "Marks a current non-complete goal complete and disarms it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"goal.complete\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\",\n    \"ref\": {\n      \"id\": \"<goal-id>\",\n      \"revision\": 4\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"ref\": {\n        \"id\": \"<goal-id>\",\n        \"revision\": 5\n      }\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "goal.clear",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/goal.clear",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "goal.clear"
+              ]
+            },
+            "description": "Clears the current goal while retaining a durable tombstone and history.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"goal.clear\",\n  \"payload\": {\n    \"sessionId\": \"{{sessionId}}\",\n    \"ref\": {\n      \"id\": \"<goal-id>\",\n      \"revision\": 5\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"cleared\": true\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Settings",
+      "item": [
+        {
+          "name": "settings.describe",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings.describe",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "settings.describe"
+              ]
+            },
+            "description": "Describes every registered settings namespace: redacted layered values (resolved/base/user), serialized schemastery schema, `secrets` slot list, revision, applies. Values are redacted — secret values never ride a response.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"settings.describe\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"writable\": true,\n      \"hasDocument\": true,\n      \"namespaces\": []\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "settings.openDocument",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings.openDocument",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "settings.openDocument"
+              ]
+            },
+            "description": "Materializes the configured local document when absent and asks the Host to hand it to the platform text-document opener. The request carries no path.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"settings.openDocument\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"opened\": true\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "settings.update",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings.update",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "settings.update"
+              ]
+            },
+            "description": "Merges a patch into one namespace's user layer (validate → persist → commit). Secret-role fields may be included (write-only direction). Stale `expectedRevision` → settings-conflict with both revisions.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"settings.update\",\n  \"payload\": {\n    \"ns\": \"agent-default-model\",\n    \"patch\": {\n      \"provider\": \"deepseek\",\n      \"model\": \"deepseek-chat\"\n    },\n    \"expectedRevision\": 1\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"ns\": \"agent-default-model\",\n      \"schema\": {},\n      \"value\": {\n        \"provider\": \"deepseek\",\n        \"model\": \"deepseek-chat\"\n      },\n      \"applies\": \"live\",\n      \"secrets\": [],\n      \"revision\": 2\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "settings.replace",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings.replace",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "settings.replace"
+              ]
+            },
+            "description": "Replaces one namespace's user section wholesale — the removal/reset path a merge cannot express (`section: {}` resets to composition defaults). Keys absent from `section` are dropped, secrets included.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"settings.replace\",\n  \"payload\": {\n    \"ns\": \"agent-default-model\",\n    \"section\": {}\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"ns\": \"agent-default-model\",\n      \"schema\": {},\n      \"value\": {},\n      \"applies\": \"live\",\n      \"secrets\": [],\n      \"revision\": 2\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "settings.mutate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings.mutate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "settings.mutate"
+              ]
+            },
+            "description": "Applies path-addressed edits to one namespace's user section, resolved against the section as stored (NOT against the caller's last read). `set` writes at the path, `unset` removes it; empty path addresses the section root.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"settings.mutate\",\n  \"payload\": {\n    \"ns\": \"agent-default-model\",\n    \"ops\": [\n      {\n        \"op\": \"set\",\n        \"path\": [\n          \"provider\"\n        ],\n        \"value\": \"deepseek\"\n      },\n      {\n        \"op\": \"unset\",\n        \"path\": [\n          \"model\"\n        ]\n      }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"ns\": \"agent-default-model\",\n      \"schema\": {},\n      \"value\": {\n        \"provider\": \"deepseek\"\n      },\n      \"applies\": \"live\",\n      \"secrets\": [],\n      \"revision\": 2\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Credentials",
+      "item": [
+        {
+          "name": "credentials.describe",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/credentials.describe",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "credentials.describe"
+              ]
+            },
+            "description": "Describes the named references (batch): configured state, winning source, writability — NEVER values. An invalid reference name → bad-request; an unknown-but-valid one describes as unconfigured.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"credentials.describe\",\n  \"payload\": {\n    \"refs\": [\n      \"OPENAI_API_KEY\",\n      \"ANTHROPIC_API_KEY\"\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"credentials\": {\n        \"OPENAI_API_KEY\": {\n          \"configured\": true,\n          \"source\": \"env\",\n          \"writable\": false\n        }\n      }\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "credentials.set",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/credentials.set",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "credentials.set"
+              ]
+            },
+            "description": "Stores one credential value in the writable layer. Rejected (credential-rejected) while a read-only layer (e.g. the live environment) shadows the reference.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"credentials.set\",\n  \"payload\": {\n    \"ref\": \"OPENAI_API_KEY\",\n    \"value\": \"sk-…\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {}\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "credentials.unset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/credentials.unset",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "credentials.unset"
+              ]
+            },
+            "description": "Removes one credential from the writable layer; same shadowing rejection as `set`. Unsetting an absent reference succeeds (idempotent).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"credentials.unset\",\n  \"payload\": {\n    \"ref\": \"OPENAI_API_KEY\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {}\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "LLM",
+      "item": [
+        {
+          "name": "llm.providers",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/llm.providers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "llm.providers"
+              ]
+            },
+            "description": "Lists every configurable provider with its live/dormant state, in directory declaration order.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"llm.providers\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"providers\": [\n        {\n          \"provider\": \"deepseek\",\n          \"displayName\": \"DeepSeek\",\n          \"settingsNs\": \"llm-deepseek\",\n          \"settingsPath\": [],\n          \"active\": true\n        }\n      ]\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "llm.models",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/llm.models",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "llm.models"
+              ]
+            },
+            "description": "Host-scoped model catalog over every registered provider route (the settings surface's models view, needing no session). Per-provider failures ride `failures` without failing the sound groups.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"llm.models\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"groups\": [],\n      \"failures\": []\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "llm.discoverModels",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/llm.discoverModels",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "llm.discoverModels"
+              ]
+            },
+            "description": "Interrogates a provider endpoint the configuration surface is still drafting and returns the models it advertises. Nothing is written — the reply is candidates. `apiKey` is accepted here but never stored or returned.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"llm.discoverModels\",\n  \"payload\": {\n    \"settingsNs\": \"llm-openai\",\n    \"provider\": \"openai\",\n    \"baseURL\": \"https://api.openai.com/v1\",\n    \"api\": \"chat/completions\",\n    \"apiKey\": \"sk-…\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"models\": [\n        {\n          \"id\": \"gpt-4o\",\n          \"name\": \"GPT-4o\",\n          \"contextWindow\": 128000,\n          \"maxTokens\": 16384\n        }\n      ]\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Streams & Downloads (WebSocket / GET, no envelope)",
+      "item": [
+        {
+          "name": "events.mux (WebSocket stream)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{wsBaseUrl}}/api/events.mux",
+              "host": [
+                "{{wsBaseUrl}}"
+              ],
+              "protocol": "ws",
+              "path": [
+                "api",
+                "events.mux"
+              ]
+            },
+            "description": "All-session aggregated mux stream. On the standard GUI this is a WebSocket downlink (ws://127.0.0.1:3080/api/events.mux); open it as a Postman WebSocket request and read the server frames. Each frame is a ServerRequest: session/event, session/subscribed, approval/requested, question/requested, session/queue, session/jobs, session/projection, stream/error, … On open it emits a subscribed control frame for every attached session, then replays pending approval/question frames."
+          },
+          "response": []
+        },
+        {
+          "name": "events.host (WebSocket stream)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{wsBaseUrl}}/api/events.host",
+              "host": [
+                "{{wsBaseUrl}}"
+              ],
+              "protocol": "ws",
+              "path": [
+                "api",
+                "events.host"
+              ]
+            },
+            "description": "Host-level info stream (WebSocket downlink on the GUI; SSE GET in the pure fetch carrier). Frames: host/session-added, host/session-removed, host/session-status, host/agent-error, host/workspace-changed, host/workspace-removed, host/workspace-order-changed, host/archived-sessions-changed, host/remote-event, stream/error."
+          },
+          "response": []
+        },
+        {
+          "name": "session.export (ZIP download)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/session.export?sessionId={{sessionId}}&includeDescendants=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "session.export"
+              ],
+              "query": [
+                {
+                  "key": "sessionId",
+                  "value": "{{sessionId}}"
+                },
+                {
+                  "key": "includeDescendants",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Streams one session-log ZIP — the root artifact verbatim plus each subagent descendant's — as an attachment response (also HEAD supported). No wire envelope. Missing services → 500; missing root session → 404."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Respond (POST /api/respond)",
+      "item": [
+        {
+          "name": "respond",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/respond",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "protocol": "http",
+              "path": [
+                "api",
+                "respond"
+              ]
+            },
+            "description": "Carries a ClientResponse answering an answerable ServerRequest (approval/requested or question/requested) received on the SSE stream. `rpcId` must echo the server request's rpcId — never minted anew. Approval value: { sessionId, approvalId, outcome: \"allowed-once\" | \"rejected\" }. Question value: { sessionId, answer: { answers: [{ id, selected: string[], custom? }] } }. The HTTP response body is the carrier receipt: { accepted: true } | { accepted: false, reason: \"not-pending\" | \"bad-response\" }.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-response\",\n  \"rpcId\": \"<rpcId echoed from the approval/question server-request frame>\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"sessionId\": \"{{sessionId}}\",\n      \"answer\": {\n        \"answers\": [\n          {\n            \"id\": \"<question-id>\",\n            \"selected\": [\n              \"<option-label>\"\n            ]\n          }\n        ]\n      }\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Receipt accepted",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"accepted\": true\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Receipt rejected",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"accepted\": false,\n  \"reason\": \"not-pending\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
