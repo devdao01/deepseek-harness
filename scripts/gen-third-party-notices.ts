@@ -130,16 +130,28 @@ function readManifest(rel: string): Manifest {
 /**
  * Manifest globs, derived from the workspace declarations rather than listed
  * here, so a new member area (`tools/*`) is read the day it is declared.
+ * Negated members (`!apps/frontend`) contribute no glob — see
+ * `excludedMemberPrefixes` for how their matches are dropped.
  * @returns one glob per manifest-bearing location, repository-relative.
  */
 export function manifestPatterns(rootMembers: readonly string[]): string[] {
   return [
     'package.json',
-    ...rootMembers.map(member => `${member}/package.json`),
+    ...rootMembers.filter(member => !member.startsWith('!')).map(member => `${member}/package.json`),
     // The demo leaves join the workspace through `examples/package.json`, so
     // their own manifests are members of nothing and no glob above reaches them.
     'examples/*/package.json',
   ]
+}
+
+/**
+ * Path prefixes of negated workspace members (`!apps/frontend`): a manifest
+ * under one is not a workspace member even when a positive glob matches it, so
+ * its dependencies are not this repository's to notice.
+ * @returns one `/`-suffixed prefix per negated member.
+ */
+export function excludedMemberPrefixes(rootMembers: readonly string[]): string[] {
+  return rootMembers.filter(member => member.startsWith('!')).map(member => `${member.slice(1)}/`)
 }
 
 /** The `packages:` member globs declared by one pnpm workspace file. */
@@ -159,12 +171,15 @@ function workspaceMembers(rel: string): string[] {
  * would silently push dev-area manifests into the runtime tier.
  */
 function loadWorkspaceManifests(): { manifests: Map<string, Manifest>; names: Set<string> } {
-  const patterns = manifestPatterns(workspaceMembers('pnpm-workspace.yaml'))
+  const members = workspaceMembers('pnpm-workspace.yaml')
+  const patterns = manifestPatterns(members)
+  const excluded = excludedMemberPrefixes(members)
   const manifests = new Map<string, Manifest>()
   const names = new Set<string>()
   for (const pattern of patterns) {
     for (const path of globSync(pattern, { cwd: root })) {
       const normalized = path.replaceAll('\\', '/')
+      if (excluded.some(prefix => normalized.startsWith(prefix))) continue
       const manifest = readManifest(normalized)
       manifests.set(normalized, manifest)
       if (manifest.name !== undefined) names.add(manifest.name)

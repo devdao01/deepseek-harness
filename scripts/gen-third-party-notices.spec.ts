@@ -9,6 +9,7 @@ import {
   isOwnerAuthorizedRuntime,
   isPermissive,
   type Manifest,
+  excludedMemberPrefixes,
   manifestPatterns,
   parsePyprojectRequirements,
   parseVendoredRows,
@@ -341,5 +342,16 @@ describe('manifestPatterns', () => {
       'native/landlock-run/packages/*/package.json',
       'examples/*/package.json',
     ])
+  })
+
+  it('gives a negated member no glob and an exclusion prefix instead', () => {
+    const members = ['apps/*', '!apps/frontend']
+
+    expect(manifestPatterns(members)).toEqual([
+      'package.json',
+      'apps/*/package.json',
+      'examples/*/package.json',
+    ])
+    expect(excludedMemberPrefixes(members)).toEqual(['apps/frontend/'])
   })
 })
