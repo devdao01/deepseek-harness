@@ -7,6 +7,9 @@ packages:
   - native/landlock-run/packages/*
   # Product assemblies over the package tier; apps/cli owns the `dsh` bin.
   - apps/*
+  # The custom-frontend submodule is a fully standalone SPA with its own
+  # lockfile and node_modules; it must not join this workspace.
+  - '!apps/frontend'
   - website
   # The runnable demo leaves join as ONE workspace member: examples/package.json
   # declares the union of every leaf's cordis.yml plugins as workspace:*, so a
