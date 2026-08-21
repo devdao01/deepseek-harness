@@ -17,6 +17,13 @@
                                  help="Bearer token for the harness (~/.dsh/api-token on the harness host). Never exposed to the browser.">
                             <field name="npei_harness_api_token" password="True"/>
                         </setting>
+                        <setting string="Connection"
+                                 help="Ping the harness (host.describe) with the saved URL and token.">
+                            <button name="action_test_harness_connection"
+                                    type="object"
+                                    string="Test Connection"
+                                    class="btn-secondary"/>
+                        </setting>
                     </block>
                 </app>
             </xpath>
