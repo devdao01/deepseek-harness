@@ -13,6 +13,10 @@ import AgentRegistry, { type AgentFactory } from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import SessionStore, { SessionId, type Session } from '@deepseek-ai/dsh-session'
 import UserQuestionService from '@deepseek-ai/dsh-user-questions'
+import Storage from '@deepseek-ai/dsh-storage'
+import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
+import WorkspaceRegistry from '@deepseek-ai/dsh-workspace'
+import { MemoryStorageBackend } from '../../../storage/storage-domain/tests/helpers/memory-backend.ts'
 import { RpcId, type RpcRequest } from '../src/api/rpc.ts'
 import type { HostFrame } from '../src/api/events.ts'
 import {
@@ -104,7 +108,7 @@ const services = new Map<string, Record<string, unknown>>()
 async function harness(
   presets?: readonly string[],
   persistence?: unknown,
-  options: { userIds?: readonly string[]; defaults?: Record<string, unknown> } = {},
+  options: { userIds?: readonly string[]; defaults?: Record<string, unknown>; mountWorkspaces?: boolean } = {},
 ) {
   const cwd = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-apiproxy-preset-')))
   const ctx = new Context()
@@ -112,6 +116,18 @@ async function harness(
   await ctx.plugin(AgentRegistry)
   await ctx.plugin(UserQuestionService)
   ctx.provide('sessionPersistence', (persistence ?? { list: () => Promise.resolve([]) }) as never)
+  // A real workspace registry (opt-in) so `agentPreset.copy` can provision the
+  // preset's conventional workspace; the preset root is a temp dir so copies
+  // never touch the real home directory. Tests that stub the registry
+  // themselves leave this off.
+  if (options.mountWorkspaces === true) {
+    await ctx.plugin(Storage)
+    ctx.storage.backend.register('memory', new MemoryStorageBackend())
+    const storageDomain = new DomainFacility(ctx, { backend: 'memory', routes: {} })
+    ctx.storage.mount('domain', storageDomain)
+    ctx.provide('storageDomain', storageDomain)
+    await ctx.plugin(WorkspaceRegistry)
+  }
   if (presets !== undefined) ctx.provide('agentPresets', roster(presets, options.userIds) as never)
 
   const factory: AgentFactory = {
@@ -138,6 +154,7 @@ async function harness(
   const api = createApiProxy(ctx, {
     defaultModelSelection: () => ({ provider: 'test', model: 'test-model' }),
     cwd,
+    presetWorkspacesRoot: cwd,
     ...options.defaults,
   })
   return { api, ctx, cwd }
@@ -481,8 +498,8 @@ describe('authoring over the wire', () => {
     expect(response.result.value.content).toContain('- id: x')
   })
 
-  it('copies a preset under a new id', async () => {
-    const { api } = await harness(['standard'])
+  it('copies a preset under a new id and provisions its conventional workspace', async () => {
+    const { api, cwd } = await harness(['standard'], undefined, { mountWorkspaces: true })
 
     const response = await api.agentPresets.copy(
       request({ from: 'standard', agentPreset: 'mine', name: '我的模式' }))
@@ -490,6 +507,9 @@ describe('authoring over the wire', () => {
     expect(response.result.ok).toBe(true)
     if (!response.result.ok) throw new Error('unreachable')
     expect(response.result.value.agentPreset).toBe('mine')
+    // The preset root is the harness temp dir, so the conventional workspace is
+    // <cwd>/mine, created and registered as part of the copy.
+    expect(response.result.value.workspace.path).toBe(realpathSync(join(cwd, 'mine')))
   })
 
   it('rejects a copy target that could escape the preset root', async () => {

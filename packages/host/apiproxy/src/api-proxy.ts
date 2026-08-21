@@ -5,6 +5,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { mkdir, stat } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { dirname } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
@@ -51,6 +52,11 @@ import {
   type SessionLogCompressionLevel,
 } from './session-export.ts'
 import { streamWorkspaceFile } from './workspace-file.ts'
+import {
+  isPresetWorkspaceIdSafe,
+  presetWorkspacePath,
+  resolvePresetWorkspacesRoot,
+} from './preset-workspace.ts'
 import type { SessionRawArtifact } from '@deepseek-ai/dsh-session-persistence'
 import {
   SESSION_SEARCH_RESULT_LIMIT,
@@ -630,6 +636,12 @@ export interface ApiProxyDefaults {
   /** Maximum artifact size eligible for one cold blankness read. */
   coldBlankProbeMaxBytes?: number
   /**
+   * Configured root for preset-conventional workspaces, resolved through
+   * {@link resolvePresetWorkspacesRoot} at construction (absent →
+   * `<home>/workspace`; a `~/` prefix expands; a relative value fails loud).
+   */
+  presetWorkspacesRoot?: string
+  /**
    * Whether handing a path to the native opener can work at all — the
    * `hasDocument` capability the preset roster reports, and the switch
    * between opening a preset directory and answering its path as text.
@@ -1078,6 +1090,10 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     ?? DEFAULT_SESSION_LOG_COMPRESSION_LEVEL
   const coldBlankProbeMaxBytes = defaults.coldBlankProbeMaxBytes
     ?? DEFAULT_COLD_BLANK_PROBE_MAX_BYTES
+  // Resolved once at construction (load time) so a misconfigured relative root
+  // fails loud here, not on the first preset copy. Idempotent on an already
+  // absolute value, so re-resolving a plugin-resolved root is a no-op.
+  const presetWorkspacesRoot = resolvePresetWorkspacesRoot(defaults.presetWorkspacesRoot, homedir())
   /** The seed model each create/resume declares; re-read so it never goes stale. */
   const agentOptions = (): AgentOptions => {
     const { provider, model } = defaults.defaultModelSelection()
@@ -2147,6 +2163,31 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             })
           }
         }
+        // Preset-conventional default: a create that names only a preset (no
+        // explicit workspace and no cwd) attaches to that preset's conventional
+        // workspace when one is registered, exactly as if the request had named
+        // its workspaceId — session attaches AND takes its path as cwd. A
+        // missing registration (or a directory that no longer exists) falls
+        // through to defaults.cwd; only `agentPreset.copy` provisions, so a
+        // deleted registration stays the user's choice and never auto-creates.
+        const registry = ctx.get('workspaceRegistry')
+        if (
+          registry !== undefined
+          && workspace === undefined
+          && request.payload.cwd === undefined
+          && request.payload.agentPreset !== undefined
+          && isPresetWorkspaceIdSafe(request.payload.agentPreset)
+        ) {
+          try {
+            workspace = await registry.resolveByPath(
+              presetWorkspacePath(presetWorkspacesRoot, request.payload.agentPreset),
+            )
+          } catch {
+            // The conventional directory does not exist (realpath ENOENT) or is
+            // otherwise unresolvable: fall through to defaults.cwd unchanged.
+            workspace = undefined
+          }
+        }
         const cwd = workspace?.path ?? request.payload.cwd ?? defaults.cwd
         const requestedPreset = request.payload.agentPreset
         try {
@@ -3128,11 +3169,43 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         const { from, agentPreset, name } = request.payload
         const presets = ctx.get('agentPresets')
         if (presets === undefined) return err(request, noRoster(agentPreset))
+        // The join that builds the conventional workspace path must not trust
+        // the id; a separator or `..` segment is refused before anything is
+        // copied, so a dangerous id never even reaches the roster.
+        if (!isPresetWorkspaceIdSafe(agentPreset)) {
+          return err(request, {
+            code: 'agent-preset-invalid',
+            message: `agent preset id "${agentPreset}" cannot map to a workspace directory: it must be a single path segment (no separator or "..")`,
+            details: { agentPreset, reason: 'unsafe workspace path segment' },
+          })
+        }
         try {
           await presets.copy(from, agentPreset, name)
-          return ok(request, { agentPreset })
         } catch (error: unknown) {
           return err(request, presetError(agentPreset, error))
+        }
+        // Copy-then-provision is one operation: the preset now exists, so its
+        // conventional workspace is created (or an existing directory/record
+        // adopted, idempotently). A provisioning failure rolls the copy back so
+        // a failed create never leaves a preset without its promised workspace.
+        const directory = presetWorkspacePath(presetWorkspacesRoot, agentPreset)
+        try {
+          await mkdir(directory, { recursive: true })
+          const { workspace } = await ensureWorkspace(directory)
+          return ok(request, { agentPreset, workspace: workspaceView(workspace) })
+        } catch (error: unknown) {
+          try {
+            await presets.remove(agentPreset)
+          } catch {
+            // The rollback remove failed too: the copied preset lingers, but
+            // the provisioning failure is the error the caller must see, and
+            // surfacing the remove failure instead would hide the root cause.
+          }
+          return err(request, {
+            code: 'directory-create-failed',
+            message: `agent preset "${agentPreset}" was copied but its workspace at "${directory}" could not be provisioned: ${error instanceof Error ? error.message : String(error)}`,
+            details: { path: directory },
+          })
         }
       },
 

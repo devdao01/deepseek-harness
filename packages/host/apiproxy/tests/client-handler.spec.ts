@@ -94,7 +94,10 @@ function scriptedApi(overrides: {
       list: r => ok(r, { presets: [], authorable: false, hasDocument: false }),
       select: r => ok(r, { agentPreset: r.payload.agentPreset }),
       read: r => ok(r, { agentPreset: r.payload.agentPreset, trust: 'user' as const, content: '' }),
-      copy: r => ok(r, { agentPreset: r.payload.agentPreset }),
+      copy: r => ok(r, {
+        agentPreset: r.payload.agentPreset,
+        workspace: { workspaceId: 'ws-stub' as never, path: '/w', title: 'w', sessionIds: [], createdAt: '', updatedAt: '' },
+      }),
       openDocument: r => ok(r, { opened: true as const }),
       remove: r => ok(r, {}),
       ...overrides.agentPresets,

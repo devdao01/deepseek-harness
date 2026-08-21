@@ -7,6 +7,7 @@ import { z } from 'zod'
 import type { RequestPayload, ResponseValue } from './rpc-map.ts'
 import type { Wire } from './rpc.schema.ts'
 import { sessionIdSchema } from './sessions.schema.ts'
+import { workspaceViewSchema } from './workspace.schema.ts'
 import type { AgentPresetEntry } from './agent-presets.ts'
 
 /** AgentPresetEntry row of agentPreset.list. */
@@ -62,9 +63,10 @@ export const agentPresetCopyRequestSchema = z.object({
   name: z.string().optional(),
 }) satisfies z.ZodType<Wire<RequestPayload<'agentPreset.copy'>>>
 
-/** agentPreset.copy response value. */
+/** agentPreset.copy response value: the new preset id plus its provisioned workspace. */
 export const agentPresetCopyValueSchema = z.object({
   agentPreset: z.string(),
+  workspace: workspaceViewSchema,
 }) satisfies z.ZodType<Wire<ResponseValue<'agentPreset.copy'>>>
 
 /** agentPreset.openDocument request payload. */

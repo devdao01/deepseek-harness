@@ -11,6 +11,7 @@
 
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { RpcRequest, RpcResponse } from './rpc.ts'
+import type { WorkspaceView } from './workspace.ts'
 
 /** One preset the deployment can compose a session's agent from. */
 export interface AgentPresetEntry {
@@ -87,7 +88,8 @@ export interface AgentPresetsApi {
   }>>
 
   /**
-   * Create a locally authored preset by copying an existing one whole.
+   * Create a locally authored preset by copying an existing one whole, and
+   * provision its conventional default workspace as one operation.
    *
    * The only authoring write. No composition text and no path crosses the
    * wire: `from` and `agentPreset` are ids the Host resolves against its own
@@ -95,9 +97,17 @@ export interface AgentPresetsApi {
    * the roster did not already carry. The copy keeps the source's description
    * (the file is the author's to edit afterwards) but not its name — `name`
    * here or the id fallback is what distinguishes the rows.
+   *
+   * After the copy, the preset's conventional workspace (`<root>/<agentPreset>`)
+   * is created or an existing directory/record adopted idempotently, and the
+   * response carries that `WorkspaceView`. An id that cannot be a single path
+   * segment (a separator or `..`) is refused with `agent-preset-invalid`
+   * before anything is copied. Copy-then-provision is atomic: if provisioning
+   * fails, the just-copied preset is removed and the call answers
+   * `directory-create-failed` naming the path.
    */
   copy(request: RpcRequest<{ from: string; agentPreset: string; name?: string }>):
-  Promise<RpcResponse<{ agentPreset: string }>>
+  Promise<RpcResponse<{ agentPreset: string; workspace: WorkspaceView }>>
 
   /**
    * Hand one locally authored preset's DIRECTORY to the platform opener, for

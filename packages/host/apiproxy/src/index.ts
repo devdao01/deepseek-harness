@@ -59,6 +59,15 @@ export interface Config {
    * @default 1024
    */
   coldBlankProbeMaxBytes?: number
+  /**
+   * Directory under which preset-conventional default workspaces live:
+   * creating preset `accounting` provisions `<root>/accounting`, and a session
+   * that names only that preset attaches there. Absent, the root is
+   * `<home>/workspace`. A `~/`-prefixed value expands against the home
+   * directory; any other value must be absolute — a relative value is rejected
+   * at load.
+   */
+  presetWorkspacesRoot?: string
 }
 
 /**
@@ -77,6 +86,7 @@ export class ApiProxyService extends Service implements ApiProxy {
     sessionExportCompressionLevel: z.number().step(1).min(0).max(9)
       .default(DEFAULT_SESSION_LOG_COMPRESSION_LEVEL) as z<SessionLogCompressionLevel>,
     coldBlankProbeMaxBytes: z.natural().default(DEFAULT_COLD_BLANK_PROBE_MAX_BYTES),
+    presetWorkspacesRoot: z.string(),
   })
 
   readonly sessions: ApiProxy['sessions']
@@ -106,6 +116,9 @@ export class ApiProxyService extends Service implements ApiProxy {
       ...(config.coldBlankProbeMaxBytes === undefined
         ? {}
         : { coldBlankProbeMaxBytes: config.coldBlankProbeMaxBytes }),
+      ...(config.presetWorkspacesRoot === undefined
+        ? {}
+        : { presetWorkspacesRoot: config.presetWorkspacesRoot }),
     })
     this.sessions = api.sessions
     this.subagents = api.subagents

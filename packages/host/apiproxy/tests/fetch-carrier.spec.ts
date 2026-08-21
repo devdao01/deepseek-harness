@@ -208,7 +208,10 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
         return Promise.resolve({ rpcId: request.rpcId, result: { ok: true as const, value } })
       },
       copy(request: RpcRequest<{ from: string; agentPreset: string }>) {
-        const value = { agentPreset: request.payload.agentPreset }
+        const value = {
+          agentPreset: request.payload.agentPreset,
+          workspace: { workspaceId: 'ws-stub' as never, path: '/w', title: 'w', sessionIds: [], createdAt: '', updatedAt: '' },
+        }
         return Promise.resolve({ rpcId: request.rpcId, result: { ok: true as const, value } })
       },
       openDocument(request: RpcRequest<{ agentPreset: string }>) {
@@ -386,7 +389,13 @@ describe('unary round trip (handler ⇄ client, no network)', () => {
       ok: true, value: { agentPreset: 'mine', trust: 'user', content: '' },
     })
     expect((await c.agentPresets.copy({ from: 'standard', agentPreset: 'mine' })).result)
-      .toEqual({ ok: true, value: { agentPreset: 'mine' } })
+      .toEqual({
+        ok: true,
+        value: {
+          agentPreset: 'mine',
+          workspace: { workspaceId: 'ws-stub', path: '/w', title: 'w', sessionIds: [], createdAt: '', updatedAt: '' },
+        },
+      })
     expect((await c.agentPresets.openDocument({ agentPreset: 'mine' })).result)
       .toEqual({ ok: true, value: { opened: true } })
     expect((await c.agentPresets.remove({ agentPreset: 'mine' })).result).toEqual({ ok: true, value: {} })

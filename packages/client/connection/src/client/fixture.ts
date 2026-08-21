@@ -2745,7 +2745,25 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           })
         }
         fixturePresets.set(agentPreset, { trust: 'user', content: source.content })
-        return ok(request, { agentPreset })
+        // Mirror the host: a copy provisions the preset's conventional
+        // workspace and returns its view. The fixture roots them under a
+        // deterministic fake path so the response type matches.
+        const conventionalPath = `/fixture/workspace/${agentPreset}`
+        const existingWorkspace = workspaces.find(w => w.path === conventionalPath)
+        const now = new Date().toISOString()
+        const workspace: WorkspaceView = existingWorkspace ?? {
+          workspaceId: wid(`fx-ws-${nextWorkspace++}`),
+          path: conventionalPath,
+          title: agentPreset,
+          sessionIds: [],
+          createdAt: now,
+          updatedAt: now,
+        }
+        if (existingWorkspace === undefined) {
+          workspaces.unshift(workspace)
+          emitHost({ type: 'host/workspace-changed', workspace: { ...workspace } })
+        }
+        return ok(request, { agentPreset, workspace: { ...workspace } })
       },
       // Native opens are deterministic no-op successes in this fixture, so the
       // open-directory affordance renders and the path-text fallback stays a
