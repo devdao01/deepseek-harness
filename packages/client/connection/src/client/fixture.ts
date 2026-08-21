@@ -2987,11 +2987,12 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       })
       return Promise.resolve({ accepted: true })
     },
-    // Satisfies the ApiProxy contract type only: the browser export button
-    // hands GET /api/session.export to the native download manager, so this
-    // stub is never reached through the fixture's dispatch.
+    // Satisfies the ApiProxy contract type only: the browser hands GET
+    // /api/session.export and GET /api/workspace.file to the native download
+    // manager, so these stubs are never reached through the fixture's dispatch.
     downloads: {
       sessionLog: () => Promise.resolve(new Response('fixture mode does not serve session export', { status: 404 })),
+      workspaceFile: () => Promise.resolve(new Response('fixture mode does not serve workspace files', { status: 404 })),
     },
   }
 

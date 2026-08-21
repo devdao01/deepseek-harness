@@ -50,6 +50,7 @@ import {
   type SessionLogExportReady,
   type SessionLogCompressionLevel,
 } from './session-export.ts'
+import { streamWorkspaceFile } from './workspace-file.ts'
 import type { SessionRawArtifact } from '@deepseek-ai/dsh-session-persistence'
 import {
   SESSION_SEARCH_RESULT_LIMIT,
@@ -1579,6 +1580,35 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     } catch {
       // Swallows only the unknown/unusable-preset rejection from the roster:
       // a deleted or broken preset must degrade this read, never fail it.
+      return undefined
+    }
+  }
+
+  /**
+   * Resolve a session's workspace directory by id without creating or resuming
+   * an agent: the live-session header when attached, else the persisted
+   * header from an inspection. Reuses the same `header.cwd` / `meta.cwd`
+   * sources the skills domain and `ensureSession` read; an unknown or
+   * unreadable session (or one with no recorded cwd) resolves to undefined so
+   * the caller answers 404.
+   * @param sessionId - the session whose workspace root is wanted.
+   * @param signal - cancellation forwarded to the persistence inspection.
+   * @returns the workspace directory, or undefined when it cannot be resolved.
+   */
+  async function resolveSessionCwd(
+    sessionId: SessionId,
+    signal: AbortSignal,
+  ): Promise<string | undefined> {
+    const live = ctx.get('sessions')?.get(sessionId)
+    if (live !== undefined) return live.header.cwd
+    const persistence = ctx.get('sessionPersistence')
+    if (persistence === undefined) return undefined
+    try {
+      const inspected = await persistence.inspect(sessionId, signal)
+      return inspected.meta.cwd
+    } catch {
+      // Unknown or unreadable persisted session: the download answers 404, and
+      // echoing the backend error would leak an absolute host path.
       return undefined
     }
   }
@@ -3627,6 +3657,14 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             },
           },
         )
+      },
+
+      async workspaceFile(request, signal) {
+        // An unknown session is refused before any filesystem access, so the
+        // containment check only ever runs against a real workspace root.
+        const cwd = await resolveSessionCwd(request.sessionId, signal)
+        if (cwd === undefined) return new Response('session not found', { status: 404 })
+        return streamWorkspaceFile(cwd, request.path, signal)
       },
     },
 

@@ -293,6 +293,9 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
       async sessionLog() {
         return new Response('stub', { status: 404 })
       },
+      async workspaceFile() {
+        return new Response('stub', { status: 404 })
+      },
     },
   }
 }

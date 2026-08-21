@@ -24,3 +24,15 @@ export const sessionLogQuerySchema = z
     sessionId: query.sessionId,
     ...(query.includeDescendants === 'true' ? { includeDescendants: true } : {}),
   })) satisfies z.ZodType<Parameters<DownloadsApi['sessionLog']>[0]>
+
+/**
+ * workspace.file query params → the workspaceFile request. `path` is any
+ * non-empty string (absolute, or relative to the session's workspace); the
+ * containment check in the handler — not this schema — is what keeps the read
+ * inside the workspace.
+ */
+export const workspaceFileQuerySchema = z
+  .object({
+    sessionId: sessionIdSchema,
+    path: z.string().min(1),
+  }) satisfies z.ZodType<Parameters<DownloadsApi['workspaceFile']>[0]>
