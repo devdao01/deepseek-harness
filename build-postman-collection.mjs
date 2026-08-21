@@ -451,7 +451,8 @@ const collection = {
       '## Security fence\n' +
       '- Reachability fence: every /api request must reach the server on a loopback Host or a declared `trustedHosts` authority, OR carry a valid `Authorization: Bearer <token>` matching a configured `auth.tokens` entry (a token lets a server client in from any exposed Host). Browser CSRF rules (same-origin Origin, no cross-site marker, JSON-only POST) are always enforced for browser-marked requests, token or not.\n' +
       '- Pins: native-dialog, settings/credentials, `llm.discoverModels`, and agentPreset authoring methods are loopback-only, OR callable by an authenticated client when the deployment lists them in `auth.unpinned`.\n' +
-      '- A present-but-unknown token → HTTP 401. No `auth` configured → today\'s behavior (reachability + loopback pins), and the `apiToken` header is ignored.\n\n' +
+      '- A present-but-unknown token → HTTP 401. No `auth` configured → today\'s behavior (reachability + loopback pins), and the `apiToken` header is ignored.\n' +
+      '- The `dsh web` deployment makes auth MANDATORY: it auto-generates a persistent token on first boot at `$DSH_HOME/api-token` (default `~/.dsh/api-token`) — read it with `cat ~/.dsh/api-token` and put it in the `apiToken` variable. Override with `DSH_API_TOKEN`, or rotate by deleting that file. The loopback SPA and curl lanes keep working token-less.\n\n' +
       '## Notes\n' +
       '- Single-user local service. Loopback-only by default; Bearer-token auth is opt-in via the connection plugin `auth` config. `name` on a token is for logs/rotation only, never an identity the API trusts.\n' +
       '- Postman is not a browser, so no CORS applies.',

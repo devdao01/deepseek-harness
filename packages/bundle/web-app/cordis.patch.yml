@@ -134,6 +134,11 @@
         printUrl: true
         surfaceContext: true
         trustedHosts: !!js ctx.webStartup.trustedHosts
+        # Mandatory Bearer auth for the web deployment: this row resolves the
+        # token (DSH_API_TOKEN env → persisted <state-root>/api-token → generate
+        # + persist) and publishes it on webRuntime for the connection row. The
+        # file lives beside the rest of the harness's durable state.
+        apiTokenFile: !!js dshHomePath('api-token')
 
     # The client-plugin reload chain, always mounted: it is idle until a
     # rebuild watcher (pnpm run dev:web) actually rewrites client bundles. It
@@ -161,15 +166,21 @@
         # A deployment adding authorities keeps this expression and concatenates
         # its literals, for example: ['app.internal', ...ctx.webRuntime.trustedHosts].
         trustedHosts: !!js ctx.webRuntime.trustedHosts
-        # Bearer-token API access for server clients (Odoo). Active only while
-        # DSH_API_TOKEN is set: without it the block collapses to disabled auth
-        # and the deployment behaves exactly as before. The unpinned list is
-        # this deployment's choice — agentPreset authoring over the API.
-        auth: !!js |
-          process.env.DSH_API_TOKEN === undefined ? {} : {
-            tokens: [{ name: 'odoo', token: process.env.DSH_API_TOKEN }],
-            unpinned: ['agentPreset.read', 'agentPreset.copy', 'agentPreset.openDocument', 'agentPreset.remove'],
-          }
+        # Bearer-token API access for server clients (Odoo), MANDATORY for the
+        # web deployment: web-runtime always resolves a token (env override, a
+        # persisted file, or a freshly generated + persisted one), so auth is
+        # always active while the same-origin SPA and loopback curl keep working
+        # token-less. The unpinned list is this deployment's choice — agentPreset
+        # authoring over the API.
+        auth:
+          tokens:
+            - name: web
+              token: !!js ctx.webRuntime.apiToken
+          unpinned:
+            - agentPreset.read
+            - agentPreset.copy
+            - agentPreset.openDocument
+            - agentPreset.remove
 
     - id: api-remotes
       name: '@deepseek-ai/dsh-api-remotes'

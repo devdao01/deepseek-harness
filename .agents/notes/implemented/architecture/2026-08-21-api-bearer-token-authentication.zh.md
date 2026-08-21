@@ -18,7 +18,9 @@ Status: implemented
 
 **通道。** 该判定是一个共享闭包，应用于 HTTP `/api` route（unary POST、`/api/respond`、GET 下载、SSE-426 路径）与两个 WS upgrade。`http-bridge` 会把 `Authorization` 头转发进 Fetch 请求，因此钉住检查会一致地重新读取它。浏览器无法设置 WebSocket 请求头，因此 SPA 的 WS 路径保持同源回环且不带 token；服务端 WS 客户端用该头认证。
 
-**配置，高声失败。** `auth: { tokens: [{ name, token }], unpinned: [<钉住方法>, …] }`。`prepareApiAuth` 在 token 短于 `MIN_API_TOKEN_LENGTH`（16；文档推荐 ≥32 个随机字符）或 `unpinned` 条目不在 `PRIVILEGED_METHODS` 中时于加载期抛出。`unpinned` 的代码默认为空；部署的初始选择——`agentPreset.read/copy/openDocument/remove`——位于其 cordis.yml 覆盖层，而非代码。token 由环境提供（`token: !!js process.env.DSH_API_TOKEN`）。
+**配置，高声失败。** `auth: { tokens: [{ name, token }], unpinned: [<钉住方法>, …] }`。`prepareApiAuth` 在 token 短于 `MIN_API_TOKEN_LENGTH`（16；文档推荐 ≥32 个随机字符）或 `unpinned` 条目不在 `PRIVILEGED_METHODS` 中时于加载期抛出。`unpinned` 的代码默认为空；部署的初始选择——`agentPreset.read/copy/openDocument/remove`——位于其 cordis.yml 覆盖层，而非代码。
+
+**对 Web 部署为强制。** `connection` 插件的 auth 保持通用的选择性开启（其他组合包不变），但 Web 表层（`dsh web`，`@deepseek-ai/dsh-web-app`）始终带 token 启动，使服务端客户端开箱即可认证。新的受门控模块 [`api-token.ts`](../../../packages/bundle/web-app/src/api-token.ts) 按以下顺序解析 token：设置了 `DSH_API_TOKEN` env 时用它（校验 ≥16，绝不持久化）→ 上一次启动持久化在 `$DSH_HOME/api-token`（默认 `~/.dsh/api-token`，与 harness 其余持久状态同一个根）的 token → 否则生成一个新的 32 字节十六进制 token，以 0600 原子持久化，并按文件路径（绝非值）记录一次日志：`dsh web: no API token found; generated one at <path> — read it with: cat <path>`。存在但不可读或格式错误（空/过短）的持久化文件会令启动失败，而非悄悄覆盖操作者的文件；可读但权限不对的文件保持原样。`web-runtime` 行解析它（路径来自 bundle patch 中的 `dshHomePath('api-token')`）并发布 `webRuntime.apiToken`；`connection` 行把 `token: !!js ctx.webRuntime.apiToken` 接入 `auth.tokens`。因此 Web 认证始终激活，而回环 SPA 与 curl 通道不变。
 
 ## Alternatives considered
 
@@ -34,4 +36,4 @@ Status: implemented
 
 ## Consequences
 
-部署现在可以用 token 向一个具名服务端客户端暴露 API，同时浏览器 SPA 仍不带 token 工作，并可把否则只限回环的方法的一个受控子集交给该客户端。可达性栅栏及其 ADR 不变；本 note 拥有其上的认证层。受门控逻辑位于 `api-auth.ts`（逐文件 100% 覆盖）；接线位于覆盖排除的 `index.ts`，由 node-half 集成测试演练（有效 token 从不受信 Host 通过、未知 token 401、已列出钉住方法允许、未列出钉住方法拒绝、未认证钉住方法不变、带浏览器标记的请求绝不被旁路、WS 拒绝/接受、加载期失败）。在 `unpinned` 中列出 `settings.*` 或 `credentials.*` 会把配置与 API-key 材料暴露给任何 token 持有者——已记录为部署的明确风险。无会话事件、无模型可见项，因此不涉及快照 fixture 或格式版本提升。轮换是叠加式的：把新 token 列在旧的旁边、迁移客户端、再移除旧的；二者同时列出时都可认证。被吊销的 token 在下次配置加载时生效。`!!js process.env.DSH_API_TOKEN` 覆盖层使密钥不进入提交的 cordis.yml。
+部署现在可以用 token 向一个具名服务端客户端暴露 API，同时浏览器 SPA 仍不带 token 工作，并可把否则只限回环的方法的一个受控子集交给该客户端。可达性栅栏及其 ADR 不变；本 note 拥有其上的认证层。受门控逻辑位于 `api-auth.ts`（逐文件 100% 覆盖）；接线位于覆盖排除的 `index.ts`，由 node-half 集成测试演练（有效 token 从不受信 Host 通过、未知 token 401、已列出钉住方法允许、未列出钉住方法拒绝、未认证钉住方法不变、带浏览器标记的请求绝不被旁路、WS 拒绝/接受、加载期失败）。在 `unpinned` 中列出 `settings.*` 或 `credentials.*` 会把配置与 API-key 材料暴露给任何 token 持有者——已记录为部署的明确风险。无会话事件、无模型可见项，因此不涉及快照 fixture 或格式版本提升。轮换是叠加式的：把新 token 列在旧的旁边、迁移客户端、再移除旧的；二者同时列出时都可认证。被吊销的 token 在下次配置加载时生效。对强制的 Web token，轮换方式是删除 `$DSH_HOME/api-token`（下次启动会生成新的）或把 `DSH_API_TOKEN` 设为新值；生成的 token 绝不进入提交的 cordis.yml，也不记录任何密钥。Web token 的解析/持久化是其自身的受门控模块（`api-token.ts`，逐文件 100% 覆盖），带注入的 fs/env/clock；bundle 接线（其 `internals.resolveApiToken` 默认与 cordis.patch.yml 行）是薄的。

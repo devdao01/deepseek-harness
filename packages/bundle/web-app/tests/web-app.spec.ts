@@ -5,12 +5,13 @@
  * runtime's bind-dependent LAN snapshot.
  */
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import { prepareApiAuth } from '@deepseek-ai/dsh-client-connection'
 import type { WebServer } from '@deepseek-ai/dsh-host-webserver'
 import { apply, Config, internals } from '../src/index.ts'
 
@@ -27,11 +28,22 @@ let dist: string | undefined
 afterEach(() => {
   vi.restoreAllMocks()
   internals.resolveDistIndex = originalResolve
+  internals.resolveApiToken = originalResolveApiToken
   if (dist !== undefined) rmSync(dist, { recursive: true, force: true })
   dist = undefined
 })
 
 const originalResolve = internals.resolveDistIndex
+const originalResolveApiToken = internals.resolveApiToken
+// A path-free stub token for the glue tests: token resolution has its own
+// suite (api-token.spec.ts), and these tests assert dist/prompt/URL behavior.
+const STUB_TOKEN = 'stub-token-0123456789abcdef'
+const config = (overrides: Partial<ConstructorParameters<typeof Config>[0]> = {}): Config =>
+  new Config({ printUrl: true, surfaceContext: true, trustedHosts: [], apiTokenFile: '/unused/api-token', ...overrides })
+
+beforeEach(() => {
+  internals.resolveApiToken = () => STUB_TOKEN
+})
 
 /** Stage a dist fixture and point the bundle's resolver at it. */
 function stageDist(): string {
@@ -84,7 +96,7 @@ describe('web-app runtime glue', () => {
     } as never)
     provideLoader(ctx)
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
-    apply(ctx, new Config({ printUrl: true, surfaceContext: true, trustedHosts: ['lab.internal'] }))
+    apply(ctx, config({ printUrl: true, surfaceContext: true, trustedHosts: ['lab.internal'] }))
     await ctx.plugin(SystemPrompt, { persona: '' })
     // Settle the injected registrations.
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -93,6 +105,7 @@ describe('web-app runtime glue', () => {
     expect(ctx.get('webRuntime')).toEqual({
       lanAddresses: ['192.168.1.5'],
       trustedHosts: ['192.168.1.5', 'lab.internal'],
+      apiToken: STUB_TOKEN,
     })
     expect(log).toHaveBeenCalledWith('dsh web: http://127.0.0.1:4567 (LAN: http://192.168.1.5:4567)')
     const assembly = await ctx.systemPrompt.assemble()
@@ -112,7 +125,7 @@ describe('web-app runtime glue', () => {
     const ctx = new Context()
     ctx.provide('webServer', fakeHttpServer().server)
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
-    apply(ctx, new Config({ printUrl: false, surfaceContext: true, trustedHosts: [] }))
+    apply(ctx, config({ printUrl: false, surfaceContext: true, trustedHosts: [] }))
     await ctx.plugin(SystemPrompt, { persona: '' })
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(log).not.toHaveBeenCalled()
@@ -133,7 +146,7 @@ describe('web-app runtime glue', () => {
         return () => {}
       },
     } as never)
-    apply(ctx, new Config({ printUrl: false, surfaceContext: false, trustedHosts: [] }))
+    apply(ctx, config({ printUrl: false, surfaceContext: false, trustedHosts: [] }))
     await ctx.plugin(SystemPrompt, { persona: '' })
     await new Promise(resolve => setTimeout(resolve, 0))
     const assembly = await ctx.systemPrompt.assemble()
@@ -148,7 +161,7 @@ describe('web-app runtime glue', () => {
     const ctx = new Context()
     ctx.provide('webServer', fakeHttpServer().server)
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
-    apply(ctx, new Config({ printUrl: true, surfaceContext: true, trustedHosts: [] }))
+    apply(ctx, config({ printUrl: true, surfaceContext: true, trustedHosts: [] }))
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(log).toHaveBeenCalledWith('dsh web: http://127.0.0.1:4567')
     await ctx.fiber.dispose()
@@ -164,7 +177,7 @@ describe('web-app runtime glue', () => {
     const settlement = new Promise<void>((resolve) => { release = resolve })
     provideLoader(settled, () => settlement)
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
-    apply(settled, new Config({ printUrl: true, surfaceContext: true, trustedHosts: [] }))
+    apply(settled, config({ printUrl: true, surfaceContext: true, trustedHosts: [] }))
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(log).not.toHaveBeenCalled()
     release!()
@@ -178,7 +191,7 @@ describe('web-app runtime glue', () => {
     const failed = new Context()
     failed.provide('webServer', fakeHttpServer().server)
     provideLoader(failed, async () => { throw new Error('boot failed') })
-    apply(failed, new Config({ printUrl: true, surfaceContext: true, trustedHosts: [] }))
+    apply(failed, config({ printUrl: true, surfaceContext: true, trustedHosts: [] }))
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(log).not.toHaveBeenCalled()
     await failed.fiber.dispose()
@@ -194,7 +207,7 @@ describe('web-app runtime glue', () => {
     let releaseTorn: () => void
     const tornSettlement = new Promise<void>((resolve) => { releaseTorn = resolve })
     provideLoader(torn, () => tornSettlement)
-    apply(torn, new Config({ printUrl: true, surfaceContext: true, trustedHosts: [] }))
+    apply(torn, config({ printUrl: true, surfaceContext: true, trustedHosts: [] }))
     await child.dispose() // the webServer service goes away
     releaseTorn!()
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -210,7 +223,7 @@ describe('web-app runtime glue', () => {
     const { server } = fakeHttpServer()
     Object.defineProperty(server, 'port', { get: () => undefined })
     ctx.provide('webServer', server)
-    apply(ctx, new Config({ printUrl: false, surfaceContext: true, trustedHosts: [] }))
+    apply(ctx, config({ printUrl: false, surfaceContext: true, trustedHosts: [] }))
     await ctx.plugin(SystemPrompt, { persona: '' })
     await new Promise(resolve => setTimeout(resolve, 0))
     await expect(ctx.systemPrompt.assemble()).rejects.toThrow('webServer service missing')
@@ -226,6 +239,35 @@ describe('web-app runtime glue', () => {
       expect(originalResolve()).toMatch(/dist[/\\]index\.html$/)
     } catch (error) {
       expect((error as Error).message).toContain('frontend dist not built')
+    }
+  })
+
+  it('resolves the real API token end-to-end: fresh install generates+persists (0600), a valid connection token, then reuse', () => {
+    // The production resolver the web-runtime row uses (internals default, not
+    // the glue stub): a fresh state dir generates, persists atomically at 0600,
+    // and the token satisfies the connection plugin's own validator; a second
+    // resolution reuses the persisted file. Driven directly so no cordis root
+    // is created (the invariant test-host owns real bundle boots).
+    const stateDir = mkdtempSync(join(tmpdir(), 'dsh-web-state-'))
+    const tokenFile = join(stateDir, 'api-token')
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const token = originalResolveApiToken(tokenFile)
+      expect(token).toMatch(/^[0-9a-f]{64}$/)
+      expect(readFileSync(tokenFile, 'utf8')).toBe(token)
+      expect(statSync(tokenFile).mode & 0o777).toBe(0o600)
+      // The generation line names the FILE, never the token value.
+      const generationLine = log.mock.calls.map(call => String(call[0])).find(line => line.includes('generated one at'))
+      expect(generationLine).toContain(tokenFile)
+      expect(generationLine).not.toContain(token)
+      // The generated token satisfies the connection plugin's own validator.
+      expect(() => prepareApiAuth({ tokens: [{ name: 'web', token }], unpinned: [] }, new Set())).not.toThrow()
+      // A second resolution reuses the persisted token, logging no new line.
+      log.mockClear()
+      expect(originalResolveApiToken(tokenFile)).toBe(token)
+      expect(log.mock.calls.some(call => String(call[0]).includes('generated one at'))).toBe(false)
+    } finally {
+      rmSync(stateDir, { recursive: true, force: true })
     }
   })
 })

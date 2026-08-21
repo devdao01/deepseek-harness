@@ -17,6 +17,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { addHarnessSourceSection } from '@deepseek-ai/dsh-app-boot'
 import * as FrontendStatic from '@deepseek-ai/dsh-host-frontend-static'
+import { createWebApiTokenIo, resolveWebApiToken } from './api-token.ts'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-system-prompt'
@@ -47,20 +48,34 @@ export interface Config {
   surfaceContext: boolean
   /** Explicit `--trusted-host` authorities from this invocation. */
   trustedHosts: string[]
+  /**
+   * Absolute path of the persisted API-token file (`<state-root>/api-token`).
+   * The bundle resolves it with `dshHomePath('api-token')`; the web deployment
+   * always boots with Bearer auth active, so a token is resolved or generated
+   * here on every start ({@link resolveWebApiToken}).
+   */
+  apiTokenFile: string
 }
 
 export const Config: z<Config> = z.object({
   printUrl: z.boolean().default(true),
   surfaceContext: z.boolean().default(true),
   trustedHosts: z.array(String).default([]),
+  apiTokenFile: z.string().required(),
 })
 
-/** Bind-dependent Web values shared by the trust fence and URL display. */
-export interface WebRuntimeValues {
+/** The LAN-trust snapshot sampled from the active server bind. */
+export interface WebLanTrust {
   /** LAN IPv4 literals sampled once when the server binds all interfaces. */
   lanAddresses: string[]
   /** LAN literals followed by explicit invocation authorities. */
   trustedHosts: string[]
+}
+
+/** Bind-dependent Web values shared by the trust fence and URL display. */
+export interface WebRuntimeValues extends WebLanTrust {
+  /** The resolved API token the connection row wires into its `auth.tokens`. */
+  apiToken: string
 }
 
 /** Environment variable naming the canonical local URL of this Web GUI. */
@@ -82,7 +97,7 @@ const ALL_INTERFACES_HOST = '0.0.0.0'
  * @param extra - explicit `--trusted-host` values, in argument order.
  * @returns the LAN display addresses and invocation-derived fence authorities.
  */
-export function resolveLanTrust(bindHost: string, extra: readonly string[]): WebRuntimeValues {
+export function resolveLanTrust(bindHost: string, extra: readonly string[]): WebLanTrust {
   const lanAddresses = bindHost === ALL_INTERFACES_HOST
     ? Object.values(networkInterfaces()).flat()
       .filter((iface): iface is NonNullable<typeof iface> => iface !== undefined && iface.family === 'IPv4' && !iface.internal)
@@ -124,7 +139,14 @@ function resolveDistIndex(): string {
 }
 
 /** Test hook: hosts with no built frontend dist substitute the resolver; production never touches this. */
-export const internals: { resolveDistIndex: () => string } = { resolveDistIndex }
+export const internals: {
+  resolveDistIndex: () => string
+  /** Resolve the deployment's API token from its persisted file (env override → file → generate). */
+  resolveApiToken: (tokenFile: string) => string
+} = {
+  resolveDistIndex,
+  resolveApiToken: tokenFile => resolveWebApiToken(createWebApiTokenIo(tokenFile)).token,
+}
 
 /**
  * Mount the Web runtime: dist serving, surface prompt, the bash runtime
@@ -133,7 +155,13 @@ export const internals: { resolveDistIndex: () => string } = { resolveDistIndex 
  * @param config - validated {@link Config}.
  */
 export function apply(ctx: Context, config: Config): void {
-  const runtime = resolveLanTrust(ctx.webServer.host, config.trustedHosts)
+  // Mandatory Bearer auth for the web deployment: resolve (or generate and
+  // persist) the API token before releasing the runtime, so the connection row
+  // that reads `webRuntime.apiToken` always finds one.
+  const runtime: WebRuntimeValues = {
+    ...resolveLanTrust(ctx.webServer.host, config.trustedHosts),
+    apiToken: internals.resolveApiToken(config.apiTokenFile),
+  }
   // Release dependent rows only after bind-dependent trust has been sampled once.
   ctx.provide(WEB_RUNTIME_SERVICE, runtime)
   ctx.plugin(FrontendStatic, { distIndex: internals.resolveDistIndex() })
