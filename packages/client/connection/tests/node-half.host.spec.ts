@@ -74,7 +74,10 @@ function fakeResponse(): { response: ServerResponse; state: { status?: number; b
   return { response, state }
 }
 
-async function mounted(config?: { trustedHosts?: string[] }): Promise<{
+async function mounted(config?: {
+  trustedHosts?: string[]
+  auth?: { tokens: { name: string; token: string }[]; unpinned?: string[] }
+}): Promise<{
   routes: WebRoute[]
   upgrades: WebUpgradeRoute[]
   dispose: () => Promise<void>
@@ -83,7 +86,12 @@ async function mounted(config?: { trustedHosts?: string[] }): Promise<{
   const routes: WebRoute[] = []
   const upgrades: WebUpgradeRoute[] = []
   ctx.provide('webServer', fakeHttpServer(routes, upgrades) as WebServer)
-  ctx.provide('apiProxy', {} as unknown as ApiProxy)
+  // A benign events stub so a WebSocket upgrade that passes the fence can reach
+  // the downlink handler without a missing-method crash; the HTTP unary paths
+  // still 404 through toFetchHandler before any method is read.
+  ctx.provide('apiProxy', {
+    events: { mux: async function* () {}, host: async function* () {} },
+  } as unknown as ApiProxy)
   const fiber = ctx.plugin({ inject: [...inject], apply }, config)
   await fiber.await()
   return { routes, upgrades, dispose: () => fiber.dispose() }
@@ -211,6 +219,157 @@ describe('connection node half', () => {
     }), declared.response)
     expect(declared.state.status).toBe(404)
     await dispose()
+  })
+
+  describe('bearer-token authentication', () => {
+    const TOKEN = 'z'.repeat(32)
+    const authConfig = { tokens: [{ name: 'odoo', token: TOKEN }], unpinned: ['agentPreset.read'] }
+    const bearer = { authorization: `Bearer ${TOKEN}` }
+
+    it('ignores an Authorization header entirely when no auth is configured', async () => {
+      const { routes, dispose } = await mounted()
+      const { response, state } = fakeResponse()
+      // Remote Host, valid-looking token, but auth disabled → the fence is
+      // unchanged and refuses the untrusted Host.
+      await routes[0]!.handler(fakeRequest({ host: 'harness.example', ...bearer }), response)
+      expect(state.status).toBe(403)
+      await dispose()
+    })
+
+    it('lets a valid token pass the reachability fence from an untrusted Host', async () => {
+      const { routes, dispose } = await mounted({ auth: authConfig })
+      const { response, state } = fakeResponse()
+      // Remote server client (no loopback, not declared) with a valid token:
+      // the fence passes; the carrier answers 404 for the GET unary path.
+      await routes[0]!.handler(fakeRequest({ host: 'odoo.remote:8069', ...bearer }), response)
+      expect(state.status).toBe(404)
+      await dispose()
+    })
+
+    it('answers 401 for a present-but-unknown token instead of falling back to reachability', async () => {
+      const { routes, dispose } = await mounted({ auth: authConfig })
+      const { response, state } = fakeResponse()
+      await routes[0]!.handler(
+        fakeRequest({ host: 'odoo.remote:8069', authorization: `Bearer ${'w'.repeat(32)}` }),
+        response,
+      )
+      expect(state.status).toBe(401)
+      expect(state.body).toBe('invalid api token')
+      await dispose()
+    })
+
+    it('lets an authenticated client call a pin listed in auth.unpinned', async () => {
+      const { routes, dispose } = await mounted({ auth: authConfig })
+      const { response, state } = fakeResponse()
+      // agentPreset.read is pinned but listed in unpinned → allowed with a token
+      // from a remote Host; carrier 404 (GET on a POST method) proves it passed.
+      await routes[0]!.handler(
+        fakeRequest({ host: 'odoo.remote:8069', ...bearer }, `${API_PATH}/agentPreset.read`),
+        response,
+      )
+      expect(state.status).toBe(404)
+      await dispose()
+    })
+
+    it('still refuses a pin NOT listed in auth.unpinned even with a valid token', async () => {
+      const { routes, dispose } = await mounted({ auth: authConfig })
+      const { response, state } = fakeResponse()
+      // agentPreset.copy is pinned and NOT unpinned → loopback-only, so a remote
+      // authenticated client is refused.
+      await routes[0]!.handler(
+        fakeRequest({ host: 'odoo.remote:8069', ...bearer }, `${API_PATH}/agentPreset.copy`),
+        response,
+      )
+      expect(state.status).toBe(403)
+      await dispose()
+    })
+
+    it('keeps unauthenticated pins loopback-only exactly as before', async () => {
+      const { routes, dispose } = await mounted({ auth: authConfig, trustedHosts: ['harness.example'] })
+      // A declared-authority client with NO token: the pin stays loopback-only.
+      const remote = fakeResponse()
+      await routes[0]!.handler(fakeRequest({ host: 'harness.example' }, `${API_PATH}/agentPreset.read`), remote.response)
+      expect(remote.state.status).toBe(403)
+      // The same pin from loopback with no token passes (the SPA path).
+      const loopback = fakeResponse()
+      await routes[0]!.handler(fakeRequest({ host: '127.0.0.1:3080' }, `${API_PATH}/agentPreset.read`), loopback.response)
+      expect(loopback.state.status).toBe(404)
+      await dispose()
+    })
+
+    it('never lets a token bypass the CSRF fence for a browser-marked request', async () => {
+      const { routes, dispose } = await mounted({ auth: authConfig })
+      const { response, state } = fakeResponse()
+      // A page carrying a stolen token attaches a cross-site marker → the token
+      // bypass is off and the reachability fence refuses it.
+      await routes[0]!.handler(fakeRequest({
+        host: 'odoo.remote:8069', origin: 'http://evil.example', 'sec-fetch-site': 'cross-site', ...bearer,
+      }), response)
+      expect(state.status).toBe(403)
+      await dispose()
+    })
+
+    it('rejects a WebSocket upgrade carrying an unknown token', async () => {
+      const { upgrades, dispose } = await mounted({ auth: authConfig })
+      const socket = new PassThrough()
+      const chunks: Buffer[] = []
+      socket.on('data', (chunk: Buffer) => { chunks.push(chunk) })
+      const ended = once(socket, 'end')
+      await upgrades[0]!.handler(
+        fakeRequest({ host: 'odoo.remote:8069', authorization: `Bearer ${'w'.repeat(32)}` }, MUX_EVENTS_PATH),
+        socket, Buffer.alloc(0),
+      )
+      await ended
+      expect(Buffer.concat(chunks).toString()).toContain('HTTP/1.1 403 Forbidden')
+      await dispose()
+    })
+
+    it('lets a valid token past the WebSocket upgrade fence to the downlink handler', async () => {
+      // A valid token from an untrusted Host passes the SAME reachability
+      // decision the HTTP route uses, so the upgrade proceeds into the downlink
+      // handler (which then reaches the api gateway — here the empty test proxy,
+      // proving the fence did NOT reject the upgrade).
+      const { upgrades, dispose } = await mounted({ auth: authConfig })
+      const socket = new PassThrough()
+      const chunks: Buffer[] = []
+      socket.on('data', (chunk: Buffer) => { chunks.push(chunk) })
+      await upgrades[0]!.handler(fakeRequest({
+        host: 'odoo.remote:8069',
+        ...bearer,
+        upgrade: 'websocket',
+        connection: 'Upgrade',
+        'sec-websocket-key': Buffer.from('0123456789abcdef').toString('base64'),
+        'sec-websocket-version': '13',
+      }, MUX_EVENTS_PATH), socket, Buffer.alloc(0))
+      // The handshake completed (101) before the downlink read the empty proxy;
+      // a rejected upgrade would have written 403 and never handshaked.
+      const written = Buffer.concat(chunks).toString()
+      expect(written).toContain('HTTP/1.1 101')
+      expect(written).not.toContain('403')
+      await dispose()
+    })
+
+    it('fails the load when a token is shorter than the minimum length', async () => {
+      const routes: WebRoute[] = []
+      const ctx = new Context()
+      ctx.provide('webServer', fakeHttpServer(routes, []) as WebServer)
+      ctx.provide('apiProxy', {} as unknown as ApiProxy)
+      const fiber = ctx.plugin({ inject: [...inject], apply }, { auth: { tokens: [{ name: 'x', token: 'short' }] } })
+      await expect(fiber).rejects.toThrow(/must be at least 16 characters/)
+      expect(routes).toHaveLength(0)
+    })
+
+    it('fails the load when an unpinned entry is not a pinned method', async () => {
+      const routes: WebRoute[] = []
+      const ctx = new Context()
+      ctx.provide('webServer', fakeHttpServer(routes, []) as WebServer)
+      ctx.provide('apiProxy', {} as unknown as ApiProxy)
+      const fiber = ctx.plugin({ inject: [...inject], apply }, {
+        auth: { tokens: [{ name: 'x', token: 'z'.repeat(32) }], unpinned: ['session.list'] },
+      })
+      await expect(fiber).rejects.toThrow(/is not a pinned method/)
+      expect(routes).toHaveLength(0)
+    })
   })
 
   it('provides a disposable dedicated RPC channel without requiring apiProxy', async () => {

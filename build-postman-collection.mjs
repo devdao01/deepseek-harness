@@ -11,6 +11,7 @@
  *   - Download    : GET  /api/session.export?sessionId=...&includeDescendants=true (ZIP; no envelope)
  *                   GET  /api/workspace.file?sessionId=...&path=...            (file attachment; no envelope)
  *   - Respond     : POST /api/respond     body = ClientResponse (answer to an approval/question ServerRequest)
+ *   - Auth        : optional Authorization: Bearer {{apiToken}} (collection-level; ignored by an auth-less backend)
  *
  * Run: node build-postman-collection.mjs
  */
@@ -445,15 +446,25 @@ const collection = {
       '- **Respond**: `POST /api/respond` carries the ClientResponse answering an approval/question ServerRequest received on a stream.\n\n' +
       '## Variables\n' +
       '- `baseUrl` — default `http://127.0.0.1:3080` (the harness Web GUI address).\n' +
+      '- `apiToken` — optional Bearer token; sent on every request via collection-level auth. Leave empty against a backend with no `auth` configured (the header is simply ignored).\n' +
       '- `sessionId`, `workspaceId`, `parentSessionId`, `childSessionId` — fill them from the response of `session.list` / `workspace.list` / `subagent.list` (or use a Postman test script to persist values automatically).\n\n' +
+      '## Security fence\n' +
+      '- Reachability fence: every /api request must reach the server on a loopback Host or a declared `trustedHosts` authority, OR carry a valid `Authorization: Bearer <token>` matching a configured `auth.tokens` entry (a token lets a server client in from any exposed Host). Browser CSRF rules (same-origin Origin, no cross-site marker, JSON-only POST) are always enforced for browser-marked requests, token or not.\n' +
+      '- Pins: native-dialog, settings/credentials, `llm.discoverModels`, and agentPreset authoring methods are loopback-only, OR callable by an authenticated client when the deployment lists them in `auth.unpinned`.\n' +
+      '- A present-but-unknown token → HTTP 401. No `auth` configured → today\'s behavior (reachability + loopback pins), and the `apiToken` header is ignored.\n\n' +
       '## Notes\n' +
-      '- Single-user local service: no auth. Loopback-only by default; some methods (settings/credentials/agentPreset authoring, host.openPath) are loopback-pinned by the carrier trust fence.\n' +
+      '- Single-user local service. Loopback-only by default; Bearer-token auth is opt-in via the connection plugin `auth` config. `name` on a token is for logs/rotation only, never an identity the API trusts.\n' +
       '- Postman is not a browser, so no CORS applies.',
     schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+  },
+  auth: {
+    type: 'bearer',
+    bearer: [{ key: 'token', value: '{{apiToken}}', type: 'string' }],
   },
   variable: [
     { key: 'baseUrl', value: 'http://127.0.0.1:3080', type: 'string' },
     { key: 'wsBaseUrl', value: 'ws://127.0.0.1:3080', type: 'string' },
+    { key: 'apiToken', value: '', type: 'string' },
     { key: 'sessionId', value: '', type: 'string' },
     { key: 'workspaceId', value: '', type: 'string' },
     { key: 'parentSessionId', value: '', type: 'string' },

@@ -161,6 +161,15 @@
         # A deployment adding authorities keeps this expression and concatenates
         # its literals, for example: ['app.internal', ...ctx.webRuntime.trustedHosts].
         trustedHosts: !!js ctx.webRuntime.trustedHosts
+        # Bearer-token API access for server clients (Odoo). Active only while
+        # DSH_API_TOKEN is set: without it the block collapses to disabled auth
+        # and the deployment behaves exactly as before. The unpinned list is
+        # this deployment's choice — agentPreset authoring over the API.
+        auth: !!js |
+          process.env.DSH_API_TOKEN === undefined ? {} : {
+            tokens: [{ name: 'odoo', token: process.env.DSH_API_TOKEN }],
+            unpinned: ['agentPreset.read', 'agentPreset.copy', 'agentPreset.openDocument', 'agentPreset.remove'],
+          }
 
     - id: api-remotes
       name: '@deepseek-ai/dsh-api-remotes'

@@ -1,4 +1,5 @@
 /** Host HTTP bridge for browser-client RPC. */
+import type { IncomingHttpHeaders } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-attachment'
@@ -8,6 +9,10 @@ import { toFetchHandler } from '@deepseek-ai/dsh-host-apiproxy'
 import { API_PATH, HOST_EVENTS_PATH, MUX_EVENTS_PATH } from './api-path.ts'
 import { bridge, DEFAULT_MAX_REQUEST_BODY_BYTES } from './http-bridge.ts'
 import { assertTrustedAuthority, isTrustedApiRequest } from './api-request-trust.ts'
+import {
+  authenticateApiRequest, prepareApiAuth, requestHasBrowserMarker,
+  type ApiAuthConfig,
+} from './api-auth.ts'
 import { HostConnectionService } from './rpc-host.ts'
 import { rejectWebSocketUpgrade, WebSocketDownlinks } from './websocket-downlink.ts'
 
@@ -59,11 +64,30 @@ export interface ConnectionConfig {
   trustedHosts?: string[]
   /** Maximum buffered JSON body for every `/api` request. */
   maxRequestBodyBytes?: number
+  /**
+   * Optional Bearer-token authentication. With no tokens configured the /api
+   * surface behaves exactly as today (reachability fence + loopback pins). A
+   * request whose `Authorization: Bearer <token>` matches a configured token
+   * passes the reachability fence from any Host and may additionally call the
+   * pinned methods listed in `unpinned`. Browser CSRF rules are never bypassed
+   * by a token. See [api-auth](./api-auth.ts).
+   */
+  auth?: ApiAuthConfig
 }
 
 export const Config: z<ConnectionConfig> = z.object({
   trustedHosts: z.array(String).default([]),
   maxRequestBodyBytes: z.natural().min(1).default(DEFAULT_MAX_REQUEST_BODY_BYTES),
+  // Cast the auth field to its output type: schemastery infers the nested
+  // token object's INPUT as `{name?, token?}`, which trips exactOptional
+  // assignability against `ApiAuthConfig`; the runtime shape is exactly it.
+  auth: z.object({
+    tokens: z.array(z.object({
+      name: z.string().required(),
+      token: z.string().required(),
+    })).default([]),
+    unpinned: z.array(z.string()).default([]),
+  }) as unknown as z<ApiAuthConfig>,
 })
 
 /**
@@ -121,9 +145,12 @@ const PRIVILEGED_METHODS = new Set([
 /**
  * Mounts the API gateway under the browser transport prefix. Every request on
  * the prefix passes the browser-trust fence first (DNS-rebinding and
- * cross-site defense — [api-request-trust](./api-request-trust.ts));
- * privileged methods additionally pass it with an empty trust list, which
- * pins them to loopback.
+ * cross-site defense — [api-request-trust](./api-request-trust.ts)); privileged
+ * methods additionally pass it with an empty trust list, which pins them to
+ * loopback. When `auth` is configured ([api-auth](./api-auth.ts)), a valid
+ * Bearer token additionally passes the reachability fence from any Host and
+ * lets a client call the pins listed in `auth.unpinned`; browser CSRF rules are
+ * never bypassed, and an unknown token answers 401.
  * @param ctx - Host plugin context.
  * @param config - resolved plugin config (schema defaults applied).
  */
@@ -134,6 +161,10 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
   // Config boundary: a malformed entry fails the load loudly here rather than
   // silently authorizing its hostname prefix at request time.
   for (const entry of trustedHosts) assertTrustedAuthority(entry)
+  // Same boundary for the optional auth block: a token below the minimum
+  // length or an `unpinned` entry outside the pinned set fails the load.
+  // Undefined = authentication disabled (today's behavior).
+  const preparedAuth = prepareApiAuth(config?.auth, PRIVILEGED_METHODS)
   if (ctx.get('apiProxy') !== undefined) assertImageBodyCapacity(ctx, maxRequestBodyBytes)
   const connection = new HostConnectionService(ctx, trustedHosts)
   const fetchHandler = connection.createSharedFetchHandler(API_PATH, {
@@ -142,10 +173,15 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
       const method = pathname.startsWith(`${API_PATH}/`)
         ? pathname.slice(API_PATH.length + 1)
         : undefined
-      if (method !== undefined
-        && PRIVILEGED_METHODS.has(method)
-        && !isTrustedApiRequest(request, [])) {
-        return new Response('forbidden', { status: 403 })
+      if (method !== undefined && PRIVILEGED_METHODS.has(method)) {
+        // A pinned method is loopback-only, EXCEPT when an authenticated client
+        // (valid token) calls one the deployment listed in `auth.unpinned`.
+        const loopbackOk = isTrustedApiRequest(request, [])
+        const authenticated = authenticateApiRequest(request.headers, preparedAuth) === 'authenticated'
+        const unpinnedOk = authenticated && preparedAuth?.unpinned.has(method) === true
+        if (!loopbackOk && !unpinnedOk) {
+          return new Response('forbidden', { status: 403 })
+        }
       }
       if (request.method === 'GET' && (pathname === MUX_EVENTS_PATH || pathname === HOST_EVENTS_PATH)) {
         return new Response('upgrade required', {
@@ -158,11 +194,31 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
       return toFetchHandler(apiProxy).fetch(request)
     },
   })
+  // The reachability decision shared by the HTTP route and the WS upgrades: a
+  // request passes when its Host is ours OR it presents a valid token AND
+  // carries no browser marker (so a stolen token cannot be replayed cross-site
+  // — a marked request always goes through the full fence). A present-but-
+  // unknown token is `unauthorized`, never silently downgraded to reachability.
+  const reachableOrAuthenticated = (
+    request: { headers: IncomingHttpHeaders | Headers },
+  ): 'ok' | 'unauthorized' | 'forbidden' => {
+    const auth = authenticateApiRequest(request.headers, preparedAuth)
+    if (auth === 'invalid') return 'unauthorized'
+    const reachable = isTrustedApiRequest(request, trustedHosts)
+      || (auth === 'authenticated' && !requestHasBrowserMarker(request.headers))
+    return reachable ? 'ok' : 'forbidden'
+  }
   const route: WebRoute = {
     kind: 'prefix',
     path: API_PATH,
     handler: async (req, res) => {
-      if (!isTrustedApiRequest(req, trustedHosts)) {
+      const decision = reachableOrAuthenticated(req)
+      if (decision === 'unauthorized') {
+        res.writeHead(401)
+        res.end('invalid api token')
+        return
+      }
+      if (decision === 'forbidden') {
         res.writeHead(403)
         res.end('forbidden')
         return
@@ -181,7 +237,11 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
       apiCtx.effect(() => apiCtx.webServer.registerUpgrade({
         path,
         handler: (req, socket, head) => {
-          if (!isTrustedApiRequest(req, trustedHosts)) {
+          // A raw upgrade cannot carry a clean 401 body, so an invalid token is
+          // rejected like any other refusal. Browsers cannot set WS request
+          // headers, so the same-origin SPA path stays token-less; server-side
+          // WS clients may authenticate with an Authorization header.
+          if (reachableOrAuthenticated(req) !== 'ok') {
             rejectWebSocketUpgrade(socket)
             return
           }
