@@ -16,8 +16,10 @@ import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { addHarnessSourceSection } from '@deepseek-ai/dsh-app-boot'
+import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import * as FrontendStatic from '@deepseek-ai/dsh-host-frontend-static'
-import { createWebApiTokenIo, resolveWebApiToken } from './api-token.ts'
+import { API_TOKEN_FILE_SEGMENT, createWebApiTokenIo, resolveWebApiToken } from './api-token.ts'
+import type { WebStartupValues } from './startup.ts'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-system-prompt'
@@ -46,22 +48,26 @@ export interface Config {
    * orientation text would be false.
    */
   surfaceContext: boolean
-  /** Explicit `--trusted-host` authorities from this invocation. */
+  /**
+   * Explicit `--trusted-host` authorities. When empty, the plugin reads them
+   * from the injected `webStartup` service instead, so the bundle patch does
+   * not restate the CLI value.
+   */
   trustedHosts: string[]
   /**
-   * Absolute path of the persisted API-token file (`<state-root>/api-token`).
-   * The bundle resolves it with `dshHomePath('api-token')`; the web deployment
-   * always boots with Bearer auth active, so a token is resolved or generated
-   * here on every start ({@link resolveWebApiToken}).
+   * Absolute path of the persisted API-token file. Absent, it defaults in code
+   * to `dshHomePath('api-token')` (`<state-root>/api-token`); the web
+   * deployment always boots with Bearer auth active, so a token is resolved or
+   * generated here on every start ({@link resolveWebApiToken}).
    */
-  apiTokenFile: string
+  apiTokenFile?: string
 }
 
 export const Config: z<Config> = z.object({
   printUrl: z.boolean().default(true),
   surfaceContext: z.boolean().default(true),
   trustedHosts: z.array(String).default([]),
-  apiTokenFile: z.string().required(),
+  apiTokenFile: z.string(),
 })
 
 /** The LAN-trust snapshot sampled from the active server bind. */
@@ -155,12 +161,20 @@ export const internals: {
  * @param config - validated {@link Config}.
  */
 export function apply(ctx: Context, config: Config): void {
+  // Trusted hosts default from the injected webStartup service (the CLI's
+  // --trusted-host values) when the deployment names none, so the bundle patch
+  // need not restate the expression.
+  const trustedHosts = config.trustedHosts.length > 0
+    ? config.trustedHosts
+    : (ctx.get('webStartup') as WebStartupValues | undefined)?.trustedHosts ?? []
   // Mandatory Bearer auth for the web deployment: resolve (or generate and
   // persist) the API token before releasing the runtime, so the connection row
-  // that reads `webRuntime.apiToken` always finds one.
+  // that reads `webRuntime.apiToken` always finds one. The token file defaults
+  // in code to the harness state root.
+  const apiTokenFile = config.apiTokenFile ?? dshHomePath(API_TOKEN_FILE_SEGMENT)
   const runtime: WebRuntimeValues = {
-    ...resolveLanTrust(ctx.webServer.host, config.trustedHosts),
-    apiToken: internals.resolveApiToken(config.apiTokenFile),
+    ...resolveLanTrust(ctx.webServer.host, trustedHosts),
+    apiToken: internals.resolveApiToken(apiTokenFile),
   }
   // Release dependent rows only after bind-dependent trust has been sampled once.
   ctx.provide(WEB_RUNTIME_SERVICE, runtime)

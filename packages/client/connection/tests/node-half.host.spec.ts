@@ -77,7 +77,7 @@ function fakeResponse(): { response: ServerResponse; state: { status?: number; b
 async function mounted(config?: {
   trustedHosts?: string[]
   auth?: { tokens: { name: string; token: string }[]; unpinned?: string[] }
-}): Promise<{
+}, webRuntime?: { trustedHosts?: string[]; apiToken?: string }): Promise<{
   routes: WebRoute[]
   upgrades: WebUpgradeRoute[]
   dispose: () => Promise<void>
@@ -92,6 +92,7 @@ async function mounted(config?: {
   ctx.provide('apiProxy', {
     events: { mux: async function* () {}, host: async function* () {} },
   } as unknown as ApiProxy)
+  if (webRuntime !== undefined) ctx.provide('webRuntime', webRuntime as never)
   const fiber = ctx.plugin({ inject: [...inject], apply }, config)
   await fiber.await()
   return { routes, upgrades, dispose: () => fiber.dispose() }
@@ -369,6 +370,69 @@ describe('connection node half', () => {
       })
       await expect(fiber).rejects.toThrow(/is not a pinned method/)
       expect(routes).toHaveLength(0)
+    })
+
+    describe('defaults derived from a mounted webRuntime', () => {
+      const runtime = { trustedHosts: ['app.internal'], apiToken: TOKEN }
+
+      it('derives auth from webRuntime.apiToken: a valid token passes the fence and reaches the four unpinned pins', async () => {
+        const { routes, dispose } = await mounted(undefined, runtime)
+        // No explicit config, but webRuntime.apiToken derives auth: a valid token
+        // from an untrusted Host passes, and agentPreset.read (a default unpinned
+        // pin) is callable — carrier 404 (GET) proves it got past the pin.
+        const passed = fakeResponse()
+        await routes[0]!.handler(fakeRequest({ host: 'odoo.remote:8069', ...bearer }, `${API_PATH}/agentPreset.read`), passed.response)
+        expect(passed.state.status).toBe(404)
+        // A pin NOT in the default unpinned set stays loopback-only.
+        const denied = fakeResponse()
+        await routes[0]!.handler(fakeRequest({ host: 'odoo.remote:8069', ...bearer }, `${API_PATH}/settings.update`), denied.response)
+        expect(denied.state.status).toBe(403)
+        await dispose()
+      })
+
+      it('inherits trustedHosts from webRuntime when the deployment names none', async () => {
+        const { routes, dispose } = await mounted(undefined, runtime)
+        // app.internal is not loopback and not in explicit config; it reaches
+        // ordinary reads because trustedHosts inherited webRuntime.trustedHosts.
+        const declared = fakeResponse()
+        await routes[0]!.handler(fakeRequest({ host: 'app.internal', origin: 'http://app.internal', 'sec-fetch-site': 'same-origin' }), declared.response)
+        expect(declared.state.status).toBe(404)
+        await dispose()
+      })
+
+      it('leaves auth disabled and loopback-only when no webRuntime is mounted', async () => {
+        const { routes, dispose } = await mounted()
+        // No webRuntime, no config: a token is ignored (auth off) and the Host
+        // fence refuses an untrusted Host — exactly today's behavior.
+        const refused = fakeResponse()
+        await routes[0]!.handler(fakeRequest({ host: 'odoo.remote:8069', ...bearer }), refused.response)
+        expect(refused.state.status).toBe(403)
+        await dispose()
+      })
+
+      it('lets explicit config override the webRuntime-derived defaults wholesale', async () => {
+        // Explicit auth with a DIFFERENT token: the webRuntime token no longer
+        // authenticates, and only the explicit unpinned list applies.
+        const explicitToken = 'q'.repeat(32)
+        const { routes, dispose } = await mounted(
+          { trustedHosts: ['explicit.host'], auth: { tokens: [{ name: 'x', token: explicitToken }], unpinned: ['agentPreset.copy'] } },
+          runtime,
+        )
+        // The webRuntime token is now unknown → 401.
+        const runtimeToken = fakeResponse()
+        await routes[0]!.handler(fakeRequest({ host: 'odoo.remote:8069', authorization: `Bearer ${TOKEN}` }), runtimeToken.response)
+        expect(runtimeToken.state.status).toBe(401)
+        // The explicit token authenticates and reaches its explicit unpinned pin.
+        const ok = fakeResponse()
+        await routes[0]!.handler(fakeRequest({ host: 'odoo.remote:8069', authorization: `Bearer ${explicitToken}` }, `${API_PATH}/agentPreset.copy`), ok.response)
+        expect(ok.state.status).toBe(404)
+        // webRuntime.trustedHosts is NOT inherited: app.internal is refused,
+        // explicit.host is not (explicit config replaced the derived list).
+        const derivedHost = fakeResponse()
+        await routes[0]!.handler(fakeRequest({ host: 'app.internal' }), derivedHost.response)
+        expect(derivedHost.state.status).toBe(403)
+        await dispose()
+      })
     })
   })
 

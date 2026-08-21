@@ -28,6 +28,37 @@ import { readHeader } from './api-request-trust.ts'
 /** Minimum accepted token length; docs recommend ≥32 random characters. */
 export const MIN_API_TOKEN_LENGTH = 16
 
+/**
+ * Pins an authenticated client may call by default when the deployment ships no
+ * explicit `auth` and the token is derived from a mounted `webRuntime` (the
+ * `dsh web` composition). The set is the agent-preset authoring plane only —
+ * settings, credentials, and native-host pins stay closed. This is safe to ship
+ * as a code default precisely because it applies ONLY to authenticated clients:
+ * with no token the surface is unreachable, so an anonymous LAN caller gains
+ * nothing from this list existing.
+ */
+export const DEFAULT_UNPINNED_METHODS: readonly string[] = [
+  'agentPreset.read',
+  'agentPreset.copy',
+  'agentPreset.openDocument',
+  'agentPreset.remove',
+]
+
+/**
+ * Derive the default `auth` config from an optional `webRuntime` API token.
+ * When a token is present (the mandatory web deployment), it authorizes a
+ * single `web` token that may additionally call {@link DEFAULT_UNPINNED_METHODS};
+ * with no token, authentication stays disabled (non-web compositions are
+ * fence-only, exactly as before). An explicit `auth` config always replaces
+ * this — it is only consulted when the deployment configured none.
+ * @param apiToken - the `webRuntime.apiToken` value, or undefined when unmounted.
+ * @returns the derived auth config, or undefined to leave authentication off.
+ */
+export function deriveWebRuntimeAuth(apiToken: string | undefined): ApiAuthConfig | undefined {
+  if (apiToken === undefined) return undefined
+  return { tokens: [{ name: 'web', token: apiToken }], unpinned: [...DEFAULT_UNPINNED_METHODS] }
+}
+
 /** One configured API token. `name` is for logs/rotation only, never trusted as identity. */
 export interface ApiAuthTokenConfig {
   readonly name: string

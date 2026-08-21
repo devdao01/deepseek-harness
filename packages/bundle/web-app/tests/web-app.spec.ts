@@ -242,6 +242,33 @@ describe('web-app runtime glue', () => {
     }
   })
 
+  it('defaults apiTokenFile to the harness state root when the config names none', async () => {
+    stageDist()
+    const ctx = new Context()
+    ctx.provide('webServer', fakeHttpServer().server)
+    let resolvedFrom: string | undefined
+    internals.resolveApiToken = (tokenFile) => { resolvedFrom = tokenFile; return STUB_TOKEN }
+    // No apiTokenFile in config → the plugin defaults it in code.
+    apply(ctx, new Config({ printUrl: false, surfaceContext: false, trustedHosts: [] }))
+    await ctx.plugin(SystemPrompt, { persona: '' })
+    expect(resolvedFrom).toMatch(/[/\\]api-token$/)
+    expect((ctx.get('webRuntime') as { apiToken: string }).apiToken).toBe(STUB_TOKEN)
+    await ctx.fiber.dispose()
+  })
+
+  it('defaults trustedHosts from the injected webStartup service when the config names none', async () => {
+    stageDist()
+    const ctx = new Context()
+    ctx.provide('webServer', fakeHttpServer().server)
+    ctx.provide('webStartup', { trustedHosts: ['from-startup.internal'] } as never)
+    // No trustedHosts in config → inherited from webStartup (bind is loopback,
+    // so lanAddresses is empty and the fence list is exactly the startup value).
+    apply(ctx, new Config({ printUrl: false, surfaceContext: false, trustedHosts: [] }))
+    await ctx.plugin(SystemPrompt, { persona: '' })
+    expect((ctx.get('webRuntime') as { trustedHosts: string[] }).trustedHosts).toEqual(['from-startup.internal'])
+    await ctx.fiber.dispose()
+  })
+
   it('resolves the real API token end-to-end: fresh install generates+persists (0600), a valid connection token, then reuse', () => {
     // The production resolver the web-runtime row uses (internals default, not
     // the glue stub): a fresh state dir generates, persists atomically at 0600,

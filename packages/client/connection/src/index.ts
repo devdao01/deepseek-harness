@@ -10,7 +10,7 @@ import { API_PATH, HOST_EVENTS_PATH, MUX_EVENTS_PATH } from './api-path.ts'
 import { bridge, DEFAULT_MAX_REQUEST_BODY_BYTES } from './http-bridge.ts'
 import { assertTrustedAuthority, isTrustedApiRequest } from './api-request-trust.ts'
 import {
-  authenticateApiRequest, prepareApiAuth, requestHasBrowserMarker,
+  authenticateApiRequest, deriveWebRuntimeAuth, prepareApiAuth, requestHasBrowserMarker,
   type ApiAuthConfig,
 } from './api-auth.ts'
 import { HostConnectionService } from './rpc-host.ts'
@@ -153,20 +153,40 @@ const PRIVILEGED_METHODS = new Set([
  * Bearer token additionally passes the reachability fence from any Host and
  * lets a client call the pins listed in `auth.unpinned`; browser CSRF rules are
  * never bypassed, and an unknown token answers 401.
+ *
+ * `trustedHosts` and `auth` default from an optional `webRuntime` service when
+ * the deployment configures neither: `trustedHosts` inherits
+ * `webRuntime.trustedHosts`, and `auth` derives a `web` token granting
+ * {@link DEFAULT_UNPINNED_METHODS} from `webRuntime.apiToken`
+ * ({@link deriveWebRuntimeAuth}). A composition mounting this plugin beside the
+ * web runtime is therefore mandatory-auth by default; one without a webRuntime
+ * stays loopback-only and fence-only. Explicit config always wins wholesale.
  * @param ctx - Host plugin context.
  * @param config - resolved plugin config (schema defaults applied).
  */
 export function apply(ctx: Context, config?: ConnectionConfig): void {
-  // The Loader resolves schema defaults; hand-built test contexts may pass none.
-  const trustedHosts = config?.trustedHosts ?? []
+  // Read the optional web runtime through the global store (never a declared
+  // inject: this plugin stays composable without web-app). The web-app patch
+  // keeps `inject: [webRuntime]` on this row purely for start ordering, so the
+  // value is present here whenever a webRuntime exists.
+  const webRuntime = ctx.get('webRuntime') as { trustedHosts?: string[]; apiToken?: string } | undefined
+  // Default `trustedHosts` and `auth` from the web runtime when the deployment
+  // configured neither (schemastery materializes an absent list/block to empty,
+  // so "empty" is the absence signal). Explicit config replaces the default.
+  const configuredHosts = config?.trustedHosts ?? []
+  const trustedHosts = configuredHosts.length > 0 ? configuredHosts : (webRuntime?.trustedHosts ?? [])
+  const configuredAuth = config?.auth
+  const authConfig = configuredAuth !== undefined && configuredAuth.tokens.length > 0
+    ? configuredAuth
+    : deriveWebRuntimeAuth(webRuntime?.apiToken)
   const maxRequestBodyBytes = config?.maxRequestBodyBytes ?? DEFAULT_MAX_REQUEST_BODY_BYTES
   // Config boundary: a malformed entry fails the load loudly here rather than
   // silently authorizing its hostname prefix at request time.
   for (const entry of trustedHosts) assertTrustedAuthority(entry)
-  // Same boundary for the optional auth block: a token below the minimum
+  // Same boundary for the effective auth block: a token below the minimum
   // length or an `unpinned` entry outside the pinned set fails the load.
   // Undefined = authentication disabled (today's behavior).
-  const preparedAuth = prepareApiAuth(config?.auth, PRIVILEGED_METHODS)
+  const preparedAuth = prepareApiAuth(authConfig, PRIVILEGED_METHODS)
   if (ctx.get('apiProxy') !== undefined) assertImageBodyCapacity(ctx, maxRequestBodyBytes)
   const connection = new HostConnectionService(ctx, trustedHosts)
   const fetchHandler = connection.createSharedFetchHandler(API_PATH, {

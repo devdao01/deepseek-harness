@@ -133,12 +133,11 @@
       config:
         printUrl: true
         surfaceContext: true
-        trustedHosts: !!js ctx.webStartup.trustedHosts
-        # Mandatory Bearer auth for the web deployment: this row resolves the
-        # token (DSH_API_TOKEN env → persisted <state-root>/api-token → generate
-        # + persist) and publishes it on webRuntime for the connection row. The
-        # file lives beside the rest of the harness's durable state.
-        apiTokenFile: !!js dshHomePath('api-token')
+        # trustedHosts defaults in code from the injected webStartup service,
+        # and apiTokenFile from dshHomePath('api-token'); neither is restated
+        # here. The web-runtime row resolves the mandatory API token
+        # (DSH_API_TOKEN env → persisted <state-root>/api-token → generate) and
+        # publishes it on webRuntime for the connection row.
 
     # The client-plugin reload chain, always mounted: it is idle until a
     # rebuild watcher (pnpm run dev:web) actually rewrites client bundles. It
@@ -160,27 +159,14 @@
     # webserver under /api; browser half is the fetch/SSE client.
     - id: connection
       name: '@deepseek-ai/dsh-client-connection'
+      # inject kept for START ORDERING only (metadata, not config): the
+      # connection plugin defaults trustedHosts and auth in code from the
+      # optional webRuntime service (@deepseek-ai/dsh-client-connection's apply,
+      # via ctx.get('webRuntime')). trustedHosts inherits webRuntime.trustedHosts
+      # (LAN literals + --trusted-host extras); auth derives a mandatory `web`
+      # token from webRuntime.apiToken granting the agentPreset.* authoring pins.
+      # The same-origin SPA and loopback curl keep working token-less.
       inject: [webRuntime]
-      config:
-        # LAN literals derived from the active bind plus --trusted-host extras.
-        # A deployment adding authorities keeps this expression and concatenates
-        # its literals, for example: ['app.internal', ...ctx.webRuntime.trustedHosts].
-        trustedHosts: !!js ctx.webRuntime.trustedHosts
-        # Bearer-token API access for server clients (Odoo), MANDATORY for the
-        # web deployment: web-runtime always resolves a token (env override, a
-        # persisted file, or a freshly generated + persisted one), so auth is
-        # always active while the same-origin SPA and loopback curl keep working
-        # token-less. The unpinned list is this deployment's choice — agentPreset
-        # authoring over the API.
-        auth:
-          tokens:
-            - name: web
-              token: !!js ctx.webRuntime.apiToken
-          unpinned:
-            - agentPreset.read
-            - agentPreset.copy
-            - agentPreset.openDocument
-            - agentPreset.remove
 
     - id: api-remotes
       name: '@deepseek-ai/dsh-api-remotes'

@@ -8,6 +8,8 @@ import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
   authenticateApiRequest,
+  DEFAULT_UNPINNED_METHODS,
+  deriveWebRuntimeAuth,
   MIN_API_TOKEN_LENGTH,
   prepareApiAuth,
   requestHasBrowserMarker,
@@ -100,6 +102,28 @@ describe('authenticateApiRequest', () => {
   it('reads a Fetch Headers representation as well as a Node header bag', () => {
     const headers = new Headers({ authorization: `Bearer ${GOOD_TOKEN}` })
     expect(authenticateApiRequest(headers, prepared)).toBe('authenticated')
+  })
+})
+
+describe('deriveWebRuntimeAuth', () => {
+  it('leaves auth disabled when no web-runtime token exists', () => {
+    expect(deriveWebRuntimeAuth(undefined)).toBeUndefined()
+  })
+
+  it('derives a single web token granting the default unpinned pins', () => {
+    expect(deriveWebRuntimeAuth(GOOD_TOKEN)).toEqual({
+      tokens: [{ name: 'web', token: GOOD_TOKEN }],
+      unpinned: [...DEFAULT_UNPINNED_METHODS],
+    })
+  })
+
+  it('defaults the unpinned set to the agentPreset authoring plane only', () => {
+    expect([...DEFAULT_UNPINNED_METHODS]).toEqual([
+      'agentPreset.read', 'agentPreset.copy', 'agentPreset.openDocument', 'agentPreset.remove',
+    ])
+    // Every derived pin is itself pinned, so prepareApiAuth accepts the default.
+    const pinned: ReadonlySet<string> = new Set([...DEFAULT_UNPINNED_METHODS, 'settings.update'])
+    expect(() => prepareApiAuth(deriveWebRuntimeAuth(GOOD_TOKEN), pinned)).not.toThrow()
   })
 })
 
