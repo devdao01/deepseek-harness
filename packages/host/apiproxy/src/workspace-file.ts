@@ -13,6 +13,10 @@
  * no auth, and a reachable client can already exfiltrate any workspace file by
  * prompting the agent — so a workspace-CONTAINED read widens nothing;
  * containment only stops it from becoming an arbitrary host-file read.
+ *
+ * A contained regular file is refused with 403 when it is an executable
+ * artifact ({@link isExecutableArtifact}), so the download surface cannot
+ * become a convenient way to pull runnable binaries and scripts off the host.
  * @module
  */
 
@@ -20,6 +24,38 @@ import { createReadStream } from 'node:fs'
 import { realpath, stat } from 'node:fs/promises'
 import { basename, isAbsolute, resolve, sep } from 'node:path'
 import { Readable } from 'node:stream'
+
+/**
+ * File extensions the download refuses as runnable artifacts. Fixed as a
+ * security invariant, never deployment config: the workspace-file channel
+ * exists to hand data files to the browser, and letting a knob widen it back
+ * to executables would silently turn it into an exfiltration and repackaging
+ * path for runnable binaries and scripts. The frontend mirrors this same list
+ * to hide dead download links; the server refusal is the enforcement point.
+ */
+export const EXECUTABLE_EXTENSIONS: ReadonlySet<string> = new Set([
+  'exe', 'dll', 'so', 'dylib', 'com', 'msi', 'scr', 'bat', 'cmd', 'ps1', 'psm1',
+  'vbs', 'vbe', 'wsf', 'wsh', 'jse', 'sh', 'bash', 'zsh', 'fish', 'ksh', 'csh',
+  'command', 'py', 'pyw', 'pyc', 'pl', 'rb', 'php', 'lua', 'cgi', 'jar', 'war',
+  'apk', 'ipa', 'app', 'dmg', 'pkg', 'deb', 'rpm', 'bin', 'run', 'elf',
+])
+
+/**
+ * Whether a contained regular file must be refused as an executable artifact:
+ * its lowercased extension (the segment after the basename's LAST dot; no dot
+ * or a trailing dot means no extension) is in {@link EXECUTABLE_EXTENSIONS}, OR
+ * its stat mode carries any POSIX execute bit (`mode & 0o111`). On Windows the
+ * mode never sets an execute bit, so the extension list carries the whole
+ * policy there.
+ * @param name - the file's basename.
+ * @param mode - the file's stat mode.
+ * @returns true when the file is an executable artifact and must not be served.
+ */
+export function isExecutableArtifact(name: string, mode: number): boolean {
+  const dot = name.lastIndexOf('.')
+  const extension = dot === -1 || dot === name.length - 1 ? '' : name.slice(dot + 1).toLowerCase()
+  return EXECUTABLE_EXTENSIONS.has(extension) || (mode & 0o111) !== 0
+}
 
 /** RFC 5987 attr-char set: the bytes that survive an ext-value unencoded. */
 const RFC5987_ATTR_CHAR = /[A-Za-z0-9!#$&+\-.^_`|~]/
@@ -95,12 +131,16 @@ export async function streamWorkspaceFile(
   if (!stats.isFile()) {
     return new Response('workspace file not found', { status: 404 })
   }
+  const name = basename(canonicalFile)
+  if (isExecutableArtifact(name, stats.mode)) {
+    return new Response('workspace file is an executable artifact', { status: 403 })
+  }
   const body = Readable.toWeb(createReadStream(canonicalFile, { signal })) as ReadableStream<Uint8Array>
   return new Response(body, {
     headers: {
       'content-type': 'application/octet-stream',
       'content-length': String(stats.size),
-      'content-disposition': attachmentDisposition(basename(canonicalFile)),
+      'content-disposition': attachmentDisposition(name),
     },
   })
 }

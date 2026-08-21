@@ -6,7 +6,7 @@
  * a bad query with 400.
  */
 
-import { mkdtemp, mkdir, writeFile, symlink, realpath } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, symlink, realpath, chmod } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -185,6 +185,58 @@ describe('workspace.file download endpoint', () => {
     const api = await buildApi({ live: { sessionId: 'live-1', cwd } })
     const response = await toFetchHandler(api).fetch(GET('live-1', '.'))
     expect(response.status).toBe(404)
+  })
+
+  it('refuses a script by extension with 403 even without an execute bit', async () => {
+    const cwd = await makeWorkspace()
+    const script = join(cwd, 'generate_sales.py')
+    await writeFile(script, 'print("hi")')
+    await chmod(script, 0o644)
+    const api = await buildApi({ live: { sessionId: 'live-1', cwd } })
+    const response = await toFetchHandler(api).fetch(GET('live-1', 'generate_sales.py'))
+    expect(response.status).toBe(403)
+  })
+
+  it('matches the executable extension case-insensitively', async () => {
+    const cwd = await makeWorkspace()
+    await writeFile(join(cwd, 'SCRIPT.PY'), 'print("hi")')
+    const api = await buildApi({ live: { sessionId: 'live-1', cwd } })
+    const response = await toFetchHandler(api).fetch(GET('live-1', 'SCRIPT.PY'))
+    expect(response.status).toBe(403)
+  })
+
+  it('refuses an extensionless file that carries an execute bit with 403', async () => {
+    const cwd = await makeWorkspace()
+    const runnable = join(cwd, 'runme')
+    await writeFile(runnable, '#!/bin/sh\necho hi\n')
+    await chmod(runnable, 0o755)
+    const api = await buildApi({ live: { sessionId: 'live-1', cwd } })
+    const response = await toFetchHandler(api).fetch(GET('live-1', 'runme'))
+    expect(response.status).toBe(403)
+  })
+
+  it('still serves data files whose extension is not executable', async () => {
+    const cwd = await makeWorkspace()
+    await writeFile(join(cwd, 'notes.md'), '# notes')
+    await writeFile(join(cwd, 'rows.csv'), 'a,b\n1,2\n')
+    const api = await buildApi({ live: { sessionId: 'live-1', cwd } })
+    const md = await toFetchHandler(api).fetch(GET('live-1', 'notes.md'))
+    expect(md.status).toBe(200)
+    expect(await md.text()).toBe('# notes')
+    const csv = await toFetchHandler(api).fetch(GET('live-1', 'rows.csv'))
+    expect(csv.status).toBe(200)
+    expect(await csv.text()).toBe('a,b\n1,2\n')
+  })
+
+  it('treats a trailing-dot basename as having no extension and serves it', async () => {
+    const cwd = await makeWorkspace()
+    const trailing = join(cwd, 'archive.')
+    await writeFile(trailing, 'data body')
+    await chmod(trailing, 0o644)
+    const api = await buildApi({ live: { sessionId: 'live-1', cwd } })
+    const response = await toFetchHandler(api).fetch(GET('live-1', 'archive.'))
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('data body')
   })
 
   it('answers 400 when the path query parameter is absent', async () => {
