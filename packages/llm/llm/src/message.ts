@@ -2,6 +2,7 @@
 
 import { MessageId, type CallId } from './brand.ts'
 import { deepFreeze } from './call-config.ts'
+import { randomUuid } from './random-uuid.ts'
 import type { ContentBlock, StreamChunk, ToolResultBlock } from './types.ts'
 
 /** Provider/model identity and adapter-private replay data for an assistant message. */
@@ -180,7 +181,10 @@ export function createMessage<T extends NewMessage>(
 ): T & Pick<Message, 'id'> {
   return freezeMessage({
     ...input,
-    id: MessageId(crypto.randomUUID()),
+    // NOT crypto.randomUUID: message.ts lands in browser bundles, and
+    // randomUUID is secure-context-only there (throws on plain-HTTP LAN
+    // origins). randomUuid() is getRandomValues-based and works everywhere.
+    id: MessageId(randomUuid()),
   })
 }
 

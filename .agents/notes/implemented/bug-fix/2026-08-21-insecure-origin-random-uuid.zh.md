@@ -10,9 +10,11 @@ Status: implemented
 
 ## Decision
 
-`mintRpcId` 现在使用基于 `getRandomValues` 的辅助函数 `randomUuid()`，它不带任何安全上下文要求，在每个源（以及 Node ≥19，其全局 `crypto` 暴露相同的 Web Crypto 表面）上都工作。该辅助是规范实现，位于 apiproxy 的浏览器安全客户端层：`packages/host/apiproxy/src/fetch/random-uuid.ts`，从 `fetch/client.ts` 重新导出，因此可达 `@deepseek-ai/dsh-host-apiproxy/client` 子路径（对客户端 bundle 为 INLINE_SAFE）。`mintRpcId` 无条件使用它，而非在 `crypto.randomUUID?.()` 上分支，因为该能力随源而非平台变化，分支会让最要紧的不安全路径基本无法被覆盖。
+`mintRpcId` 现在使用基于 `getRandomValues` 的辅助函数 `randomUuid()`，它不带任何安全上下文要求，在每个源（以及 Node ≥19，其全局 `crypto` 暴露相同的 Web Crypto 表面）上都工作。它无条件被使用，而非在 `crypto.randomUUID?.()` 上分支，因为该能力随源而非平台变化，分支会让最要紧的不安全路径基本无法被覆盖。
 
-此前重复的副本 `packages/client/connection/src/client/random-uuid.ts` 已删除；其导入方（`client/rpc.ts`、`client/fixture.ts`）现从 apiproxy 导出导入，只留一份实现。对浏览器可达代码的排查发现另一处仅安全上下文的用法——`ui-conversation` 的 `browserDraftAttachment`（用 `crypto.randomUUID()` 生成草稿附件 id）——现经同一辅助路由（`ui-conversation` 新增 `@deepseek-ai/dsh-host-apiproxy` 依赖）。宿主侧的 `node:crypto` `randomUUID`（`api-proxy.ts`、`fetch/handler.ts`、WS 下行）仅在宿主，保持不变。
+**规范之家。** 唯一实现位于 `packages/llm/llm/src/random-uuid.ts`，从 `@deepseek-ai/dsh-llm/random-uuid` 子路径导出。`dsh-llm` 是 INLINE_SAFE 的共享词汇，其 `message.ts` 已在浏览器侧铸造 `MessageId`，且每个消费方要么就是 `dsh-llm`、要么可依赖它——这正是决定家的约束，因为浏览器内联的导入方自身的依赖必须是 INLINE_SAFE，而 `dsh-brand`（唯一另一个零运行时候选）在契约上仅为类型。`packages/host/apiproxy/src/fetch/random-uuid.ts` 现在是从该子路径的薄重新导出（apiproxy 依赖 `dsh-llm`，绝不反向），使 `@deepseek-ai/dsh-host-apiproxy/client` 表面——`mintRpcId` 及从它导入的客户端层——指向唯一实现。
+
+此前重复的副本 `packages/client/connection/src/client/random-uuid.ts` 已删除；其导入方（`client/rpc.ts`、`client/fixture.ts`）从 apiproxy `/client` 重新导出导入，只留一份实现。浏览器可达排查发现另两处仅安全上下文的用法，均经同一辅助路由：`llm/message.ts` 的 `createMessage`（`createUserMessage` 家族，`MessageId(crypto.randomUUID())`——INLINE_SAFE，故原样落入浏览器 bundle；因当前无浏览器流程铸造 Message 而潜伏，但任何未来流程都会在明文 HTTP 的 LAN 源上崩溃），以本地导入就地修复；以及 `ui-conversation` 的 `browserDraftAttachment`（用 `crypto.randomUUID()` 生成草稿附件 id），它新增 `@deepseek-ai/dsh-host-apiproxy` 依赖以到达 `/client` 重新导出。宿主侧的 `node:crypto` `randomUUID`（`api-proxy.ts`、`fetch/handler.ts`、WS 下行）以及非 INLINE_SAFE 的宿主专用用法（`anonymous-user-id` 的可注入默认、`dsh-commands` 的实例 token）仅在 Node 运行，其全局 `crypto.randomUUID` 无安全上下文限制，保持不变。
 
 ## Alternatives considered
 
@@ -20,8 +22,12 @@ Status: implemented
 
 **把 `randomUUID` polyfill 赋到 `globalThis.crypto` 上。** 被否决：为修一个调用点而改动全局 Web API 表面，比一个局部辅助更广更诡异，且会为将来任何仅安全上下文的 API 掩盖同一陷阱。
 
-**把辅助保留在 `dsh-client-connection` 让 apiproxy 导入它。** 因依赖方向被否决：`dsh-client-connection` 依赖 `dsh-host-apiproxy`，而非反之，因此规范的浏览器安全铸造辅助应在 `mintRpcId` 所在的 apiproxy 客户端层。
+**把辅助保留在 `dsh-client-connection` 让 apiproxy 导入它。** 因依赖方向被否决：`dsh-client-connection` 依赖 `dsh-host-apiproxy`，而非反之。
+
+**把规范辅助放进 `dsh-brand` 或新的 `packages/util/*` 包。** 被否决：浏览器内联模块自身的导入必须是 INLINE_SAFE（`host-apiproxy|session|llm|tools|brand`），而新的 util 包会迫使为每个客户端 bundle 放宽该门；`dsh-brand` 是唯一另一个零运行时的 INLINE_SAFE 成员，但契约上仅为类型（无运行时代码）。`dsh-llm` 是 INLINE_SAFE、已在浏览器侧铸造 id，且被其他消费方依赖（而非反向依赖）——durable 的唯一之家。
+
+**把实现保留在 apiproxy 让 llm 导入它。** 因同一方向规则被否决：`dsh-host-apiproxy` 依赖 `dsh-llm`，故 llm 不能从 apiproxy 导入；实现放到 llm，apiproxy 重新导出。
 
 ## Consequences
 
-Web UI 在明文 HTTP 的 LAN 源上启动并保持连接，且在那里附加图片不再抛出。只有一个浏览器安全 UUID 辅助，从 `@deepseek-ai/dsh-host-apiproxy/client` 导出；`random-uuid.ts` 逐文件 100% 覆盖，一个 `mintRpcId` 测试钉住不安全上下文路径（stub 的 `crypto` 只含 `getRandomValues`）。更广的教训值得防范：**仅安全上下文的 Web API**（`crypto.randomUUID`、`crypto.subtle` 等）是浏览器客户端层的陷阱——它们通过每个 localhost/HTTPS 测试，只在明文 HTTP 的 LAN 源上失败，而那正是 token/LAN 工作所面向的部署。新的浏览器可达代码通过与源无关的原语（`getRandomValues`）或共享辅助铸造 id 与哈希，绝不用 `crypto.randomUUID`。宿主侧 `node:crypto` 不受影响。无 wire、格式或会话事件变更。
+Web UI 在明文 HTTP 的 LAN 源上启动并保持连接，且在那里附加图片、以及未来任何浏览器侧 Message 铸造都不再抛出。只有一个浏览器安全 UUID 辅助 `@deepseek-ai/dsh-llm/random-uuid`，经 `@deepseek-ai/dsh-host-apiproxy/client` 重新导出；`llm/random-uuid.ts` 逐文件 100% 覆盖，其单元测试钉住不安全上下文路径（stub 的 `crypto` 只含 `getRandomValues`），且一个 `mintRpcId` 测试证明在 `randomUUID` 缺失时一元调用仍铸造出有效 rpcId。更广的教训值得防范：**仅安全上下文的 Web API**（`crypto.randomUUID`、`crypto.subtle` 等）是浏览器客户端层的陷阱——它们通过每个 localhost/HTTPS 测试，只在明文 HTTP 的 LAN 源上失败，而那正是 token/LAN 工作所面向的部署。新的浏览器可达代码通过与源无关的原语（`getRandomValues`）或共享辅助铸造 id 与哈希，绝不用 `crypto.randomUUID`。宿主侧 `node:crypto` 不受影响。无 wire、格式或会话事件变更。

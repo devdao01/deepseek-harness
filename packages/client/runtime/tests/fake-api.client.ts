@@ -237,7 +237,9 @@ export class FakeApiClient implements IApiClient {
         agentPreset: payload.agentPreset, trust: 'user' as const, content: '',
       }))),
     copy: (payload: { agentPreset: string }) =>
-      this.record('agentPreset.copy', payload, Promise.resolve(ok({ agentPreset: payload.agentPreset }))),
+      this.record('agentPreset.copy', payload, Promise.resolve(ok({
+        agentPreset: payload.agentPreset, workspace: fakeWorkspace('fk-ws-copy'),
+      }))),
     openDocument: (payload: { agentPreset: string }) =>
       this.record('agentPreset.openDocument', payload, Promise.resolve(ok({ opened: true as const }))),
     remove: (payload: { agentPreset: string }) =>

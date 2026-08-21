@@ -34,6 +34,10 @@
       "types": "./lib/types/message.d.ts",
       "default": "./lib/types/message.js"
     },
+    "./random-uuid": {
+      "types": "./lib/types/random-uuid.d.ts",
+      "default": "./lib/types/random-uuid.js"
+    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
