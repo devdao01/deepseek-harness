@@ -30,7 +30,7 @@ import type {} from '@deepseek-ai/dsh-agent'
 import { settingsNamespace, type SettingsScope, type default as SettingsService } from '@deepseek-ai/dsh-settings'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { discoverPresets, USER_PRESET_DIR } from './discovery.ts'
-import { copyComposition, deleteComposition, readComposition } from './authoring.ts'
+import { copyComposition, deleteComposition, readComposition, writePresetWorkspacePath } from './authoring.ts'
 import { mountPreset, serviceForAgent, standingMountFor } from './mount.ts'
 import { PresetExistsError } from './authoring.ts'
 import { PresetMountError, UnknownPresetError, type AgentPreset, type Config, type PresetRoot } from './preset.ts'
@@ -60,7 +60,7 @@ export {
 } from './mount.ts'
 export {
   copyComposition, deleteComposition, InvalidPresetIdError, PresetExistsError,
-  PresetNotWritableError, readComposition, writableRoot,
+  PresetNotWritableError, readComposition, writableRoot, writePresetWorkspacePath,
 } from './authoring.ts'
 export { resolveSessionPreset, type PresetBearingSession } from './session.ts'
 export { PresetMountError, UnknownPresetError } from './preset.ts'
@@ -390,6 +390,20 @@ export class AgentPresets extends Service {
     // from disk outside `remove`); the new preset must not inherit it. Every
     // session already joined keeps the generation it runs on regardless.
     this.standing.delete(id)
+  }
+
+  /**
+   * Stamp a locally authored preset's conventional workspace path into its
+   * metadata, preserving its existing display text. Called after the workspace
+   * is provisioned so the recorded path is the workspace's canonical directory;
+   * a consumer that reads no stamp falls back to the conventional location.
+   * @param id - the preset id.
+   * @param workspacePath - the absolute canonical workspace directory to record.
+   * @throws when the preset is unknown, ships with the deployment, or lies
+   * outside the writable root.
+   */
+  async setWorkspacePath(id: string, workspacePath: string): Promise<void> {
+    await writePresetWorkspacePath(this.resolvedRoots, await this.resolve(id), workspacePath)
   }
 
   /**

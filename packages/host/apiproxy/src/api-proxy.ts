@@ -2176,16 +2176,33 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           && workspace === undefined
           && request.payload.cwd === undefined
           && request.payload.agentPreset !== undefined
-          && isPresetWorkspaceIdSafe(request.payload.agentPreset)
         ) {
-          try {
-            workspace = await registry.resolveByPath(
-              presetWorkspacePath(presetWorkspacesRoot, request.payload.agentPreset),
-            )
-          } catch {
-            // The conventional directory does not exist (realpath ENOENT) or is
-            // otherwise unresolvable: fall through to defaults.cwd unchanged.
-            workspace = undefined
+          const presetId = request.payload.agentPreset
+          // Prefer the workspace path the preset stored at authoring time; a
+          // preset without one (shipped presets, copies made before the stamp)
+          // falls back to the recomputed convention. Either way the lookup is
+          // registered-only — a missing or unresolvable path leaves the create
+          // on defaults.cwd, and nothing is auto-created here.
+          let lookupPath: string | undefined
+          const presets = ctx.get('agentPresets')
+          if (presets !== undefined) {
+            try {
+              lookupPath = (await presets.resolve(presetId)).workspacePath
+            } catch {
+              // Unknown preset: ensureSession reports it; there is nowhere to look.
+            }
+          }
+          if (lookupPath === undefined && isPresetWorkspaceIdSafe(presetId)) {
+            lookupPath = presetWorkspacePath(presetWorkspacesRoot, presetId)
+          }
+          if (lookupPath !== undefined) {
+            try {
+              workspace = await registry.resolveByPath(lookupPath)
+            } catch {
+              // The directory does not exist (realpath ENOENT) or is otherwise
+              // unresolvable: fall through to defaults.cwd unchanged.
+              workspace = undefined
+            }
           }
         }
         const cwd = workspace?.path ?? request.payload.cwd ?? defaults.cwd
@@ -3084,6 +3101,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             isDefault: preset.id === defaultId,
             ...preset.name === undefined ? {} : { name: preset.name },
             ...preset.description === undefined ? {} : { description: preset.description },
+            ...preset.workspacePath === undefined ? {} : { workspacePath: preset.workspacePath },
             ...preset.broken === undefined ? {} : { broken: preset.broken },
           })),
           authorable: presets.authorable,
@@ -3192,6 +3210,11 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         try {
           await mkdir(directory, { recursive: true })
           const { workspace } = await ensureWorkspace(directory)
+          // Record the provisioned workspace's canonical path on the preset so
+          // a later session.create prefers it over the recomputed convention.
+          // Stamping is part of this one operation: a stamp failure rolls the
+          // copy back like any other provisioning failure.
+          await presets.setWorkspacePath(agentPreset, workspace.path)
           return ok(request, { agentPreset, workspace: workspaceView(workspace) })
         } catch (error: unknown) {
           try {

@@ -32,6 +32,13 @@ export interface AgentPreset {
   /** Declared position within its group; absent sorts after those that declare one. */
   readonly order?: number
   /**
+   * Absolute path of the preset's conventional default workspace, stamped when
+   * the preset was authored; absent for shipped presets and pre-existing copies
+   * that predate the stamp, whose consumers fall back to the conventional
+   * `<presetWorkspacesRoot>/<id>` location.
+   */
+  readonly workspacePath?: string
+  /**
    * Why this preset cannot compose a session, absent when it can. A broken
    * preset stays on the roster — hiding it would leave its directory blocking
    * the id with nothing to see or delete — but every mounting path refuses it

@@ -189,6 +189,39 @@ describe('deleting a preset', () => {
   })
 })
 
+describe('stamping a preset workspace path', () => {
+  it('records an absolute path and keeps the existing display text', async () => {
+    await ctx.agentPresets.copy('standard', 'mine', '我的模式')
+
+    await ctx.agentPresets.setWorkspacePath('mine', '/home/u/workspace/mine')
+
+    const metadata = await readFile(join(userRoot, 'mine', METADATA_FILE), 'utf8')
+    expect(metadata).toContain('name: 我的模式')
+    expect(metadata).toContain('workspacePath: /home/u/workspace/mine')
+    expect((await ctx.agentPresets.list()).find(preset => preset.id === 'mine'))
+      .toMatchObject({ name: '我的模式', workspacePath: '/home/u/workspace/mine' })
+  })
+
+  it('stamps a preset that published no display text at all', async () => {
+    await seedPreset(userRoot, 'source')
+    await ctx.agentPresets.copy('source', 'plain')
+
+    await ctx.agentPresets.setWorkspacePath('plain', '/home/u/workspace/plain')
+
+    expect((await ctx.agentPresets.resolve('plain')).workspacePath).toBe('/home/u/workspace/plain')
+  })
+
+  it('refuses to stamp a shipped preset', async () => {
+    await expect(ctx.agentPresets.setWorkspacePath('standard', '/home/u/workspace/standard'))
+      .rejects.toThrow(/ships with the deployment/)
+  })
+
+  it('reports an unknown id rather than stamping nothing', async () => {
+    await expect(ctx.agentPresets.setWorkspacePath('never-existed', '/home/u/workspace/x'))
+      .rejects.toThrow(/not found/)
+  })
+})
+
 describe('a deployment with more than one user root', () => {
   it('refuses to delete a preset the writable root does not own', async () => {
     const second = await mkdtemp(join(tmpdir(), 'dsh-preset-second-'))
@@ -212,6 +245,28 @@ describe('a deployment with more than one user root', () => {
     await expect(layered.agentPresets.remove('elsewhere'))
       .rejects.toThrow(/does not live under the writable preset root/)
     expect(existsSync(join(second, 'elsewhere'))).toBe(true)
+  })
+
+  it('refuses to stamp a preset the writable root does not own', async () => {
+    const second = await mkdtemp(join(tmpdir(), 'dsh-preset-second-'))
+    await seedPreset(second, 'elsewhere')
+    const layered = new Context()
+    layered.baseUrl = pathToFileURL(FIXTURES).href + '/'
+    await layered.plugin(Loader)
+    layered.loader.builtins.include = Include
+    await layered.plugin(AgentPresets, {
+      default: 'standard',
+      roots: [
+        { path: userRoot, trust: 'user' as const },
+        { path: second, trust: 'user' as const },
+      ],
+      includeUserRoot: false,
+    })
+
+    // Same ownership guard as delete: a `user` preset from a later root must
+    // not have its metadata rewritten by the root that cannot author it.
+    await expect(layered.agentPresets.setWorkspacePath('elsewhere', '/home/u/workspace/elsewhere'))
+      .rejects.toThrow(/does not live under the writable preset root/)
   })
 })
 

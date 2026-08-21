@@ -1537,10 +1537,10 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
    * constants so the settings editor's save and delete are exercisable: the
    * roster a GUI journey sees after writing is the text it wrote.
    */
-  const fixturePresets = new Map<string, { trust: 'system' | 'user'; content: string }>([
+  const fixturePresets = new Map<string, { trust: 'system' | 'user'; content: string; workspacePath?: string }>([
     ['standard', { trust: 'system', content: "- id: tool-bash\n  name: '@deepseek-ai/dsh-tool-bash'\n" }],
     ['minimal', { trust: 'system', content: "- id: tool-web-search\n  name: '@deepseek-ai/dsh-tool-web-search'\n" }],
-    ['my-agent', { trust: 'user', content: "- id: tool-read\n  name: '@deepseek-ai/dsh-tool-read'\n" }],
+    ['my-agent', { trust: 'user', content: "- id: tool-read\n  name: '@deepseek-ai/dsh-tool-read'\n", workspacePath: '/fixture/workspace/my-agent' }],
   ])
   let fixtureDefaultPreset = 'standard'
   const nextTurn = new Map<SessionId, number>([[sid('fx-alpha'), 75]])
@@ -2703,6 +2703,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           id,
           trust: preset.trust,
           isDefault: id === fixtureDefaultPreset,
+          ...preset.workspacePath === undefined ? {} : { workspacePath: preset.workspacePath },
         })),
         authorable: true,
         hasDocument: true,
@@ -2744,11 +2745,12 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
             details: { agentPreset, reason: 'already exists' },
           })
         }
-        fixturePresets.set(agentPreset, { trust: 'user', content: source.content })
         // Mirror the host: a copy provisions the preset's conventional
-        // workspace and returns its view. The fixture roots them under a
-        // deterministic fake path so the response type matches.
+        // workspace, stamps its path onto the preset, and returns its view. The
+        // fixture roots them under a deterministic fake path so the response
+        // type matches.
         const conventionalPath = `/fixture/workspace/${agentPreset}`
+        fixturePresets.set(agentPreset, { trust: 'user', content: source.content, workspacePath: conventionalPath })
         const existingWorkspace = workspaces.find(w => w.path === conventionalPath)
         const now = new Date().toISOString()
         const workspace: WorkspaceView = existingWorkspace ?? {

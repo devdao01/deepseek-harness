@@ -7,18 +7,20 @@
  * also keeps the composition exactly what its name says: a Cordis file the
  * loader owns and the cordis preset can author.
  *
- * The file carries display text ONLY. `id` is the directory name and `trust`
- * comes from the root a preset was discovered under, so neither is writable
- * here — otherwise a locally authored preset could claim to be a shipped one.
+ * The file carries display text plus the preset's conventional workspace
+ * pointer ONLY. `id` is the directory name and `trust` comes from the root a
+ * preset was discovered under, so neither is writable here — otherwise a
+ * locally authored preset could claim to be a shipped one.
  *
- * Every read failure degrades to no metadata. A preset whose display text is
- * missing, malformed, or unreadable still mounts: presentation is not a
- * capability, and a broken name must never become an agent that cannot start.
+ * Every read failure degrades to no metadata. A preset whose display text or
+ * workspace pointer is missing, malformed, or unreadable still mounts:
+ * presentation is not a capability, and a broken field must never become an
+ * agent that cannot start.
  * @module @deepseek-ai/dsh-agent-presets/metadata
  */
 
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 import yaml from 'js-yaml'
 
 /** The optional display-metadata file beside a preset's composition. */
@@ -36,6 +38,13 @@ export interface PresetMetadata {
    * can read in capability order while authored ones stay alphabetical.
    */
   readonly order?: number
+  /**
+   * Absolute path of the preset's conventional default workspace, stamped when
+   * the preset was authored. A relative or otherwise malformed value reads as
+   * absent, the same non-fatal degradation as the display fields; a consumer
+   * then falls back to the conventional `<root>/<id>` location.
+   */
+  readonly workspacePath?: string
 }
 
 /** A non-empty trimmed string, or undefined for anything else. */
@@ -43,6 +52,12 @@ function text(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
   return trimmed === '' ? undefined : trimmed
+}
+
+/** A non-empty absolute path string, or undefined for anything else. */
+function absolutePath(value: unknown): string | undefined {
+  const trimmed = text(value)
+  return trimmed !== undefined && isAbsolute(trimmed) ? trimmed : undefined
 }
 
 /**
@@ -77,10 +92,12 @@ export async function readPresetMetadata(directory: string): Promise<PresetMetad
   const order = typeof record.order === 'number' && Number.isFinite(record.order)
     ? record.order
     : undefined
+  const workspacePath = absolutePath(record.workspacePath)
   return {
     ...name === undefined ? {} : { name },
     ...description === undefined ? {} : { description },
     ...order === undefined ? {} : { order },
+    ...workspacePath === undefined ? {} : { workspacePath },
   }
 }
 
@@ -96,10 +113,14 @@ export function renderPresetMetadata(metadata: PresetMetadata): string | undefin
   const name = text(metadata.name)
   const description = text(metadata.description)
   const { order } = metadata
-  if (name === undefined && description === undefined && order === undefined) return undefined
+  const workspacePath = absolutePath(metadata.workspacePath)
+  if (name === undefined && description === undefined && order === undefined && workspacePath === undefined) {
+    return undefined
+  }
   return yaml.dump({
     ...name === undefined ? {} : { name },
     ...description === undefined ? {} : { description },
     ...order === undefined ? {} : { order },
+    ...workspacePath === undefined ? {} : { workspacePath },
   }, { lineWidth: -1 })
 }

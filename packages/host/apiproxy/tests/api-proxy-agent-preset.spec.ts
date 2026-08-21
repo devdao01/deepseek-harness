@@ -75,6 +75,9 @@ function roster(ids: readonly string[], userIds: readonly string[] = []): unknow
       if (!ids.includes(id)) return Promise.reject(new UnknownPresetError(id, ids))
       return Promise.resolve()
     },
+    // This double's `copy` does not add the id to `ids`, so stamping is a
+    // plain no-op here; the real stamp semantics live in the preset package.
+    setWorkspacePath: () => Promise.resolve(),
     recompose: (_ctx: Context, id: string) => {
       if (!ids.includes(id)) return Promise.reject(new UnknownPresetError(id, ids))
       return Promise.resolve({ id, trust: 'system', path: `/presets/${id}.yml` })

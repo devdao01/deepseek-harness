@@ -16,7 +16,7 @@ import { chmod, cp, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { expandHomePath } from '@deepseek-ai/dsh-home-paths'
-import { METADATA_FILE, renderPresetMetadata } from './metadata.ts'
+import { METADATA_FILE, readPresetMetadata, renderPresetMetadata } from './metadata.ts'
 import { PRESET_ID, type AgentPreset, type PresetRoot } from './preset.ts'
 
 /** A preset id that cannot be used as a directory name under a root. */
@@ -167,6 +167,44 @@ export async function copyComposition(
     throw error
   }
   return dir
+}
+
+/**
+ * Stamp a locally authored preset's conventional workspace path into its
+ * metadata, preserving whatever display text it already carries.
+ *
+ * Only a `user` preset under the writable root may be stamped — the same
+ * ownership guard `deleteComposition` applies — so authoring can never rewrite
+ * a shipped preset's file. The workspace path is an absolute canonical
+ * directory the caller has already provisioned; it is merged into the existing
+ * metadata and written atomically, so a preset that already published a name
+ * or description keeps it.
+ * @param roots - the configured roots; the first `user` one owns the preset.
+ * @param preset - the resolved preset to stamp.
+ * @param workspacePath - the absolute workspace directory to record.
+ * @throws when the preset ships with the deployment or lies outside the writable root.
+ */
+export async function writePresetWorkspacePath(
+  roots: readonly PresetRoot[],
+  preset: AgentPreset,
+  workspacePath: string,
+): Promise<void> {
+  if (preset.trust !== 'user') {
+    throw new PresetNotWritableError(preset.id, 'it ships with the deployment')
+  }
+  const dir = join(writableRoot(roots), preset.id)
+  // Belt and braces over the id pattern: the resolved directory must still be
+  // the one the writable root owns, whatever discovery reported.
+  if (!isAbsolute(preset.path) || !preset.path.startsWith(dir)) {
+    throw new PresetNotWritableError(preset.id, 'it does not live under the writable preset root')
+  }
+  const current = await readPresetMetadata(dir)
+  const rendered = renderPresetMetadata({ ...current, workspacePath })
+  /* v8 ignore next 3 -- workspacePath is always set here, so the metadata is never empty and render never yields undefined */
+  if (rendered === undefined) {
+    throw new PresetNotWritableError(preset.id, 'the stamped metadata rendered to nothing')
+  }
+  await writeFileAtomic(join(dir, METADATA_FILE), rendered, { mode: 0o600, dirMode: 0o700 })
 }
 
 /**

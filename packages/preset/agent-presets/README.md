@@ -23,8 +23,9 @@ Discovery is unmemoized: `list()` and `resolve()` re-read the roots on every cal
 - `ctx.agentPresets.read(id): Promise<string>` One preset's composition text, exactly as stored.
 - `ctx.agentPresets.copy(from, id, name?): Promise<void>` Create a locally authored preset by copying an existing one's whole directory — the only authoring write. No composition text crosses this seam, so a copy is exactly as loadable as its source; the copied metadata keeps the source's description but never its name or roster order, and `name` (or the id fallback) is what distinguishes the rows.
 - `ctx.agentPresets.remove(id): Promise<void>` Delete a locally authored preset; joined sessions keep their standing mount. Clears the user default when it named the preset just deleted: storing a default that does not exist yet is deliberate, but one this call removed will never be supplied again and would fail every session created without an explicit pick.
+- `ctx.agentPresets.setWorkspacePath(id, workspacePath): Promise<void>` Stamp a locally authored preset's default workspace directory into its metadata, preserving its existing display text. The caller passes an absolute canonical path (the workspace it just provisioned); only a `user` preset under the writable root may be stamped, the same ownership guard as `remove`.
 
-`AgentPreset` carries `id` (the directory name), `trust` (`system` or `user`, from the root it was found under), `path` (the absolute composition file), and — only when the preset cannot compose a session — `broken` (one human-readable reason, shown verbatim on roster surfaces).
+`AgentPreset` carries `id` (the directory name), `trust` (`system` or `user`, from the root it was found under), `path` (the absolute composition file), `workspacePath` (the absolute default-workspace directory a preset stored at authoring time, absent for shipped presets and pre-stamp copies), and — only when the preset cannot compose a session — `broken` (one human-readable reason, shown verbatim on roster surfaces).
 
 ### Where to call `mount()`
 
@@ -77,9 +78,9 @@ name: 极简模式
 description: 仅提供持久 bash 与 str_replace_editor 的双工具编码 Agent。
 ```
 
-It carries display text ONLY. `id` is the directory name and `trust` comes from the root the preset was discovered under, so neither is writable here — otherwise a locally authored preset could name itself into the shipped set. It is a separate file because the composition is a top-level list of plugin rows: YAML cannot carry sibling keys beside it, and a fake metadata row would hand the Loader something to load.
+It carries display text plus one non-display field — `workspacePath`, the preset's absolute default-workspace directory, stamped by `setWorkspacePath` after that workspace is provisioned (a relative or malformed value reads as absent, the same non-fatal rule as the display fields). `id` is the directory name and `trust` comes from the root the preset was discovered under, so neither is writable here — otherwise a locally authored preset could name itself into the shipped set. It is a separate file because the composition is a top-level list of plugin rows: YAML cannot carry sibling keys beside it, and a fake metadata row would hand the Loader something to load.
 
-Every read failure degrades to no metadata — absent, malformed, wrongly typed, or blank all mean the same thing, and a picker falls back to the id. Presentation is not capability: a preset with a broken name still mounts.
+Every read failure degrades to no metadata — absent, malformed, wrongly typed, or blank all mean the same thing, and a picker falls back to the id (and a consumer falls back to the conventional workspace location). Presentation is not capability: a preset with a broken name still mounts.
 
 ## Config
 

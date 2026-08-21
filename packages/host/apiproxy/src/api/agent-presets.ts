@@ -35,6 +35,13 @@ export interface AgentPresetEntry {
   /** One sentence on what the preset is for, when it published one. */
   readonly description?: string
   /**
+   * Absolute path of the preset's conventional default workspace, recorded
+   * when the preset was authored; absent for shipped presets and copies made
+   * before the stamp existed, whose sessions fall back to the conventional
+   * `<presetWorkspacesRoot>/<id>` location.
+   */
+  readonly workspacePath?: string
+  /**
    * Why this preset cannot compose a session, absent when it can. A broken
    * preset stays listed — its directory still occupies the id, so a surface
    * must be able to show and delete it — but offering it for selection would
@@ -99,12 +106,14 @@ export interface AgentPresetsApi {
    * here or the id fallback is what distinguishes the rows.
    *
    * After the copy, the preset's conventional workspace (`<root>/<agentPreset>`)
-   * is created or an existing directory/record adopted idempotently, and the
-   * response carries that `WorkspaceView`. An id that cannot be a single path
-   * segment (a separator or `..`) is refused with `agent-preset-invalid`
-   * before anything is copied. Copy-then-provision is atomic: if provisioning
-   * fails, the just-copied preset is removed and the call answers
-   * `directory-create-failed` naming the path.
+   * is created or an existing directory/record adopted idempotently, its
+   * canonical path is stamped onto the new preset's metadata (so a later
+   * `session.create` prefers the stored path over the recomputed convention),
+   * and the response carries that `WorkspaceView`. An id that cannot be a
+   * single path segment (a separator or `..`) is refused with
+   * `agent-preset-invalid` before anything is copied. Copy-then-provision is
+   * atomic: if provisioning or the stamp fails, the just-copied preset is
+   * removed and the call answers `directory-create-failed` naming the path.
    */
   copy(request: RpcRequest<{ from: string; agentPreset: string; name?: string }>):
   Promise<RpcResponse<{ agentPreset: string; workspace: WorkspaceView }>>

@@ -92,14 +92,26 @@ describe('presetWorkspacePath', () => {
  * rollback can be observed. `failCopy`/`removed` let a test drive the roster's
  * behavior. The composition itself is out of scope here.
  */
-function roster(ids: string[], removed: string[]): unknown {
+function roster(ids: string[], removed: string[], stamped: Map<string, string>, failStamp: boolean): unknown {
+  const presetOf = (id: string): Record<string, unknown> => ({
+    id,
+    trust: 'system',
+    path: `/presets/${id}.yml`,
+    ...stamped.has(id) ? { workspacePath: stamped.get(id) } : {},
+  })
   return {
     defaultId: ids[0],
-    list: () => Promise.resolve(ids.map(id => ({ id, trust: 'system', path: `/presets/${id}.yml` }))),
+    list: () => Promise.resolve(ids.map(presetOf)),
     resolve: (id?: string) => {
       const wanted = id ?? ids[0] ?? ''
       if (!ids.includes(wanted)) return Promise.reject(new UnknownPresetError(wanted, ids))
-      return Promise.resolve({ id: wanted, trust: 'system', path: `/presets/${wanted}.yml` })
+      return Promise.resolve(presetOf(wanted))
+    },
+    setWorkspacePath: (id: string, workspacePath: string) => {
+      if (failStamp) return Promise.reject(new Error('stamp failed'))
+      if (!ids.includes(id)) return Promise.reject(new UnknownPresetError(id, ids))
+      stamped.set(id, workspacePath)
+      return Promise.resolve()
     },
     mount: (_ctx: Context, id?: string) =>
       Promise.resolve({ id: id ?? ids[0] ?? '', trust: 'system', path: `/presets/${id ?? ids[0] ?? ''}.yml` }),
@@ -126,7 +138,7 @@ function stubAgent(session: Session): Agent {
 
 /** Compose the API over real Session, Agent, Storage, and Workspace services. */
 async function harness(
-  options: { presetWorkspacesRoot?: string; removed?: string[]; presets?: string[] } = {},
+  options: { presetWorkspacesRoot?: string; removed?: string[]; presets?: string[]; failStamp?: boolean } = {},
 ) {
   const cwd = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-preset-ws-')))
   const ctx = new Context()
@@ -141,7 +153,8 @@ async function harness(
   ctx.provide('sessionPersistence', { list: () => Promise.resolve([]) } as never)
   await ctx.plugin(WorkspaceRegistry)
   const removed = options.removed ?? []
-  ctx.provide('agentPresets', roster([...options.presets ?? ['standard']], removed) as never)
+  const stamped = new Map<string, string>()
+  ctx.provide('agentPresets', roster([...options.presets ?? ['standard']], removed, stamped, options.failStamp ?? false) as never)
 
   const factory: AgentFactory = {
     async createAgent(_ownerCtx, createOptions) {
@@ -164,12 +177,12 @@ async function harness(
     cwd,
     presetWorkspacesRoot: options.presetWorkspacesRoot ?? cwd,
   })
-  return { api, ctx, cwd, removed }
+  return { api, ctx, cwd, removed, stamped }
 }
 
 describe('agentPreset.copy workspace provisioning', () => {
-  it('creates the conventional directory, registers it, and returns the view', async () => {
-    const { api, ctx, cwd } = await harness()
+  it('creates the conventional directory, registers it, stamps the preset, and returns the view', async () => {
+    const { api, ctx, cwd, stamped } = await harness()
 
     const response = await api.agentPresets.copy(request({ from: 'standard', agentPreset: 'accounting' }))
 
@@ -178,6 +191,8 @@ describe('agentPreset.copy workspace provisioning', () => {
     const expectedPath = realpathSync(join(cwd, 'accounting'))
     expect(response.result.value.workspace.path).toBe(expectedPath)
     expect(ctx.workspaceRegistry.list().map(w => w.path)).toContain(expectedPath)
+    // The provisioned workspace's canonical path was stamped onto the preset.
+    expect(stamped.get('accounting')).toBe(expectedPath)
   })
 
   it('adopts an already-registered conventional workspace on a re-provision', async () => {
@@ -225,6 +240,18 @@ describe('agentPreset.copy workspace provisioning', () => {
     // Rollback removed the just-copied preset.
     expect(removed).toContain('accounting')
   })
+
+  it('rolls the copied preset back when stamping the workspace path fails', async () => {
+    const removed: string[] = []
+    const { api } = await harness({ failStamp: true, removed })
+
+    const response = await api.agentPresets.copy(request({ from: 'standard', agentPreset: 'accounting' }))
+
+    expect(response.result.ok).toBe(false)
+    if (response.result.ok) throw new Error('unreachable')
+    expect(response.result.error.code).toBe('directory-create-failed')
+    expect(removed).toContain('accounting')
+  })
 })
 
 describe('session.create preset-conventional default', () => {
@@ -241,6 +268,24 @@ describe('session.create preset-conventional default', () => {
     expect(ctx.sessions.get(SessionId('conv-1'))?.header.cwd).toBe(conventional)
     const workspace = ctx.workspaceRegistry.list().find(w => w.path === conventional)
     expect(workspace?.sessionIds).toContain(SessionId('conv-1'))
+  })
+
+  it('prefers the preset\'s stored workspacePath over the recomputed convention', async () => {
+    const { api, ctx, cwd, stamped } = await harness({ presets: ['standard', 'accounting'] })
+    // A stored path pointing at a DIFFERENT registered directory than the
+    // conventional <cwd>/accounting, so preferring the stamp is observable.
+    const storedDir = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-preset-stored-')))
+    await ctx.workspaceRegistry.create(storedDir)
+    stamped.set('accounting', storedDir)
+    // The conventional directory also exists and is registered.
+    const conventional = join(cwd, 'accounting')
+    await mkdir(conventional)
+    await ctx.workspaceRegistry.create(conventional)
+
+    const created = await api.sessions.create(request({ sessionId: SessionId('conv-stored'), agentPreset: 'accounting' }))
+
+    expect(created.result.ok).toBe(true)
+    expect(ctx.sessions.get(SessionId('conv-stored'))?.header.cwd).toBe(storedDir)
   })
 
   it('falls back to the default cwd when no conventional workspace is registered', async () => {

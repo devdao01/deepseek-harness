@@ -9,6 +9,7 @@
  *                   Response = ServerResponse (business errors ride HTTP 200 with result.ok=false)
  *   - SSE streams : GET  /api/events.mux  |  GET /api/events.host   (no envelope; text/event-stream, each data line = ServerRequest)
  *   - Download    : GET  /api/session.export?sessionId=...&includeDescendants=true (ZIP; no envelope)
+ *                   GET  /api/workspace.file?sessionId=...&path=...            (file attachment; no envelope)
  *   - Respond     : POST /api/respond     body = ClientResponse (answer to an approval/question ServerRequest)
  *
  * Run: node build-postman-collection.mjs
@@ -133,7 +134,7 @@ const RPC = [
   ['session.create', 'Sessions',
     { cwd: '/Users/dev01/Desktop/test1' },
     { sessionId: '<new-session-id>' },
-    'Creates a real session and its idle agent. At most ONE of `workspaceId` / `cwd` is accepted (both → bad-request); omitted project uses the Host cwd. Optional `sessionId` preallocates an id (retry with same id+cwd → same session; different cwd → session-conflict). Optional `agentPreset` names the composition.'],
+    'Creates a real session and its idle agent. At most ONE of `workspaceId` / `cwd` is accepted (both → bad-request). The project directory (cwd) resolves in order: named `workspaceId` → explicit `cwd` → when only `agentPreset` is given, that preset\'s stored `workspacePath` (else the conventional `<presetWorkspacesRoot>/<agentPreset>`) IF a workspace is registered there (never auto-created) → the Host cwd. A preset-conventional match attaches the session to that workspace. Optional `sessionId` preallocates an id (retry with same id+cwd → same session; different cwd → session-conflict). Optional `agentPreset` names the composition.'],
   ['session.history', 'Sessions',
     { sessionId: '{{sessionId}}', maxMessages: 50 },
     { events: [{ event: { type: 'user/message', seq: 1, time: 1724000000000, data: {} } }], hasMore: false },
@@ -260,8 +261,11 @@ const RPC = [
   // ---- agentPresets ----
   ['agentPreset.list', 'Agent Presets',
     {},
-    { presets: [], authorable: false, hasDocument: false },
-    'Lists every preset the deployment currently supplies, in root-precedence order. `authorable` = whether a user root exists for copying; `hasDocument` = whether openDocument can hand a directory to a native opener.'],
+    { presets: [
+      { id: 'base', trust: 'system', isDefault: true, name: 'Base' },
+      { id: 'my-preset', trust: 'user', isDefault: false, name: 'My Preset', workspacePath: '/Users/dev01/workspace/my-preset' },
+    ], authorable: true, hasDocument: true },
+    'Lists every preset the deployment currently supplies, in root-precedence order. Each entry may carry `workspacePath` — the preset\'s stored conventional workspace directory, present on authored presets that were stamped at copy time (absent on shipped presets). `authorable` = whether a user root exists for copying; `hasDocument` = whether openDocument can hand a directory to a native opener.'],
   ['agentPreset.select', 'Agent Presets',
     { sessionId: '{{sessionId}}', agentPreset: 'base' },
     { agentPreset: 'base' },
@@ -272,8 +276,11 @@ const RPC = [
     'Reads one preset\'s composition text for the read-only viewer. Privileged: a composition names the plugins a session runs (loopback-pinned).'],
   ['agentPreset.copy', 'Agent Presets',
     { from: 'base', agentPreset: 'my-preset', name: 'My Preset' },
-    { agentPreset: 'my-preset' },
-    'Creates a locally authored preset by copying an existing one whole. Copy-only authoring: no composition text and no path crosses the wire.'],
+    { agentPreset: 'my-preset', workspace: {
+      workspaceId: '<workspace-id>', path: '/Users/dev01/workspace/my-preset', title: 'my-preset',
+      sessionIds: [], createdAt: '2024-08-19T12:00:00.000Z', updatedAt: '2024-08-19T12:00:00.000Z',
+    } },
+    'Creates a locally authored preset by copying an existing one whole, then provisions its conventional default workspace (`<presetWorkspacesRoot>/<agentPreset>`, default root `~/workspace`) as ONE operation: the directory is created-or-adopted through the workspace registry, its canonical path is stamped onto the new preset\'s metadata (surfacing as `workspacePath` on agentPreset.list), and the response carries the `WorkspaceView`. Copy-only authoring: no composition text and no path crosses the wire. An id that is not a single path segment (separator or `..`) → agent-preset-invalid before anything is copied; if provisioning or the stamp fails, the just-copied preset is rolled back and the call answers directory-create-failed naming the path.'],
   ['agentPreset.openDocument', 'Agent Presets',
     { agentPreset: 'my-preset' },
     { opened: true },
@@ -372,6 +379,8 @@ const STREAMS = [
     'Host-level info stream (WebSocket downlink on the GUI; SSE GET in the pure fetch carrier). Frames: host/session-added, host/session-removed, host/session-status, host/agent-error, host/workspace-changed, host/workspace-removed, host/workspace-order-changed, host/archived-sessions-changed, host/remote-event, stream/error.'],
   ['session.export (ZIP download)', '{{baseUrl}}/api/session.export?sessionId={{sessionId}}&includeDescendants=true',
     'Streams one session-log ZIP — the root artifact verbatim plus each subagent descendant\'s — as an attachment response (also HEAD supported). No wire envelope. Missing services → 500; missing root session → 404.'],
+  ['workspace.file (file download)', '{{baseUrl}}/api/workspace.file?sessionId={{sessionId}}&path=notes/report.md',
+    'Streams ONE regular file from the session\'s workspace directory as an application/octet-stream attachment (content-length + content-disposition naming the basename, RFC 5987 for non-ASCII; also HEAD supported). No wire envelope. `path` is absolute or relative to the workspace. Containment is enforced by realpath\'ing both the workspace root and the requested file: a file resolving OUTSIDE the workspace → 403 (a symlink cannot escape). An executable artifact (extension in a fixed list — exe/dll/so/sh/py/jar/… — or a POSIX execute bit) → 403. Unknown session, missing file, or a non-regular file (directory, fifo) → 404.'],
 ]
 
 // ---------- respond ----------
@@ -431,7 +440,7 @@ const collection = {
       '- **Response**: ServerResponse envelope. **Business errors ride HTTP 200** with `result.ok === false` and `result.error = { code, message, details }`. ' +
       'HTTP status describes only the carrier: 404 unknown path, 415 non-JSON media type, 400 body not JSON, 500 handler crash.\n' +
       '- **Streams**: on the standard GUI, `GET /api/events.mux` and `GET /api/events.host` are **WebSocket** downlinks (`ws://127.0.0.1:3080/api/events.mux`) — open them as Postman WebSocket requests. A plain HTTP GET against the GUI answers "upgrade required"; the pure fetch carrier implements the SSE GET form instead.\n' +
-      '- **Download**: `GET /api/session.export?sessionId=…&includeDescendants=…` streams a ZIP (no envelope).\n' +
+      '- **Download**: `GET /api/session.export?sessionId=…&includeDescendants=…` streams a session-log ZIP, and `GET /api/workspace.file?sessionId=…&path=…` streams one contained workspace file as an attachment (both no envelope).\n' +
       '- **Respond**: `POST /api/respond` carries the ClientResponse answering an approval/question ServerRequest received on a stream.\n\n' +
       '## Variables\n' +
       '- `baseUrl` — default `http://127.0.0.1:3080` (the harness Web GUI address).\n' +

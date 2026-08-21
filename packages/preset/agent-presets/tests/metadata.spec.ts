@@ -78,6 +78,20 @@ describe('reading display metadata', () => {
     expect(await readPresetMetadata(await presetDir('order: .inf\n'))).toEqual({})
   })
 
+  it('reads an absolute workspace path', async () => {
+    const dir = await presetDir('name: 会计\nworkspacePath: /home/u/workspace/accounting\n')
+
+    expect(await readPresetMetadata(dir))
+      .toEqual({ name: '会计', workspacePath: '/home/u/workspace/accounting' })
+  })
+
+  it('ignores a relative or non-string workspace path', async () => {
+    // A relative or malformed pointer degrades to absent, the same non-fatal
+    // rule as the display fields; a consumer then falls back to the convention.
+    expect(await readPresetMetadata(await presetDir('workspacePath: workspace/accounting\n'))).toEqual({})
+    expect(await readPresetMetadata(await presetDir('workspacePath:\n  nested: true\n'))).toEqual({})
+  })
+
   it('cannot carry identity or trust', async () => {
     const dir = await presetDir('name: mine\nid: standard\ntrust: system\n')
 
@@ -110,5 +124,22 @@ describe('rendering display metadata', () => {
     // an intentional blank name.
     expect(renderPresetMetadata({})).toBeUndefined()
     expect(renderPresetMetadata({ name: '  ', description: '' })).toBeUndefined()
+  })
+
+  it('stores an absolute workspace path and round-trips it', async () => {
+    const rendered = renderPresetMetadata({ name: '会计', workspacePath: '/home/u/workspace/accounting' })
+    const dir = await presetDir(rendered)
+
+    expect(await readPresetMetadata(dir))
+      .toEqual({ name: '会计', workspacePath: '/home/u/workspace/accounting' })
+  })
+
+  it('renders a workspace path even when it is the only field', () => {
+    expect(renderPresetMetadata({ workspacePath: '/srv/ws/accounting' }))
+      .toBe('workspacePath: /srv/ws/accounting\n')
+  })
+
+  it('omits a relative workspace path rather than storing it', () => {
+    expect(renderPresetMetadata({ workspacePath: 'ws/accounting' })).toBeUndefined()
   })
 })
