@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_npei_agent_session_tree" model="ir.ui.view">
+        <field name="name">npei.agent.session.tree</field>
+        <field name="model">npei.agent.session</field>
+        <field name="arch" type="xml">
+            <tree string="Agent Sessions">
+                <field name="session_id"/>
+                <field name="name"/>
+                <field name="owner_id"/>
+                <field name="user_ids" widget="many2many_tags"/>
+                <field name="preset_id"/>
+                <field name="write_date"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_npei_agent_session_form" model="ir.ui.view">
+        <field name="name">npei.agent.session.form</field>
+        <field name="model">npei.agent.session</field>
+        <field name="arch" type="xml">
+            <form string="Agent Session">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="session_id"/>
+                            <field name="name"/>
+                            <field name="preset_id"/>
+                            <field name="workspace_path"/>
+                        </group>
+                        <group>
+                            <field name="owner_id"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <group string="Allowed Users">
+                        <field name="user_ids" widget="many2many_tags" nolabel="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_npei_agent_session_search" model="ir.ui.view">
+        <field name="name">npei.agent.session.search</field>
+        <field name="model">npei.agent.session</field>
+        <field name="arch" type="xml">
+            <search string="Agent Sessions">
+                <field name="session_id"/>
+                <field name="name"/>
+                <field name="owner_id"/>
+                <field name="user_ids"/>
+                <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Owner" name="group_owner" context="{'group_by': 'owner_id'}"/>
+                    <filter string="Preset" name="group_preset" context="{'group_by': 'preset_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_npei_agent_session" model="ir.actions.act_window">
+        <field name="name">Sessions</field>
+        <field name="res_model">npei.agent.session</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_npei_agent_session_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Register a harness session mapping</p>
+            <p>Map a harness session id to the Odoo users allowed to drive it.</p>
+        </field>
+    </record>
+</odoo>

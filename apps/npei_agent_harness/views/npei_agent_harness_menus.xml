@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_npei_agent_root"
+              name="MTIL Agent"
+              sequence="90"
+              groups="npei_agent_harness.group_npei_agent_user"/>
+
+    <menuitem id="menu_npei_agent_session"
+              name="Sessions"
+              parent="menu_npei_agent_root"
+              action="action_npei_agent_session"
+              sequence="10"/>
+
+    <menuitem id="menu_npei_agent_preset"
+              name="Presets"
+              parent="menu_npei_agent_root"
+              action="action_npei_agent_preset"
+              sequence="20"/>
+
+    <menuitem id="menu_npei_agent_skill"
+              name="Skills"
+              parent="menu_npei_agent_root"
+              action="action_npei_agent_skill"
+              sequence="30"/>
+
+    <menuitem id="menu_npei_agent_config"
+              name="Configuration"
+              parent="menu_npei_agent_root"
+              sequence="90"
+              groups="npei_agent_harness.group_npei_agent_manager"/>
+
+    <menuitem id="menu_npei_agent_settings"
+              name="Settings"
+              parent="menu_npei_agent_config"
+              action="action_npei_agent_config_settings"
+              sequence="10"/>
+
+    <menuitem id="menu_npei_sync_presets"
+              name="Sync Presets from Harness"
+              parent="menu_npei_agent_config"
+              action="action_npei_sync_presets"
+              sequence="20"/>
+
+    <menuitem id="menu_npei_sync_skills"
+              name="Sync Skills from Harness"
+              parent="menu_npei_agent_config"
+              action="action_npei_sync_skills"
+              sequence="30"/>
+</odoo>
