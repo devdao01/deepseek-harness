@@ -172,6 +172,27 @@ describe('unary round trip', () => {
     expect(response.result).toEqual({ ok: true, value: { items: [{ sessionId: 's1', updatedAt: 7, running: false, blank: false }] } })
   })
 
+  it('mints a valid rpcId on an insecure origin where crypto.randomUUID is undefined', async () => {
+    // The live bug: on a plain-HTTP LAN origin crypto.randomUUID is undefined,
+    // so the old mintRpcId threw before any fetch and looped the connection.
+    // mintRpcId now uses the getRandomValues-based helper, so a unary call
+    // still mints a valid v4 rpcId with only getRandomValues available.
+    const original = globalThis.crypto
+    const insecure = { getRandomValues: original.getRandomValues.bind(original) }
+    Object.defineProperty(globalThis, 'crypto', { value: insecure, configurable: true })
+    try {
+      let seen: RpcRequest<{ cursor?: string }> | undefined
+      const api = scriptedApi({
+        sessions: { list: (r) => { seen = r; return ok(r, { items: [] }) } },
+      })
+      const response = await client(api).sessions.list({})
+      expect(seen?.rpcId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+      expect(response.rpcId).toBe(seen?.rpcId)
+    } finally {
+      Object.defineProperty(globalThis, 'crypto', { value: original, configurable: true })
+    }
+  })
+
   it('round-trips a trimmed session search query and its bounded result metadata', async () => {
     let seen: RpcRequest<{ query: string }> | undefined
     const api = scriptedApi({

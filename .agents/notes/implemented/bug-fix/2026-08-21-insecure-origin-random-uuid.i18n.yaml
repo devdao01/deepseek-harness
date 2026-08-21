@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-21-insecure-origin-random-uuid.md
+2026-08-21-insecure-origin-random-uuid.md: c7e21eb77e69b29cf564e4d673d11a569c76bb34
+2026-08-21-insecure-origin-random-uuid.zh.md: 65231a31e04d2fc882e6c7c7d6ac112a9a20059f

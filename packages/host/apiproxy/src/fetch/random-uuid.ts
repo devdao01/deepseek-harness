@@ -1,4 +1,15 @@
-/** Browser-safe UUID generation for client-side wire correlation. */
+/**
+ * Browser-safe UUID generation for client-side wire correlation.
+ *
+ * `crypto.randomUUID()` is exposed only in SECURE CONTEXTS in browsers (HTTPS
+ * or `localhost`), so it is `undefined` on a plain-HTTP LAN origin like
+ * `http://192.168.0.5:3080` and calling it throws. `crypto.getRandomValues()`
+ * carries no such restriction, so this helper builds an RFC 4122 version 4 UUID
+ * over it and works on every origin (and in Node ≥19, whose global `crypto`
+ * exposes the same Web Crypto surface). Client code that mints rpcIds or ids
+ * MUST use this rather than `crypto.randomUUID`.
+ * @module
+ */
 
 /**
  * Generate an RFC 4122 version 4 UUID without requiring a secure context.

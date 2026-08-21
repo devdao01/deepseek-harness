@@ -12,6 +12,9 @@
       "path": "../../attachment/attachment"
     },
     {
+      "path": "../../host/apiproxy"
+    },
+    {
       "path": "../../util/brand"
     },
     {
