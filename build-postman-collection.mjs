@@ -45,11 +45,12 @@ function err() {
   }
 }
 
-/** Build a Postman URL object from a raw template like "{{baseUrl}}/api/x?a=1&b=2". */
+/** Build a Postman URL object from a raw template like "{{baseUrl}}/api/x?a=1&b=2".
+ * No `protocol` member: the base-URL variables already carry their scheme
+ * (http://… / ws://…), and Postman would prepend a second one. */
 function buildUrl(raw) {
   const m = raw.match(/^(\{\{[a-zA-Z]+\}\})\/?(.*)$/)
   const host = m ? [m[1]] : []
-  const protocol = m ? (m[1] === '{{wsBaseUrl}}' ? 'ws' : 'http') : undefined
   let rest = m ? m[2] : raw
   let query
   const q = rest.indexOf('?')
@@ -64,7 +65,7 @@ function buildUrl(raw) {
       })
     rest = rest.slice(0, q)
   }
-  const url = { raw, host, protocol, path: rest.split('/').filter(Boolean) }
+  const url = { raw, host, path: rest.split('/').filter(Boolean) }
   if (query) url.query = query
   return url
 }
