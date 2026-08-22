@@ -33,6 +33,13 @@ export interface RpcErrorDetailsMap {
   'bad-request': { issues: ZodIssue[] }
   'cancelled': {}
   'session-not-found': { sessionId: SessionId }
+  /**
+   * The caller's per-user ticket is not permitted this session (or the method
+   * is full-token only). Distinct from a transport 401: a valid, non-expired
+   * ticket that simply lacks access — the SPA must NOT treat this as "refresh".
+   * `sessionId` is absent for a method-level (full-token-only) refusal.
+   */
+  'forbidden': { sessionId?: SessionId }
   'model-unavailable': { provider: string; model: string }
   'session-conflict': { sessionId: SessionId; requestedCwd: string; existingCwd?: string }
   'invalid-time-zone': { value: string }

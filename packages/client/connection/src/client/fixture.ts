@@ -3110,6 +3110,14 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'session.attachment': return this.api.sessions.attachment(request)
       case 'session.updateQueue': return this.api.sessions.updateQueue(request)
       case 'session.cancel': return this.api.sessions.cancel(request)
+      // Per-session access management is a full-token server surface, not part
+      // of this in-memory UI fixture's contract.
+      case 'session.setAccess':
+      case 'session.getAccess':
+        return Promise.resolve({
+          rpcId: request.rpcId,
+          result: { ok: false, error: { code: 'internal', message: 'fixture does not implement per-session access', details: {} } },
+        })
       case 'subagent.list': return this.api.subagents.list(request)
       case 'subagent.history': return this.api.subagents.history(request)
       case 'subagent.prompt': return this.api.subagents.prompt(request, signal)

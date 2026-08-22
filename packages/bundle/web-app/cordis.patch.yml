@@ -61,6 +61,17 @@
       config:
         backend: json
 
+    # Per-user session ACL store, mounted as a root row so `ctx.get('sessionAccess')`
+    # resolves at the api-gateway. Present only under per-user ticket auth
+    # (DSH_TICKET_SECRET set) — inert and unnecessary otherwise, and its absence
+    # keeps the token-less standalone SPA on today's behavior.
+    - id: session-access
+      name: '@deepseek-ai/dsh-session-access'
+      # Disabled unless DSH_TICKET_SECRET is set. Written as a length check, not
+      # `!process.env...`: a leading `!` right after the `!!js` tag reads as a
+      # second YAML tag ("duplication of a tag property") and fails the load.
+      disabled: !!js (process.env.DSH_TICKET_SECRET ?? '').length === 0
+
     - id: message-feedback
       name: '@deepseek-ai/dsh-message-feedback'
       config:

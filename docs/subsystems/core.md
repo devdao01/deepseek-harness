@@ -486,6 +486,18 @@ async read(id: string): Promise<string>
 async copy(from: string, id: string, name?: string): Promise<void>
 
 /**
+ * Stamp a locally authored preset's conventional workspace path into its
+ * metadata, preserving its existing display text. Called after the workspace
+ * is provisioned so the recorded path is the workspace's canonical directory;
+ * a consumer that reads no stamp falls back to the conventional location.
+ * @param id - the preset id.
+ * @param workspacePath - the absolute canonical workspace directory to record.
+ * @throws when the preset is unknown, ships with the deployment, or lies
+ * outside the writable root.
+ */
+async setWorkspacePath(id: string, workspacePath: string): Promise<void>
+
+/**
  * Delete a locally authored preset.
  * @param id - the preset id.
  * @throws when the preset is unknown or ships with the deployment.

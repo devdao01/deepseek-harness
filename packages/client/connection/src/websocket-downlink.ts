@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import type { IncomingMessage } from 'node:http'
 import type { Duplex } from 'node:stream'
 import WebSocket, { WebSocketServer } from 'ws'
+import type { ApiPrincipal } from '@deepseek-ai/dsh-user-ticket'
 import type {
   ApiProxy, HostFrame, MuxFrame, RpcRequest, ServerRequest,
 } from '@deepseek-ai/dsh-host-apiproxy/api'
@@ -60,12 +61,13 @@ export class WebSocketDownlinks {
    * @param req - HTTP upgrade request.
    * @param socket - Raw socket transferred by the HTTP server.
    * @param head - Bytes already read after the upgrade headers.
+   * @param principal - resolved caller identity scoping which sessions stream.
    */
-  handleMux(req: IncomingMessage, socket: Duplex, head: Buffer): void {
+  handleMux(req: IncomingMessage, socket: Duplex, head: Buffer, principal: ApiPrincipal): void {
     this.upgrade(req, socket, head, signal => this.api.events.mux({
       rpcId: RpcId(randomUUID()),
       payload: {},
-    }, signal))
+    }, signal, principal))
   }
 
   /**
@@ -73,12 +75,13 @@ export class WebSocketDownlinks {
    * @param req - HTTP upgrade request.
    * @param socket - Raw socket transferred by the HTTP server.
    * @param head - Bytes already read after the upgrade headers.
+   * @param principal - resolved caller identity scoping which sessions stream.
    */
-  handleHost(req: IncomingMessage, socket: Duplex, head: Buffer): void {
+  handleHost(req: IncomingMessage, socket: Duplex, head: Buffer, principal: ApiPrincipal): void {
     this.upgrade(req, socket, head, signal => this.api.events.host({
       rpcId: RpcId(randomUUID()),
       payload: {},
-    }, signal))
+    }, signal, principal))
   }
 
   /**

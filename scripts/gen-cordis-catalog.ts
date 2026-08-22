@@ -86,6 +86,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   sessionProjectionCache: 'session-projection.md',
   sessionProjections: 'session-projection.md',
   sessions: 'session.md',
+  sessionAccess: 'session.md',
   settings: 'settings.md',
   sessionTitle: 'session-title.md',
   skills: 'skills.md',
@@ -500,6 +501,7 @@ export const FOUNDATION_TYPE_NAMES: ReadonlySet<string> = new Set([
   'Promise',
   'Record',
   'Readonly',
+  'ReadonlySet',
   'Uint8Array',
 ])
 
@@ -510,6 +512,8 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   InsertReferenceRequest: 'event-local request contract is owned by packages/client/ui-input-trigger/src/types.ts',
   ConsumeTokenRequest: 'event-local request contract is owned by packages/client/ui-input-trigger/src/types.ts',
   InsertTextRequest: 'event-local request contract is owned by packages/client/ui-input-trigger/src/types.ts',
+  UserId: 'per-user ticket identity is owned by packages/identity/user-ticket/README.md',
+  ApiPrincipal: 'resolved caller identity is owned by packages/identity/user-ticket/README.md',
   AgentHandle: 'agent ownership handle is owned by packages/core/agent/README.md',
   AgentPreset: 'discovered preset record is owned by packages/preset/agent-presets/README.md',
   PresetMetadata: 'preset display text is owned by packages/preset/agent-presets/README.md',

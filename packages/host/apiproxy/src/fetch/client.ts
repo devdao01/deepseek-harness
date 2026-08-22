@@ -32,6 +32,7 @@ import {
   sessionSelectModelValueSchema,
   sessionUpdateQueueValueSchema,
 } from '../api/sessions.schema.ts'
+import { accessGetValueSchema, accessSetValueSchema } from '../api/access.schema.ts'
 import {
   workspaceArchiveSessionValueSchema,
   workspaceCreateValueSchema,
@@ -188,6 +189,8 @@ const UNARY_VALUE_SCHEMAS: { [K in keyof RpcMethodMap]: z.ZodType<Wire<ResponseV
   'session.attachment': sessionAttachmentValueSchema,
   'session.updateQueue': sessionUpdateQueueValueSchema,
   'session.cancel': sessionCancelValueSchema,
+  'session.setAccess': accessSetValueSchema,
+  'session.getAccess': accessGetValueSchema,
   'subagent.list': subagentListValueSchema,
   'subagent.history': subagentHistoryValueSchema,
   'subagent.prompt': subagentPromptValueSchema,

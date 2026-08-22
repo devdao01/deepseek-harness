@@ -28,6 +28,12 @@
       "path": "../../host/webserver"
     },
     {
+      "path": "../../identity/user-ticket"
+    },
+    {
+      "path": "../../session/session-access"
+    },
+    {
       "path": "../../runtime-diagnostics/invariants"
     }
   ]

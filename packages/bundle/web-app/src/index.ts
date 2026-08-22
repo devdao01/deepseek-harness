@@ -19,6 +19,7 @@ import { addHarnessSourceSection } from '@deepseek-ai/dsh-app-boot'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import * as FrontendStatic from '@deepseek-ai/dsh-host-frontend-static'
 import { API_TOKEN_FILE_SEGMENT, createWebApiTokenIo, resolveWebApiToken } from './api-token.ts'
+import { resolveWebTicketSecret } from './ticket-secret.ts'
 import type { WebStartupValues } from './startup.ts'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-host-webserver'
@@ -82,6 +83,13 @@ export interface WebLanTrust {
 export interface WebRuntimeValues extends WebLanTrust {
   /** The resolved API token the connection row wires into its `auth.tokens`. */
   apiToken: string
+  /**
+   * The shared HMAC ticket secret when per-user ticket auth is enabled
+   * (`DSH_TICKET_SECRET` set). Present ⇒ the connection row derives
+   * `auth.ticket` and the ACL store is composed; absent ⇒ ticket auth is off
+   * and the token-less same-origin SPA works unchanged.
+   */
+  ticketSecret?: string
 }
 
 /** Environment variable naming the canonical local URL of this Web GUI. */
@@ -149,9 +157,12 @@ export const internals: {
   resolveDistIndex: () => string
   /** Resolve the deployment's API token from its persisted file (env override → file → generate). */
   resolveApiToken: (tokenFile: string) => string
+  /** Resolve the optional per-user ticket secret from `DSH_TICKET_SECRET`; undefined ⇒ ticket auth off. */
+  resolveTicketSecret: () => string | undefined
 } = {
   resolveDistIndex,
   resolveApiToken: tokenFile => resolveWebApiToken(createWebApiTokenIo(tokenFile)).token,
+  resolveTicketSecret: () => resolveWebTicketSecret(process.env),
 }
 
 /**
@@ -172,12 +183,23 @@ export function apply(ctx: Context, config: Config): void {
   // that reads `webRuntime.apiToken` always finds one. The token file defaults
   // in code to the harness state root.
   const apiTokenFile = config.apiTokenFile ?? dshHomePath(API_TOKEN_FILE_SEGMENT)
+  // Opt-in per-user ticket auth: enabled only when DSH_TICKET_SECRET is set. It
+  // gates both the derived `auth.ticket` (connection reads webRuntime.ticketSecret)
+  // and composing the per-session access store — the two must arrive together,
+  // since ticket auth turns on the absent-fail-closed rule that a token-less SPA
+  // could not satisfy without the ACL layer.
+  const ticketSecret = internals.resolveTicketSecret()
   const runtime: WebRuntimeValues = {
     ...resolveLanTrust(ctx.webServer.host, trustedHosts),
     apiToken: internals.resolveApiToken(apiTokenFile),
+    ...ticketSecret === undefined ? {} : { ticketSecret },
   }
   // Release dependent rows only after bind-dependent trust has been sampled once.
   ctx.provide(WEB_RUNTIME_SERVICE, runtime)
+  // The per-session ACL store is composed as a root cordis row
+  // (`session-access`, disabled unless DSH_TICKET_SECRET is set) so
+  // `ctx.get('sessionAccess')` resolves at the api-gateway; a `ctx.plugin`
+  // here mounts it in this plugin's child scope where the gateway can't see it.
   ctx.plugin(FrontendStatic, { distIndex: internals.resolveDistIndex() })
   if (config.surfaceContext) {
     ctx.inject(['systemPrompt'], (promptCtx) => {

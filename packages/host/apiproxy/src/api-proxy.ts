@@ -87,6 +87,10 @@ import type {} from '@deepseek-ai/dsh-skill'
 import { SettingsConflictError, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type { SettingsDescriptor, SettingsNamespace, SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
+import { UserId } from '@deepseek-ai/dsh-user-ticket'
+import type { ApiPrincipal } from '@deepseek-ai/dsh-user-ticket'
+// Type-only: resolves `ctx.get('sessionAccess')` to the per-session access seam.
+import type {} from '@deepseek-ai/dsh-session-access'
 // Value edge: the rename impl narrows the title service's validation failure; the import also resolves `ctx.get('sessionTitle')`.
 import { SessionTitleInvalidError } from '@deepseek-ai/dsh-session-title'
 import type { CallId } from '@deepseek-ai/dsh-llm/brand'
@@ -450,6 +454,15 @@ export function assertJsonArgs(event: string, args: readonly unknown[]): JsonVal
     }
   }
   return args as JsonValue[]
+}
+
+/**
+ * One connected mux stream: its frame queue plus the per-session emit gate its
+ * principal imposes. `canEmit(undefined)` (a session-less frame) always passes.
+ */
+interface MuxSubscriber {
+  readonly queue: FrameQueue<RpcRequest<MuxFrame>>
+  canEmit(sessionId: SessionId | undefined): boolean
 }
 
 /** Queue the subscription baseline frame. */
@@ -920,6 +933,15 @@ function subagentPromptError(
   return err(request, { code: 'internal', message: 'subagent prompt failed', details: {} })
 }
 
+/** Stable RPC face of the missing per-session access seam (setAccess/getAccess reached with no store composed). */
+function accessUnavailable(): RpcError {
+  return {
+    code: 'internal',
+    message: 'per-session access is unavailable: this deployment does not mount the sessionAccess seam (load @deepseek-ai/dsh-session-access)',
+    details: {},
+  }
+}
+
 /** Stable RPC face of the missing projections capability, shared by every catalog read path. */
 function projectionsUnavailableError(): RpcError {
   return {
@@ -1115,7 +1137,18 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
   let workspaceCreationChain = Promise.resolve()
   const pendingQuestions = new Map<RpcId, PendingQuestion>()
   const pendingApprovals = new Map<RpcId, PendingApproval>()
-  const muxQueues = new Set<FrameQueue<RpcRequest<MuxFrame>>>()
+  const muxSubscribers = new Set<MuxSubscriber>()
+
+  /**
+   * The per-session read gate shared by every enforcement point (unary, mux,
+   * host). A full token always passes; a per-user ticket passes only when the
+   * access seam admits its user. Fail-closed: with tickets configured but no
+   * access seam composed, a ticket resolves to no access at all.
+   */
+  function canReadSession(principal: ApiPrincipal, sessionId: SessionId): boolean {
+    if (principal.kind === 'token') return true
+    return ctx.get('sessionAccess')?.canRead(principal, sessionId) ?? false
+  }
   const imageAdmissionChains = new WeakMap<Agent, Promise<void>>()
 
   /** Serialize image admission with model selection for one agent. */
@@ -1256,10 +1289,17 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       (await composeAgent(resolveSessionPreset({ header: meta, events }))).setup,
   })
 
-  /** Send one transient frame to every connected mux consumer. */
+  /** Route one already-minted frame to each subscriber whose principal may read its session. */
+  function pushFrame(envelope: RpcRequest<MuxFrame>): void {
+    const sessionId = 'sessionId' in envelope.payload ? envelope.payload.sessionId : undefined
+    for (const subscriber of muxSubscribers) {
+      if (subscriber.canEmit(sessionId)) subscriber.queue.push(envelope)
+    }
+  }
+
+  /** Send one transient frame to every mux consumer allowed to see its session. */
   function broadcast(payload: MuxFrame): void {
-    const envelope = frame(payload)
-    for (const queue of muxQueues) queue.push(envelope)
+    pushFrame(frame(payload))
   }
 
   // Projection change feed → session/projection push frames. The carrier
@@ -1377,7 +1417,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           rpcId,
           payload: { type: 'question/requested', sessionId, questions: request.questions },
         }
-        for (const queue of muxQueues) queue.push(envelope)
+        pushFrame(envelope)
       })
     },
   })
@@ -1468,8 +1508,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         }
         pendingApprovals.set(pending.rpcId, pending)
         req.signal?.addEventListener('abort', onAbort, { once: true })
-        const envelope = requestedFrame(pending)
-        for (const queue of muxQueues) queue.push(envelope)
+        pushFrame(requestedFrame(pending))
       })
     })
   }
@@ -3490,13 +3529,28 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     },
 
     events: {
-      mux(_request, signal) {
+      mux(_request, signal, principal = { kind: 'token' }) {
         const queue = new FrameQueue<RpcRequest<MuxFrame>>()
-        muxQueues.add(queue)
-        for (const session of ctx.sessions.list()) {
+        // Sessions this stream has sent a baseline for. A frame emits only for a
+        // subscribed session the principal may still read: a mid-stream revoke
+        // stops future frames (canReadSession re-checked per frame), while a
+        // grant adds nothing until the next reopen (the session was never
+        // subscribed). A full token subscribes every session.
+        const subscribed = new Set<SessionId>()
+        const canEmit = (sessionId: SessionId | undefined): boolean =>
+          sessionId === undefined || (subscribed.has(sessionId) && canReadSession(principal, sessionId))
+        const subscriber: MuxSubscriber = { queue, canEmit }
+        muxSubscribers.add(subscriber)
+        /** Send the subscribe baseline for a session the principal may read; record it as subscribed. */
+        const subscribeIfReadable = (session: Session): boolean => {
+          if (!canReadSession(principal, session.id)) return false
+          subscribed.add(session.id)
           subscribeSession(queue, session)
+          return true
         }
+        for (const session of ctx.sessions.list()) subscribeIfReadable(session)
         for (const pending of pendingQuestions.values()) {
+          if (!canEmit(pending.sessionId)) continue
           queue.push({
             rpcId: pending.rpcId,
             payload: {
@@ -3507,11 +3561,14 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         }
         // Refresh recovery: still-pending approval questions replay with their
         // stable rpcId so a reconnecting client can still answer them.
-        for (const pending of pendingApprovals.values()) queue.push(requestedFrame(pending))
+        for (const pending of pendingApprovals.values()) {
+          if (canEmit(pending.sessionId)) queue.push(requestedFrame(pending))
+        }
         // Queue snapshot baseline (pendingQuestions precedent): frames replayed
         // in arrival order per session; a reconnecting client rebuilds its
         // queue view from these alone.
         for (const session of ctx.sessions.list()) {
+          if (!canEmit(session.id)) continue
           const agent = ctx.agents.get(session.id)
           if (agent?.session === session && agent.inbox.hasPending) {
             queue.push(frame({ type: 'session/queue', sessionId: session.id, items: queueItems(agent) }))
@@ -3524,6 +3581,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         const jobs = ctx.get('jobs')
         if (jobs !== undefined) {
           for (const session of ctx.sessions.list()) {
+            if (!canEmit(session.id)) continue
             const views = jobViews(jobs.list(ctx.agents.get(session.id)))
             if (views.length > 0) {
               queue.push(frame({ type: 'session/jobs', sessionId: session.id, jobs: views }))
@@ -3548,6 +3606,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             } else if (event.type === 'turn/end') {
               openCalls.delete(session.id)
             }
+            if (!canEmit(session.id)) return
             const view = viewFor(
               ctx, event,
               callId => openCalls.get(session.id)?.get(callId) ?? backscanArgs(session.events, callId),
@@ -3556,7 +3615,10 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             queue.push(frame({ type: 'session/event', sessionId: session.id, event, ...view === undefined ? {} : { view } }))
           }),
           ctx.on('session/created', (session: Session) => {
-            subscribeSession(queue, session)
+            // Subscribe only when the principal may read it: a session created
+            // during the stream that the user has no access to stays invisible
+            // until a later grant + reopen.
+            if (!subscribeIfReadable(session)) return
             // The subscribe frame clears the client's task mirror, and a
             // session born after the stream opened missed the baseline loop.
             // Unowned tasks are visible to it from birth, so without this it
@@ -3574,12 +3636,15 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
               // The exact owner instance the fence compares against, so the
               // push stays correct even while that Agent's scope is tearing
               // down and a lookup by id would already miss.
-              queue.push(frame({ type: 'session/jobs', sessionId: owner.id, jobs: jobViews(jobs.list(owner)) }))
+              if (canEmit(owner.id)) {
+                queue.push(frame({ type: 'session/jobs', sessionId: owner.id, jobs: jobViews(jobs.list(owner)) }))
+              }
               return
             }
             // An unowned task is visible to every caller, so every subscribed
             // session's set changed with it.
             for (const session of ctx.sessions.list()) {
+              if (!canEmit(session.id)) continue
               queue.push(frame({
                 type: 'session/jobs',
                 sessionId: session.id,
@@ -3589,13 +3654,17 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           })],
         ]
         return queue.iterate(signal, () => {
-          muxQueues.delete(queue)
+          muxSubscribers.delete(subscriber)
           for (const dispose of disposers) dispose()
         })
       },
 
-      host(_request, signal) {
+      host(_request, signal, principal = { kind: 'token' }) {
         const queue = new FrameQueue<RpcRequest<HostFrame>>()
+        // Workspace-level and forwarded host frames are management surfaces:
+        // per-user (ticket) principals receive only per-session frames for
+        // sessions they may read.
+        const isFullToken = principal.kind === 'token'
         const committedWorkspaces = ctx.workspaceRegistry.list()
         const committedWorkspaceIds = new Set(
           committedWorkspaces.map(workspace => String(workspace.id)),
@@ -3607,6 +3676,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         let archivedSessionIds = ctx.workspaceRegistry.archivedSessionIds
         const disposers = [
           ctx.on('session/created', (session: Session) => {
+            if (!canReadSession(principal, session.id)) return
             queue.push(frame({
               type: 'host/session-added',
               sessionId: session.id,
@@ -3618,15 +3688,20 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             }))
           }),
           ctx.on('session/disposed', (session: Session) => {
+            if (!canReadSession(principal, session.id)) return
             queue.push(frame({ type: 'host/session-removed', sessionId: session.id }))
           }),
           ctx.on('agent/status', ({ agent, status }: { agent: Agent; status: AgentStatus }) => {
+            if (!canReadSession(principal, agent.id)) return
             queue.push(frame({ type: 'host/session-status', sessionId: agent.id, running: status === 'running' }))
           }),
           ctx.on('agent/error', ({ agent, error }: { agent: Agent; error: unknown }) => {
+            if (!canReadSession(principal, agent.id)) return
             queue.push(frame({ type: 'host/agent-error', sessionId: agent.id, message: errorChain(error) }))
           }),
           ctx.on('domain/changed', (change) => {
+            // Workspace registry frames are a full-token management surface.
+            if (!isFullToken) return
             if (change.domain !== 'workspace') return
             if (change.table === '') {
               if (change.operation !== 'put') return
@@ -3687,6 +3762,8 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             // satisfies every member of the union `on` accepts here;
             // assertJsonArgs proves the payload is JSON-safe before it queues.
             ((...args: unknown[]) => {
+              // Forwarded host events are a full-token management surface.
+              if (!isFullToken) return
               queue.push(frame({
                 type: 'host/remote-event',
                 event: name,
@@ -3761,6 +3838,22 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         const cwd = await resolveSessionCwd(request.sessionId, signal)
         if (cwd === undefined) return new Response('session not found', { status: 404 })
         return streamWorkspaceFile(cwd, request.path, signal)
+      },
+    },
+
+    access: {
+      canRead: canReadSession,
+      async setAccess(request) {
+        const service = ctx.get('sessionAccess')
+        if (service === undefined) return err(request, accessUnavailable())
+        const { sessionId, userIds } = request.payload
+        await service.set(sessionId, userIds.map(UserId))
+        return ok(request, { userIds: [...service.get(sessionId)] })
+      },
+      getAccess(request) {
+        const service = ctx.get('sessionAccess')
+        if (service === undefined) return Promise.resolve(err(request, accessUnavailable()))
+        return Promise.resolve(ok(request, { userIds: [...service.get(request.payload.sessionId)] }))
       },
     },
 

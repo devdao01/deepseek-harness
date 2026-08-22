@@ -182,6 +182,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         throws: ['when the source is unknown, the id is unusable or already taken, or the deployment configures no writable root.'],
       },
       {
+        signature: 'async setWorkspacePath(id: string, workspacePath: string): Promise<void>',
+        description: 'Stamp a locally authored preset\'s conventional workspace path into its metadata, preserving its existing display text. Called after the workspace is provisioned so the recorded path is the workspace\'s canonical directory; a consumer that reads no stamp falls back to the conventional location.',
+        parameters: [{ name: 'id', description: 'the preset id.' }, { name: 'workspacePath', description: 'the absolute canonical workspace directory to record.' }],
+        throws: ['when the preset is unknown, ships with the deployment, or lies outside the writable root.'],
+      },
+      {
         signature: 'async remove(id: string): Promise<void>',
         description: 'Delete a locally authored preset.',
         parameters: [{ name: 'id', description: 'the preset id.' }],
@@ -312,6 +318,11 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       {
         signature: 'downloads: DownloadsApi',
         description: 'Host-only download surfaces (GET, no wire envelope); absent from IApiClient.',
+        parameters: [],
+      },
+      {
+        signature: 'access?: AccessApi',
+        description: 'Per-session access management (full-token only). Optional: a composition without the access seam omits it, and dispatch answers its methods with an "unavailable" error. `createApiProxy` always provides it.',
         parameters: [],
       },
       {
@@ -1008,6 +1019,36 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Read the session override without applying the deployment default.',
         parameters: [{ name: 'session', description: 'session whose log supplies the override.' }],
         returns: 'the last logged mode, or `undefined` without one.',
+      },
+    ],
+  },
+  {
+    key: 'sessionAccess',
+    summary: 'Durable per-session access list.',
+    description: 'Durable per-session access list. Reads resolve from the in-memory domain table (loaded at open, kept current by each write); writes persist and emit `domain/changed`. The read gate canRead is the single enforcement predicate every Consumer shares.',
+    methods: [
+      {
+        signature: 'get(sessionId: SessionId): ReadonlySet<UserId>',
+        description: 'The set of users allowed to read and act on one session. An unknown session returns an empty set (never undefined) — the fail-closed default: absence denies every ticket user.',
+        parameters: [{ name: 'sessionId', description: 'the session to read access for.' }],
+        returns: 'the current allowed-user set (a fresh copy; callers may not mutate the store).',
+      },
+      {
+        signature: 'async set(sessionId: SessionId, userIds: readonly UserId[]): Promise<void>',
+        description: 'Replace the allowed-user set for one session. An empty set removes the row (revoking all ticket access); a non-empty set stores the deduplicated ids. Persists, then emits `domain/changed`.',
+        parameters: [{ name: 'sessionId', description: 'the session whose access is replaced.' }, { name: 'userIds', description: 'the complete new allowed-user set.' }],
+      },
+      {
+        signature: 'canRead(principal: ApiPrincipal, sessionId: SessionId): boolean',
+        description: 'Whether a principal may read and act on one session. A full token always may (management/admin/loopback); a ticket user may only when they are an explicit member of the session\'s access set; an anonymous (credential-less) principal never may. Absence of a record denies — this is the single fail-closed gate every Consumer enforces.',
+        parameters: [{ name: 'principal', description: 'the resolved caller identity.' }, { name: 'sessionId', description: 'the session being accessed.' }],
+        returns: 'true when the principal may proceed.',
+      },
+      {
+        signature: 'onChanged(listener: (sessionId: SessionId) => void): () => void',
+        description: 'Subscribe to access changes. The listener fires with a session id after every durable write to that session\'s access row, so an open event stream can re-evaluate canRead for a live grant or revoke.',
+        parameters: [{ name: 'listener', description: 'called with the changed session id.' }],
+        returns: 'a disposer that removes this subscription.',
       },
     ],
   },
@@ -2616,6 +2657,10 @@ export const EVENT_API: readonly EventApiEntry[] = [
 /** Shapes of every exported type the Service and Event signatures reference (transitively), sorted by name. */
 export const TYPE_API: readonly TypeApiEntry[] = [
   {
+    name: 'AccessApi',
+    declaration: 'export interface AccessApi {\n    canRead(principal: ApiPrincipal, sessionId: SessionId): boolean;\n    setAccess(request: RpcRequest<{\n        sessionId: SessionId;\n        userIds: string[];\n    }>): Promise<RpcResponse<{\n        userIds: string[];\n    }>>;\n    getAccess(request: RpcRequest<{\n        sessionId: SessionId;\n    }>): Promise<RpcResponse<{\n        userIds: string[];\n    }>>;\n}',
+  },
+  {
     name: 'AdapterRegistrationHandle',
     declaration: 'export interface AdapterRegistrationHandle {\n    (): void;\n    replace(providers: string[]): void;\n}',
   },
@@ -2641,7 +2686,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'AgentPreset',
-    declaration: 'export interface AgentPreset {\n    readonly id: string;\n    readonly trust: PresetTrust;\n    readonly path: string;\n    readonly name?: string;\n    readonly description?: string;\n    readonly order?: number;\n    readonly broken?: string;\n}',
+    declaration: 'export interface AgentPreset {\n    readonly id: string;\n    readonly trust: PresetTrust;\n    readonly path: string;\n    readonly name?: string;\n    readonly description?: string;\n    readonly order?: number;\n    readonly workspacePath?: string;\n    readonly broken?: string;\n}',
   },
   {
     name: 'AgentSetup',
@@ -2654,6 +2699,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'AgentStatus',
     declaration: 'export type AgentStatus = \'idle\' | \'running\';',
+  },
+  {
+    name: 'ApiPrincipal',
+    declaration: 'export type ApiPrincipal = {\n    readonly kind: \'token\';\n} | {\n    readonly kind: \'ticket\';\n    readonly userId: UserId;\n} | {\n    readonly kind: \'anonymous\';\n};',
   },
   {
     name: 'ApprovalOutcome',
@@ -3001,7 +3050,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'DownloadsApi',
-    declaration: 'export interface DownloadsApi {\n    sessionLog(request: {\n        sessionId: SessionId;\n        includeDescendants?: boolean;\n    }, signal: AbortSignal): Promise<Response>;\n}',
+    declaration: 'export interface DownloadsApi {\n    sessionLog(request: {\n        sessionId: SessionId;\n        includeDescendants?: boolean;\n    }, signal: AbortSignal): Promise<Response>;\n    workspaceFile(request: {\n        sessionId: SessionId;\n        path: string;\n    }, signal: AbortSignal): Promise<Response>;\n}',
   },
   {
     name: 'DshEnvironment',
@@ -3645,7 +3694,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'RpcErrorDetailsMap',
-    declaration: 'export interface RpcErrorDetailsMap {\n    \'bad-request\': {\n        issues: ZodIssue[];\n    };\n    \'cancelled\': {};\n    \'session-not-found\': {\n        sessionId: SessionId;\n    };\n    \'model-unavailable\': {\n        provider: string;\n        model: string;\n    };\n    \'session-conflict\': {\n        sessionId: SessionId;\n        requestedCwd: string;\n        existingCwd?: string;\n    };\n    \'invalid-time-zone\': {\n        value: string;\n    };\n    \'workspace-attach-failed\': {\n        sessionId: SessionId;\n        workspaceId: string;\n    };\n    \'workspace-not-found\': {\n        workspaceId: string;\n    };\n    \'workspace-invalid-path\': {\n        path: string;\n    };\n    \'workspace-name-conflict\': {\n        name: string;\n    };\n    \'workspace-move-invalid\': {\n        workspaceId: string;\n        sessionId: SessionId;\n        beforeSessionId?: SessionId;\n    };\n    \'directory-unreadable\': {\n        path: string;\n    };\n    \'directory-exists\': {\n        path: string;\n    };\n    \'directory-create-failed\': {\n        path: string;\n    };\n    \'directory-picker-unavailable\': {\n        capability: string;\n    };\n    \'agent-preset-read-only\': {\n        agentPreset: string;\n        reason: string;\n    };\n    \'agent-preset-locked\': {\n        sessionId: SessionId;\n        agentPreset: string;\n    };\n    \'agent-preset-conflict\': {\n        sessionId: SessionId;\n        requestedPreset: string;\n        existingPreset?: string;\n    };\n    \'agent-preset-not-found\': {\n        agentPreset: string;\n      /* …truncated — full shape in source */',
+    declaration: 'export interface RpcErrorDetailsMap {\n    \'bad-request\': {\n        issues: ZodIssue[];\n    };\n    \'cancelled\': {};\n    \'session-not-found\': {\n        sessionId: SessionId;\n    };\n    \'forbidden\': {\n        sessionId?: SessionId;\n    };\n    \'model-unavailable\': {\n        provider: string;\n        model: string;\n    };\n    \'session-conflict\': {\n        sessionId: SessionId;\n        requestedCwd: string;\n        existingCwd?: string;\n    };\n    \'invalid-time-zone\': {\n        value: string;\n    };\n    \'workspace-attach-failed\': {\n        sessionId: SessionId;\n        workspaceId: string;\n    };\n    \'workspace-not-found\': {\n        workspaceId: string;\n    };\n    \'workspace-invalid-path\': {\n        path: string;\n    };\n    \'workspace-name-conflict\': {\n        name: string;\n    };\n    \'workspace-move-invalid\': {\n        workspaceId: string;\n        sessionId: SessionId;\n        beforeSessionId?: SessionId;\n    };\n    \'directory-unreadable\': {\n        path: string;\n    };\n    \'directory-exists\': {\n        path: string;\n    };\n    \'directory-create-failed\': {\n        path: string;\n    };\n    \'directory-picker-unavailable\': {\n        capability: string;\n    };\n    \'agent-preset-read-only\': {\n        agentPreset: string;\n        reason: string;\n    };\n    \'agent-preset-locked\': {\n        sessionId: SessionId;\n        agentPreset: string;\n    };\n    \'agent-preset-conflict\': {\n        sessionId: SessionId;\n        requestedPreset: string;\n        existingPreset?: string;\n    };\n    \'agen /* …truncated — full shape in source */',
   },
   {
     name: 'RpcId',
@@ -3654,6 +3703,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'RpcReceipt',
     declaration: 'export type RpcReceipt = {\n    accepted: true;\n} | {\n    accepted: false;\n    reason: \'not-pending\' | \'bad-response\';\n};',
+  },
+  {
+    name: 'RpcRequest',
+    declaration: 'export interface RpcRequest<P> {\n    rpcId: RpcId;\n    payload: P;\n}',
+  },
+  {
+    name: 'RpcResponse',
+    declaration: 'export interface RpcResponse<T> {\n    rpcId: RpcId;\n    result: RpcResult<T>;\n}',
   },
   {
     name: 'RpcResult',
@@ -4530,6 +4587,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'TypertTypeModel',
     declaration: 'export interface TypertTypeModel {\n    readonly name: string;\n    readonly declaration: string;\n}',
+  },
+  {
+    name: 'UserId',
+    declaration: 'export type UserId = Branded<\'UserId\'>;',
   },
   {
     name: 'UserMessage',

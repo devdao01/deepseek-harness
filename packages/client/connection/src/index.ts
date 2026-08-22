@@ -11,9 +11,13 @@ import { bridge, DEFAULT_MAX_REQUEST_BODY_BYTES } from './http-bridge.ts'
 import { assertTrustedAuthority, isTrustedApiRequest } from './api-request-trust.ts'
 import {
   authenticateApiRequest, deriveWebRuntimeAuth, prepareApiAuth, requestHasBrowserMarker,
-  type ApiAuthConfig,
+  resolveHttpPrincipal, ticketChallenge,
+  type ApiAuthConfig, type ApiAuthInvalidReason, type ApiPrincipal,
 } from './api-auth.ts'
-import { HostConnectionService } from './rpc-host.ts'
+import { sessionScopeOf } from '@deepseek-ai/dsh-host-apiproxy'
+// Type-only: resolves `ctx.get('sessionAccess')` for the remote-gateway ACL guard.
+import type {} from '@deepseek-ai/dsh-session-access'
+import { HostConnectionService, type RemoteAclGuard } from './rpc-host.ts'
 import { rejectWebSocketUpgrade, WebSocketDownlinks } from './websocket-downlink.ts'
 
 export type {
@@ -89,6 +93,13 @@ export const Config: z<ConnectionConfig> = z.object({
       token: z.string().required(),
     })).default([]),
     unpinned: z.array(z.string()).default([]),
+    // Per-user ticket auth. The secret defaults to empty (ticket auth
+    // disabled); prepareTicketAuth fails loud on a present-but-short secret.
+    ticket: z.object({
+      secret: z.string().default(''),
+      maxTtlSeconds: z.natural().min(1),
+      clockSkewSeconds: z.natural(),
+    }),
   }) as unknown as z<ApiAuthConfig>,
 })
 
@@ -169,16 +180,20 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
   // inject: this plugin stays composable without web-app). The web-app patch
   // keeps `inject: [webRuntime]` on this row purely for start ordering, so the
   // value is present here whenever a webRuntime exists.
-  const webRuntime = ctx.get('webRuntime') as { trustedHosts?: string[]; apiToken?: string } | undefined
+  const webRuntime = ctx.get('webRuntime') as { trustedHosts?: string[]; apiToken?: string; ticketSecret?: string } | undefined
   // Default `trustedHosts` and `auth` from the web runtime when the deployment
   // configured neither (schemastery materializes an absent list/block to empty,
   // so "empty" is the absence signal). Explicit config replaces the default.
   const configuredHosts = config?.trustedHosts ?? []
   const trustedHosts = configuredHosts.length > 0 ? configuredHosts : (webRuntime?.trustedHosts ?? [])
   const configuredAuth = config?.auth
-  const authConfig = configuredAuth !== undefined && configuredAuth.tokens.length > 0
+  // Explicit auth wins when it configures anything real — a token OR a ticket
+  // secret; otherwise fall back to the web runtime's derived token auth.
+  const hasExplicitAuth = configuredAuth !== undefined
+    && (configuredAuth.tokens.length > 0 || (configuredAuth.ticket?.secret.length ?? 0) > 0)
+  const authConfig = hasExplicitAuth
     ? configuredAuth
-    : deriveWebRuntimeAuth(webRuntime?.apiToken)
+    : deriveWebRuntimeAuth(webRuntime?.apiToken, webRuntime?.ticketSecret)
   const maxRequestBodyBytes = config?.maxRequestBodyBytes ?? DEFAULT_MAX_REQUEST_BODY_BYTES
   // Config boundary: a malformed entry fails the load loudly here rather than
   // silently authorizing its hostname prefix at request time.
@@ -187,8 +202,35 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
   // length or an `unpinned` entry outside the pinned set fails the load.
   // Undefined = authentication disabled (today's behavior).
   const preparedAuth = prepareApiAuth(authConfig, PRIVILEGED_METHODS)
+  // The caller identity threaded into dispatch and the stream openers. Only
+  // reached after the fence admits the request. A resolved ticket carries its
+  // user; a credential-less request is full-token when ticket auth is off
+  // (byte-for-byte the pre-ticket behavior) and fail-closed `anonymous` once
+  // `auth.ticket` is configured — see `resolveHttpPrincipal`.
+  const principalOf = (headers: IncomingHttpHeaders | Headers): ApiPrincipal =>
+    resolveHttpPrincipal(headers, preparedAuth)
   if (ctx.get('apiProxy') !== undefined) assertImageBodyCapacity(ctx, maxRequestBodyBytes)
-  const connection = new HostConnectionService(ctx, trustedHosts)
+  // Remote-gateway ACL: the Typert gateway serves session-scoped remote methods
+  // (messageFeedback/*, commands/list) OFF the ApiProxy dispatch, so a ticket
+  // caller is gated here at the carrier before the gateway sees the call. Full
+  // token bypasses; a ticket needs access to the call's session; an anonymous
+  // caller — or a ticket call with no extractable session id while ticket auth
+  // is on — is denied (the SPA's remote calls are all session-scoped).
+  const remoteAclGuard: RemoteAclGuard = (request, _endpoint, payload) => {
+    const principal = principalOf(request.headers)
+    if (principal.kind === 'token') return undefined
+    const sessionId = sessionScopeOf(payload)
+    const access = ctx.get('sessionAccess')
+    if (principal.kind === 'ticket' && sessionId !== undefined && (access?.canRead(principal, sessionId) ?? false)) {
+      return undefined
+    }
+    return {
+      code: 'forbidden',
+      message: sessionId === undefined ? 'not authorized for this remote method' : `not authorized for session ${sessionId}`,
+      details: sessionId === undefined ? {} : { sessionId },
+    }
+  }
+  const connection = new HostConnectionService(ctx, trustedHosts, remoteAclGuard)
   const fetchHandler = connection.createSharedFetchHandler(API_PATH, {
     async fetch(request) {
       const pathname = new URL(request.url).pathname
@@ -199,8 +241,12 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
         // A pinned method is loopback-only, EXCEPT when an authenticated client
         // (valid token) calls one the deployment listed in `auth.unpinned`.
         const loopbackOk = isTrustedApiRequest(request, [])
-        const authenticated = authenticateApiRequest(request.headers, preparedAuth) === 'authenticated'
-        const unpinnedOk = authenticated && preparedAuth?.unpinned.has(method) === true
+        // Only a FULL token unlocks unpinned/privileged methods; a per-user
+        // ticket never does — it is a scoped runtime credential, not a
+        // management principal.
+        const auth = authenticateApiRequest(request.headers, preparedAuth)
+        const fullToken = auth.status === 'ok' && auth.principal.kind === 'token'
+        const unpinnedOk = fullToken && preparedAuth?.unpinned.has(method) === true
         if (!loopbackOk && !unpinnedOk) {
           return new Response('forbidden', { status: 403 })
         }
@@ -213,7 +259,7 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
       }
       const apiProxy = ctx.get('apiProxy')
       if (apiProxy === undefined) return new Response('not found', { status: 404 })
-      return toFetchHandler(apiProxy).fetch(request)
+      return toFetchHandler(apiProxy, principalOf(request.headers)).fetch(request)
     },
   })
   // The reachability decision shared by the HTTP route and the WS upgrades: a
@@ -223,20 +269,26 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
   // unknown token is `unauthorized`, never silently downgraded to reachability.
   const reachableOrAuthenticated = (
     request: { headers: IncomingHttpHeaders | Headers },
-  ): 'ok' | 'unauthorized' | 'forbidden' => {
+  ): { decision: 'ok' | 'unauthorized' | 'forbidden'; reason?: ApiAuthInvalidReason } => {
     const auth = authenticateApiRequest(request.headers, preparedAuth)
-    if (auth === 'invalid') return 'unauthorized'
+    if (auth.status === 'invalid') return { decision: 'unauthorized', reason: auth.reason }
     const reachable = isTrustedApiRequest(request, trustedHosts)
-      || (auth === 'authenticated' && !requestHasBrowserMarker(request.headers))
-    return reachable ? 'ok' : 'forbidden'
+      || (auth.status === 'ok' && !requestHasBrowserMarker(request.headers))
+    return reachable ? { decision: 'ok' } : { decision: 'forbidden' }
   }
   const route: WebRoute = {
     kind: 'prefix',
     path: API_PATH,
     handler: async (req, res) => {
-      const decision = reachableOrAuthenticated(req)
+      const { decision, reason } = reachableOrAuthenticated(req)
       if (decision === 'unauthorized') {
-        res.writeHead(401)
+        // A ticket failure carries a WWW-Authenticate hint so the SPA can tell
+        // "refresh the ticket" (expired) from "credential is bogus" (invalid),
+        // both distinct from a 403 "not allowed this session". An unknown full
+        // token stays header-less, exactly as before ticket auth existed.
+        const challenge = ticketChallenge(reason)
+        if (challenge !== undefined) res.writeHead(401, { 'www-authenticate': challenge })
+        else res.writeHead(401)
         res.end('invalid api token')
         return
       }
@@ -260,10 +312,12 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
         path,
         handler: (req, socket, head) => {
           // A raw upgrade cannot carry a clean 401 body, so an invalid token is
-          // rejected like any other refusal. Browsers cannot set WS request
-          // headers, so the same-origin SPA path stays token-less; server-side
-          // WS clients may authenticate with an Authorization header.
-          if (reachableOrAuthenticated(req) !== 'ok') {
+          // rejected like any other refusal. Browsers cannot set a WS request
+          // header, but the handshake DOES carry cookies, so the same-origin SPA
+          // authenticates through its HttpOnly ticket cookie; server-side WS
+          // clients may still use an Authorization header. Both resolve the same
+          // principal via `principalOf` below.
+          if (reachableOrAuthenticated(req).decision !== 'ok') {
             rejectWebSocketUpgrade(socket)
             return
           }
@@ -272,7 +326,7 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
       }), `client-connection: ${path} WebSocket`)
     }
     apiCtx.effect(() => () => downlinks.close(), 'client-connection: WebSocket downlinks')
-    registerDownlink(MUX_EVENTS_PATH, (req, socket, head) => { downlinks.handleMux(req, socket, head) })
-    registerDownlink(HOST_EVENTS_PATH, (req, socket, head) => { downlinks.handleHost(req, socket, head) })
+    registerDownlink(MUX_EVENTS_PATH, (req, socket, head) => { downlinks.handleMux(req, socket, head, principalOf(req.headers)) })
+    registerDownlink(HOST_EVENTS_PATH, (req, socket, head) => { downlinks.handleHost(req, socket, head, principalOf(req.headers)) })
   })
 }

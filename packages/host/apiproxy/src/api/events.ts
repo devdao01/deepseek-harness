@@ -12,6 +12,7 @@ import type { Message } from '@deepseek-ai/dsh-llm/types'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
 import type { CallId } from '@deepseek-ai/dsh-llm/brand'
 import type { JsonValue, SessionEvent, SessionId } from '@deepseek-ai/dsh-session/types'
+import type { ApiPrincipal } from '@deepseek-ai/dsh-user-ticket'
 import type { ToolCallView, ToolResultView } from '@deepseek-ai/dsh-tools/presentation'
 import type { RpcError, RpcId, RpcRequest } from './rpc.ts'
 import type { JobView } from './jobs.ts'
@@ -52,14 +53,25 @@ export interface EventsApi {
    * generic projection pair (history-tail projections block + session/projection frames).
    * since: resume hook, unimplemented in v1 (ignored if passed); reconnection = reopen the
    * stream + refetch history.
+   *
+   * `principal` scopes delivery: a per-user (ticket) principal receives only
+   * frames for sessions its user may read (live revoke drops future frames; a
+   * mid-stream grant becomes visible on the next reopen). An absent principal
+   * defaults to full-token — every session — preserving the pre-ticket behavior.
    */
-  mux(request: RpcRequest<{ since?: Record<SessionId, number> }>, signal: AbortSignal): AsyncIterable<RpcRequest<MuxFrame>>
+  mux(
+    request: RpcRequest<{ since?: Record<SessionId, number> }>, signal: AbortSignal, principal?: ApiPrincipal,
+  ): AsyncIterable<RpcRequest<MuxFrame>>
 
   /**
    * Host-level info stream: session create/destroy, running-status flips, and
-   * agent failures with no turn position. Empty payload uses `{}`.
+   * agent failures with no turn position. Empty payload uses `{}`. `principal`
+   * scopes per-session frames the same way as {@link mux}; workspace-level and
+   * forwarded host events reach full-token principals only.
    */
-  host(request: RpcRequest<{}>, signal: AbortSignal): AsyncIterable<RpcRequest<HostFrame>>
+  host(
+    request: RpcRequest<{}>, signal: AbortSignal, principal?: ApiPrincipal,
+  ): AsyncIterable<RpcRequest<HostFrame>>
 }
 
 /**

@@ -30,6 +30,9 @@
       "path": "../../host/frontend-static"
     },
     {
+      "path": "../../session/session-access"
+    },
+    {
       "path": "../../host/webserver"
     },
     {

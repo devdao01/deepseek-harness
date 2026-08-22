@@ -8,8 +8,11 @@
 
 import { randomUUID } from 'node:crypto'
 import type { z } from 'zod'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { ApiPrincipal } from '@deepseek-ai/dsh-user-ticket'
 import type { ApiProxy, MuxFrame, HostFrame } from '../api/index.ts'
 import { sessionLogQuerySchema, workspaceFileQuerySchema } from '../api/downloads.schema.ts'
+import { accessGetRequestSchema, accessSetRequestSchema } from '../api/access.schema.ts'
 import type { RequestPayload, ResponseValue, RpcMethodMap } from '../api/rpc-map.ts'
 import type { ClientRequest, RpcError, RpcRequest, RpcResponse, ServerRequest, ServerResponse } from '../api/rpc.ts'
 import { RpcId } from '../api/rpc.ts'
@@ -100,6 +103,8 @@ const UNARY_ROUTES: UnaryRoutes = {
   'session.attachment': { schema: sessionAttachmentRequestSchema, invoke: (api, r) => api.sessions.attachment(r) },
   'session.updateQueue': { schema: sessionUpdateQueueRequestSchema, invoke: (api, r) => api.sessions.updateQueue(r) },
   'session.cancel': { schema: sessionCancelRequestSchema, invoke: (api, r) => api.sessions.cancel(r) },
+  'session.setAccess': { schema: accessSetRequestSchema, invoke: (api, r) => api.access ? api.access.setAccess(r) : Promise.resolve(accessUnavailableResponse(r.rpcId)) },
+  'session.getAccess': { schema: accessGetRequestSchema, invoke: (api, r) => api.access ? api.access.getAccess(r) : Promise.resolve(accessUnavailableResponse(r.rpcId)) },
   'subagent.list': { schema: subagentListRequestSchema, invoke: (api, r, signal) => api.subagents.list(r, signal) },
   'subagent.history': { schema: subagentHistoryRequestSchema, invoke: (api, r, signal) => api.subagents.history(r, signal) },
   'subagent.prompt': { schema: subagentPromptRequestSchema, invoke: (api, r, signal) => api.subagents.prompt(r, signal) },
@@ -154,6 +159,59 @@ function methodFor(path: string): keyof RpcMethodMap | undefined {
  */
 const INVALID_REQUEST_RPC_ID = RpcId('invalid-request')
 
+/** Methods only a full token may call; a per-user ticket is refused at dispatch (a user cannot edit their own access). */
+const FULL_TOKEN_ONLY: ReadonlySet<string> = new Set(['session.setAccess', 'session.getAccess'])
+
+/**
+ * The session a request scopes to for the per-user access gate, or undefined
+ * when the method is not session-scoped. Shared by the unary dispatch and the
+ * remote-gateway carrier so one gate covers both. Reads, in order: the unary
+ * payload's `sessionId`; a subagent method's `parentSessionId` (a child is
+ * reachable through its parent); and the remote-gateway wire shapes
+ * `args.agentId` (which IS a session id) and `args.request.sessionId`.
+ * @param payload - the unary business payload, or a remote-gateway `{ args }` payload.
+ * @returns the session id the call scopes to, or undefined when none is present.
+ */
+export function sessionScopeOf(payload: unknown): SessionId | undefined {
+  if (typeof payload !== 'object' || payload === null) return undefined
+  const record = payload as { sessionId?: unknown; parentSessionId?: unknown; args?: unknown }
+  if (typeof record.sessionId === 'string') return record.sessionId as SessionId
+  if (typeof record.parentSessionId === 'string') return record.parentSessionId as SessionId
+  if (typeof record.args === 'object' && record.args !== null) {
+    const args = record.args as { agentId?: unknown; request?: unknown }
+    if (typeof args.agentId === 'string') return args.agentId as SessionId
+    if (typeof args.request === 'object' && args.request !== null) {
+      const request = args.request as { sessionId?: unknown }
+      if (typeof request.sessionId === 'string') return request.sessionId as SessionId
+    }
+  }
+  return undefined
+}
+
+/** Whether a principal may reach a session-scoped operation; a full token always may. */
+function principalMayReach(api: ApiProxy, principal: ApiPrincipal, sessionId: SessionId): boolean {
+  if (principal.kind === 'token') return true
+  return api.access?.canRead(principal, sessionId) ?? false
+}
+
+/**
+ * Drop list rows a per-user principal may not read. `session.list` and
+ * `session.search` enumerate sessions, so a ticket caller sees only its own;
+ * a full token sees everything unchanged.
+ */
+function filterListForPrincipal(
+  method: keyof RpcMethodMap,
+  principal: ApiPrincipal,
+  api: ApiProxy,
+  response: RpcResponse<unknown>,
+): RpcResponse<unknown> {
+  if (principal.kind === 'token' || !response.result.ok) return response
+  if (method !== 'session.list' && method !== 'session.search') return response
+  const value = response.result.value as { items: { sessionId: SessionId }[] }
+  const items = value.items.filter(item => principalMayReach(api, principal, item.sessionId))
+  return { rpcId: response.rpcId, result: { ok: true, value: { ...value, items } } }
+}
+
 /** Wrap a business error as a ServerResponse full form (rpcId backfilled; an unreadable rpcId uses the invalid-request sentinel). */
 function errorResponse(rpcId: RpcId, error: RpcError): Response {
   const body: ServerResponse = { type: 'server-response', rpcId, result: { ok: false, error } }
@@ -166,6 +224,23 @@ function fullResponse(narrow: RpcResponse<unknown>): Response {
   return Response.json(body)
 }
 
+/** 403 refusal: a valid ticket lacking access to a session, or a full-token-only method. */
+function forbiddenResponse(rpcId: RpcId, sessionId?: SessionId): Response {
+  return errorResponse(rpcId, {
+    code: 'forbidden',
+    message: sessionId === undefined ? 'not authorized for this method' : `not authorized for session ${sessionId}`,
+    details: sessionId === undefined ? {} : { sessionId },
+  })
+}
+
+/** The internal error a management method answers when no access seam is composed. */
+function accessUnavailableResponse(rpcId: RpcId): RpcResponse<{ userIds: string[] }> {
+  return {
+    rpcId,
+    result: { ok: false, error: { code: 'internal', message: 'per-session access is unavailable', details: {} } },
+  }
+}
+
 /**
  * Parse the payload and invoke one unary route. Generic over the map key so
  * the row's schema/invoke pairing typechecks; the only cast collapses the
@@ -176,15 +251,28 @@ function fullResponse(narrow: RpcResponse<unknown>): Response {
 // schema/invoke pairing; a union parameter degrades the row to an uninvokable intersection.
 // oxlint-disable-next-line typescript/no-unnecessary-type-parameters
 async function handleUnary<K extends keyof RpcMethodMap>(
-  api: ApiProxy, method: K, message: ClientRequest, signal: AbortSignal,
+  api: ApiProxy, method: K, message: ClientRequest, signal: AbortSignal, principal: ApiPrincipal,
 ): Promise<Response> {
   const route = UNARY_ROUTES[method]
+  // An anonymous (credential-less, ticket-configured) caller is denied every
+  // method: the reachability lane grants no access without a real credential.
+  if (principal.kind === 'anonymous') return forbiddenResponse(message.rpcId)
   const payload = route.schema.safeParse(message.payload)
   if (!payload.success) {
     return errorResponse(message.rpcId, { code: 'bad-request', message: `invalid payload for ${method}`, details: { issues: payload.error.issues } })
   }
+  // Full-token-only management methods reject every per-user ticket.
+  if (FULL_TOKEN_ONLY.has(method) && principal.kind !== 'token') {
+    return forbiddenResponse(message.rpcId)
+  }
+  // A session-scoped call from a ticket caller requires access to that session.
+  const scoped = sessionScopeOf(payload.data)
+  if (scoped !== undefined && !principalMayReach(api, principal, scoped)) {
+    return forbiddenResponse(message.rpcId, scoped)
+  }
   try {
-    return fullResponse(await route.invoke(api, { rpcId: message.rpcId, payload: payload.data }, signal))
+    const response = await route.invoke(api, { rpcId: message.rpcId, payload: payload.data }, signal)
+    return fullResponse(filterListForPrincipal(method, principal, api, response))
   } catch (error: unknown) {
     // The impl never throws business errors; reaching here means the implementation itself crashed — 500, carrier layer.
     return new Response(`handler failure: ${String(error)}`, { status: 500 })
@@ -240,7 +328,7 @@ function sseResponse(frames: AsyncIterable<RpcRequest<MuxFrame | HostFrame>>): R
  * @param api - the host-side ApiProxy implementation.
  * @returns an object holding `fetch(Request)`; paths outside /api/ return 404.
  */
-export function toFetchHandler(api: ApiProxy): { fetch: typeof fetch } {
+export function toFetchHandler(api: ApiProxy, principal: ApiPrincipal = { kind: 'token' }): { fetch: typeof fetch } {
   return {
     // Signature matches global fetch: the isomorphic point hands this function to InProcessApiClient as its transport aspect,
     // Clients call in (url, init) form — normalize to Request before handling.
@@ -250,12 +338,13 @@ export function toFetchHandler(api: ApiProxy): { fetch: typeof fetch } {
       const path = url.pathname
 
       // No-envelope read channels (SSE GET streams + host-only download):
-      // physical routes that answer directly, without a wire envelope.
+      // physical routes that answer directly, without a wire envelope. The
+      // principal scopes stream delivery to the sessions its user may read.
       if (path === '/api/events.mux' && req.method === 'GET') {
-        return sseResponse(api.events.mux({ rpcId: RpcId(randomUUID()), payload: {} }, req.signal))
+        return sseResponse(api.events.mux({ rpcId: RpcId(randomUUID()), payload: {} }, req.signal, principal))
       }
       if (path === '/api/events.host' && req.method === 'GET') {
-        return sseResponse(api.events.host({ rpcId: RpcId(randomUUID()), payload: {} }, req.signal))
+        return sseResponse(api.events.host({ rpcId: RpcId(randomUUID()), payload: {} }, req.signal, principal))
       }
       if (path === '/api/session.export' && (req.method === 'GET' || req.method === 'HEAD')) {
         // Query params are a different boundary from the POST envelope, but
@@ -263,6 +352,10 @@ export function toFetchHandler(api: ApiProxy): { fetch: typeof fetch } {
         const parsed = sessionLogQuerySchema.safeParse(Object.fromEntries(url.searchParams))
         if (!parsed.success) {
           return new Response('missing or invalid sessionId query parameter', { status: 400 })
+        }
+        // A session download is session-scoped: a ticket caller needs access.
+        if (!principalMayReach(api, principal, parsed.data.sessionId)) {
+          return new Response('forbidden', { status: 403 })
         }
         const response = await api.downloads.sessionLog(parsed.data, req.signal)
         if (req.method === 'GET') return response
@@ -273,6 +366,10 @@ export function toFetchHandler(api: ApiProxy): { fetch: typeof fetch } {
         const parsed = workspaceFileQuerySchema.safeParse(Object.fromEntries(url.searchParams))
         if (!parsed.success) {
           return new Response('missing or invalid query parameters', { status: 400 })
+        }
+        // A workspace file read is scoped to its owning session.
+        if (!principalMayReach(api, principal, parsed.data.sessionId)) {
+          return new Response('forbidden', { status: 403 })
         }
         const response = await api.downloads.workspaceFile(parsed.data, req.signal)
         if (req.method === 'GET') return response
@@ -304,6 +401,9 @@ export function toFetchHandler(api: ApiProxy): { fetch: typeof fetch } {
       }
 
       if (path === '/api/respond') {
+        // An anonymous caller holds no pending server-request (it can open no
+        // stream); refuse rather than let it answer another user's approval.
+        if (principal.kind === 'anonymous') return Response.json({ accepted: false, reason: 'not-pending' })
         const parsed = clientResponseSchema.safeParse(body)
         if (!parsed.success) return Response.json({ accepted: false, reason: 'bad-response' })
         return Response.json(await api.respond(parsed.data))
@@ -324,7 +424,7 @@ export function toFetchHandler(api: ApiProxy): { fetch: typeof fetch } {
       if (message.method !== method) {
         return errorResponse(message.rpcId, { code: 'bad-request', message: `method "${message.method}" does not match path "${method}"`, details: { issues: [] } })
       }
-      return handleUnary(api, method, message, req.signal)
+      return handleUnary(api, method, message, req.signal, principal)
     },
   }
 }

@@ -32,6 +32,16 @@ interface ConnectionRpcInterceptor {
   readonly options: ConnectionRpcHandlerOptions
 }
 
+/**
+ * Per-request authorization for the remote-gateway interceptor path, applied by
+ * the carrier BEFORE dispatching into the Typert gateway. Returns an `RpcError`
+ * to refuse the call (rendered as a 200 + `ServerResponse` like any business
+ * error), or undefined to admit it. The auth owner (the connection plugin)
+ * supplies it, resolving the caller principal and per-session access; the
+ * gateway itself stays unaware of tickets.
+ */
+export type RemoteAclGuard = (request: Request, endpoint: string, payload: unknown) => RpcError | undefined
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     /** Host Connection transport and RPC registrations. */
@@ -47,8 +57,14 @@ export class HostConnectionService extends Service implements HostConnectionHand
    * Provide the Host half over the active HTTP server.
    * @param ctx - owning Connection plugin context.
    * @param trustedHosts - deployment authorities accepted by trusted-host channels.
+   * @param remoteAclGuard - optional per-request access check for the remote-gateway
+   * interceptor path; the auth owner supplies it to gate ticket callers.
    */
-  constructor(ctx: Context, private readonly trustedHosts: readonly string[]) {
+  constructor(
+    ctx: Context,
+    private readonly trustedHosts: readonly string[],
+    private readonly remoteAclGuard?: RemoteAclGuard,
+  ) {
     super(ctx, 'connection')
   }
 
@@ -126,7 +142,10 @@ export class HostConnectionService extends Service implements HostConnectionHand
     }
     const interceptor: ConnectionRpcInterceptor = {
       matches,
-      fetchHandler: rpcFetchHandler(channel, handler),
+      // The remote-gateway path is the one place a ticket caller can reach a
+      // session-scoped operation off the ApiProxy dispatch, so the ACL guard
+      // runs here, before the gateway sees the call.
+      fetchHandler: rpcFetchHandler(channel, handler, this.remoteAclGuard),
       options,
     }
     return owner.effect(() => {
@@ -144,6 +163,7 @@ export class HostConnectionService extends Service implements HostConnectionHand
 function rpcFetchHandler(
   channel: string,
   handler: ConnectionRpcHandler,
+  guard?: RemoteAclGuard,
 ): FetchHandler {
   return {
     async fetch(request: Request): Promise<Response> {
@@ -176,6 +196,12 @@ function rpcFetchHandler(
           details: { issues: [] },
         })
       }
+
+      // Access gate BEFORE dispatch: a ticket caller reaching a session-scoped
+      // remote method it lacks access to is refused with the same 200+envelope
+      // `forbidden` a unary denial uses.
+      const denied = guard?.(request, endpoint, message.payload)
+      if (denied !== undefined) return errorResponse(message.rpcId, denied)
 
       try {
         const result = await handler(endpoint, message.payload, request.signal)

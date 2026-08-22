@@ -612,6 +612,57 @@ The backends that consume this contract are on [persistence.md](persistence.md).
 
 Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — this section is byte-identical in both language sides of the page. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
+<a id="ctxsessionaccess--sessionaccessservice"></a>
+
+### `ctx.sessionAccess` — `SessionAccessService`
+
+Durable per-session access list. Reads resolve from the in-memory domain table (loaded at open, kept current by each write); writes persist and emit `domain/changed`. The read gate canRead is the single enforcement predicate every Consumer shares.
+
+```ts cordis-catalog
+/**
+ * The set of users allowed to read and act on one session. An unknown
+ * session returns an empty set (never undefined) — the fail-closed default:
+ * absence denies every ticket user.
+ * @param sessionId - the session to read access for.
+ * @returns the current allowed-user set (a fresh copy; callers may not mutate the store).
+ */
+get(sessionId: SessionId): ReadonlySet<UserId>
+
+/**
+ * Replace the allowed-user set for one session. An empty set removes the row
+ * (revoking all ticket access); a non-empty set stores the deduplicated ids.
+ * Persists, then emits `domain/changed`.
+ * @param sessionId - the session whose access is replaced.
+ * @param userIds - the complete new allowed-user set.
+ */
+async set(sessionId: SessionId, userIds: readonly UserId[]): Promise<void>
+
+/**
+ * Whether a principal may read and act on one session. A full token always
+ * may (management/admin/loopback); a ticket user may only when they are an
+ * explicit member of the session's access set; an anonymous (credential-less)
+ * principal never may. Absence of a record denies — this is the single
+ * fail-closed gate every Consumer enforces.
+ * @param principal - the resolved caller identity.
+ * @param sessionId - the session being accessed.
+ * @returns true when the principal may proceed.
+ */
+canRead(principal: ApiPrincipal, sessionId: SessionId): boolean
+
+/**
+ * Subscribe to access changes. The listener fires with a session id after
+ * every durable write to that session's access row, so an open event stream
+ * can re-evaluate {@link canRead} for a live grant or revoke.
+ * @param listener - called with the changed session id.
+ * @returns a disposer that removes this subscription.
+ */
+onChanged(listener: (sessionId: SessionId) => void): () => void
+```
+
+Types: [SessionId](core.md)
+
+Source: [`packages/session/session-access/src/index.ts:50`](../../packages/session/session-access/src/index.ts)
+
 <a id="ctxsessions--sessionstore"></a>
 
 ### `ctx.sessions` — `SessionStore`

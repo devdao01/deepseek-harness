@@ -5,6 +5,7 @@
  */
 
 import type { SessionsApi } from './sessions.ts'
+import type { AccessApi } from './access.ts'
 import type { HostApi } from './host.ts'
 import type { WorkspaceApi } from './workspace.ts'
 import type { AgentPresetsApi } from './agent-presets.ts'
@@ -34,6 +35,12 @@ export interface ApiProxy {
   /** Host-only download surfaces (GET, no wire envelope); absent from IApiClient. */
   downloads: DownloadsApi
   /**
+   * Per-session access management (full-token only). Optional: a composition
+   * without the access seam omits it, and dispatch answers its methods with an
+   * "unavailable" error. `createApiProxy` always provides it.
+   */
+  access?: AccessApi
+  /**
    * Response entry for server requests; not a domain method.
    * @param message - Client response carrying the server request's rpcId.
    * @returns Transport receipt for the response delivery.
@@ -47,6 +54,7 @@ export type {
   ModelReasoningEffort, ModelSelection, PromptContentPart, QueueAction, SessionModels,
   SessionListMetadata, SessionProjectionsBlock, SessionSearchItem, SessionsApi, SessionSummary,
 } from './sessions.ts'
+export type { AccessApi } from './access.ts'
 export type { DirectoryEntry, DirectoryListing, HostApi } from './host.ts'
 export type {
   SubagentAddress, SubagentCatalog, SubagentInterruptReceipt, SubagentListEntry,

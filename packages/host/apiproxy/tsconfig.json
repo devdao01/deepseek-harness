@@ -48,6 +48,12 @@
       "path": "../../core/session"
     },
     {
+      "path": "../../identity/user-ticket"
+    },
+    {
+      "path": "../../session/session-access"
+    },
+    {
       "path": "../../core/tools"
     },
     {
