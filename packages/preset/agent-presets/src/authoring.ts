@@ -208,6 +208,57 @@ export async function writePresetWorkspacePath(
 }
 
 /**
+ * Set a locally authored preset's display name and/or description, preserving
+ * its `order` and stamped `workspacePath`.
+ *
+ * This is the edit `copyComposition` cannot make: a copy keeps its source's
+ * description with no later way to change it, and a copy's name is the id
+ * fallback until one is chosen. Only a `user` preset under the writable root may
+ * be edited — the same ownership guard `writePresetWorkspacePath` applies — so
+ * authoring can never rewrite a shipped preset's file.
+ *
+ * A field PRESENT in `updates` is applied — a non-empty string sets it, an
+ * empty or whitespace string clears it through the same `text()` normalization
+ * the file already round-trips through — while a field ABSENT from `updates`
+ * keeps its current value. When the merge leaves the metadata with nothing to
+ * publish (every field cleared), the file is removed so the preset publishes
+ * nothing rather than a blank; otherwise it is written atomically.
+ * @param roots - the configured roots; the first `user` one owns the preset.
+ * @param preset - the resolved preset to edit.
+ * @param updates - the display fields to set or clear; absent keys are kept.
+ * @throws when the preset ships with the deployment or lies outside the writable root.
+ */
+export async function writePresetDisplay(
+  roots: readonly PresetRoot[],
+  preset: AgentPreset,
+  updates: { name?: string; description?: string },
+): Promise<void> {
+  if (preset.trust !== 'user') {
+    throw new PresetNotWritableError(preset.id, 'it ships with the deployment')
+  }
+  const dir = join(writableRoot(roots), preset.id)
+  // Belt and braces over the id pattern: the resolved directory must still be
+  // the one the writable root owns, whatever discovery reported.
+  if (!isAbsolute(preset.path) || !preset.path.startsWith(dir)) {
+    throw new PresetNotWritableError(preset.id, 'it does not live under the writable preset root')
+  }
+  const current = await readPresetMetadata(dir)
+  const rendered = renderPresetMetadata({
+    ...current,
+    ...'name' in updates ? { name: updates.name } : {},
+    ...'description' in updates ? { description: updates.description } : {},
+  })
+  const metadataPath = join(dir, METADATA_FILE)
+  if (rendered === undefined) {
+    // Everything the file would carry is now cleared: publish nothing rather
+    // than a document whose blank fields read as an intentional empty name.
+    await rm(metadataPath, { force: true })
+  } else {
+    await writeFileAtomic(metadataPath, rendered, { mode: 0o600, dirMode: 0o700 })
+  }
+}
+
+/**
  * Delete a locally authored preset.
  *
  * A shipped preset is refused: it belongs to the deployment. A preset a live

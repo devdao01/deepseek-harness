@@ -222,6 +222,75 @@ describe('stamping a preset workspace path', () => {
   })
 })
 
+describe('setting a preset display name and description', () => {
+  it('sets both the name and the description', async () => {
+    await seedPreset(userRoot, 'mine')
+
+    await ctx.agentPresets.setDisplay('mine', { name: '我的模式', description: '只做检索。' })
+
+    const metadata = await readFile(join(userRoot, 'mine', METADATA_FILE), 'utf8')
+    expect(metadata).toContain('name: 我的模式')
+    expect(metadata).toContain('description: 只做检索。')
+    expect((await ctx.agentPresets.list()).find(preset => preset.id === 'mine'))
+      .toMatchObject({ name: '我的模式', description: '只做检索。' })
+  })
+
+  it('preserves an existing workspacePath and order', async () => {
+    await seedPreset(userRoot, 'mine', {
+      metadata: 'name: 旧名\norder: 5\nworkspacePath: /home/u/workspace/mine\n',
+    })
+
+    await ctx.agentPresets.setDisplay('mine', { name: '新名' })
+
+    // Only the display name is the edit's to touch; the roster order and the
+    // stamped workspace pointer are not, so a rename never re-sorts or unstamps.
+    const resolved = await ctx.agentPresets.resolve('mine')
+    expect(resolved).toMatchObject({ name: '新名', order: 5, workspacePath: '/home/u/workspace/mine' })
+  })
+
+  it('leaves a field untouched when its key is omitted', async () => {
+    await seedPreset(userRoot, 'mine', { metadata: 'name: 旧名\ndescription: 旧描述\n' })
+
+    await ctx.agentPresets.setDisplay('mine', { name: '新名' })
+
+    // An omitted key keeps the current value; only the present one is applied.
+    expect(await ctx.agentPresets.resolve('mine')).toMatchObject({ name: '新名', description: '旧描述' })
+  })
+
+  it('clears a field given an empty string', async () => {
+    await seedPreset(userRoot, 'mine', { metadata: 'name: 旧名\ndescription: 旧描述\n' })
+
+    await ctx.agentPresets.setDisplay('mine', { description: '   ' })
+
+    // A present-but-blank string is the clear signal, the same normalization
+    // the metadata file already round-trips through; the name stays.
+    const resolved = await ctx.agentPresets.resolve('mine')
+    expect(resolved.name).toBe('旧名')
+    expect(resolved.description).toBeUndefined()
+  })
+
+  it('removes the metadata file when every field is cleared', async () => {
+    await seedPreset(userRoot, 'mine', { metadata: 'name: 旧名\ndescription: 旧描述\n' })
+
+    await ctx.agentPresets.setDisplay('mine', { name: '', description: '' })
+
+    // Nothing left to publish reads as "this preset publishes no display text",
+    // which is absence, not a document of blank fields.
+    expect(existsSync(join(userRoot, 'mine', METADATA_FILE))).toBe(false)
+    expect((await ctx.agentPresets.list()).find(preset => preset.id === 'mine')?.name).toBeUndefined()
+  })
+
+  it('refuses to edit a shipped preset', async () => {
+    await expect(ctx.agentPresets.setDisplay('standard', { name: 'nope' }))
+      .rejects.toThrow(/ships with the deployment/)
+  })
+
+  it('reports an unknown id rather than editing nothing', async () => {
+    await expect(ctx.agentPresets.setDisplay('never-existed', { name: 'x' }))
+      .rejects.toThrow(/not found/)
+  })
+})
+
 describe('a deployment with more than one user root', () => {
   it('refuses to delete a preset the writable root does not own', async () => {
     const second = await mkdtemp(join(tmpdir(), 'dsh-preset-second-'))

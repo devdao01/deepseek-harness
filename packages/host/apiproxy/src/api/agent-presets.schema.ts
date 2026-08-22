@@ -70,6 +70,19 @@ export const agentPresetCopyValueSchema = z.object({
   workspace: workspaceViewSchema,
 }) satisfies z.ZodType<Wire<ResponseValue<'agentPreset.copy'>>>
 
+/** agentPreset.update request payload. */
+export const agentPresetUpdateRequestSchema = z.object({
+  agentPreset: z.string(),
+  name: z.string().optional(),
+  description: z.string().optional(),
+}) satisfies z.ZodType<Wire<RequestPayload<'agentPreset.update'>>>
+
+/** agentPreset.update response value: the effective display text after the edit. */
+export const agentPresetUpdateValueSchema = z.object({
+  name: z.string().optional(),
+  description: z.string().optional(),
+}) satisfies z.ZodType<Wire<ResponseValue<'agentPreset.update'>>>
+
 /** agentPreset.openDocument request payload. */
 export const agentPresetOpenDocumentRequestSchema = z.object({
   agentPreset: z.string().min(1),

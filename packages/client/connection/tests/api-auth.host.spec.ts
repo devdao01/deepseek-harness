@@ -285,7 +285,7 @@ describe('deriveWebRuntimeAuth', () => {
 
   it('defaults the unpinned set to the agentPreset authoring plane only', () => {
     expect([...DEFAULT_UNPINNED_METHODS]).toEqual([
-      'agentPreset.read', 'agentPreset.copy', 'agentPreset.openDocument', 'agentPreset.remove',
+      'agentPreset.read', 'agentPreset.copy', 'agentPreset.update', 'agentPreset.openDocument', 'agentPreset.remove',
     ])
     // Every derived pin is itself pinned, so prepareApiAuth accepts the default.
     const pinned: ReadonlySet<string> = new Set([...DEFAULT_UNPINNED_METHODS, 'settings.update'])

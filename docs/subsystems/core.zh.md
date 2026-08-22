@@ -506,6 +506,19 @@ async copy(from: string, id: string, name?: string): Promise<void>
 async setWorkspacePath(id: string, workspacePath: string): Promise<void>
 
 /**
+ * Set a locally authored preset's display name and/or description, keeping
+ * its `order` and stamped workspace path. This is the edit `copy` cannot
+ * make: a copy keeps the source's description with no later way to change it.
+ * A field present in `updates` is applied (an empty string clears it), an
+ * absent one is kept; clearing every field removes the metadata file.
+ * @param id - the preset id.
+ * @param updates - the display fields to set or clear; absent keys are kept.
+ * @throws when the preset is unknown, ships with the deployment, or lies
+ * outside the writable root.
+ */
+async setDisplay(id: string, updates: { name?: string; description?: string }): Promise<void>
+
+/**
  * Delete a locally authored preset.
  * @param id - the preset id.
  * @throws when the preset is unknown or ships with the deployment.

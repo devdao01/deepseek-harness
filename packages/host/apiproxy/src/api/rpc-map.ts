@@ -58,6 +58,7 @@ export interface RpcMethodMap {
   'agentPreset.select': AgentPresetsApi['select']
   'agentPreset.read': AgentPresetsApi['read']
   'agentPreset.copy': AgentPresetsApi['copy']
+  'agentPreset.update': AgentPresetsApi['update']
   'agentPreset.openDocument': AgentPresetsApi['openDocument']
   'agentPreset.remove': AgentPresetsApi['remove']
   'goal.create': GoalsApi['create']

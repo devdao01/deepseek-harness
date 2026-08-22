@@ -63,6 +63,7 @@ export const TICKET_COOKIE_NAME = 'dsh_ticket'
 export const DEFAULT_UNPINNED_METHODS: readonly string[] = [
   'agentPreset.read',
   'agentPreset.copy',
+  'agentPreset.update',
   'agentPreset.openDocument',
   'agentPreset.remove',
 ]

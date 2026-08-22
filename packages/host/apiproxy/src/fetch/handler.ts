@@ -50,6 +50,7 @@ import { skillListRequestSchema } from '../api/skills.schema.ts'
 import {
   agentPresetCopyRequestSchema, agentPresetListRequestSchema, agentPresetOpenDocumentRequestSchema,
   agentPresetReadRequestSchema, agentPresetRemoveRequestSchema, agentPresetSelectRequestSchema,
+  agentPresetUpdateRequestSchema,
 } from '../api/agent-presets.schema.ts'
 import {
   goalCreateRequestSchema,
@@ -126,6 +127,7 @@ const UNARY_ROUTES: UnaryRoutes = {
   'agentPreset.select': { schema: agentPresetSelectRequestSchema, invoke: (api, r) => api.agentPresets.select(r) },
   'agentPreset.read': { schema: agentPresetReadRequestSchema, invoke: (api, r) => api.agentPresets.read(r) },
   'agentPreset.copy': { schema: agentPresetCopyRequestSchema, invoke: (api, r) => api.agentPresets.copy(r) },
+  'agentPreset.update': { schema: agentPresetUpdateRequestSchema, invoke: (api, r) => api.agentPresets.update(r) },
   'agentPreset.openDocument': { schema: agentPresetOpenDocumentRequestSchema, invoke: (api, r, signal) => api.agentPresets.openDocument(r, signal) },
   'agentPreset.remove': { schema: agentPresetRemoveRequestSchema, invoke: (api, r) => api.agentPresets.remove(r) },
   'goal.create': { schema: goalCreateRequestSchema, invoke: (api, r) => api.goals.create(r) },

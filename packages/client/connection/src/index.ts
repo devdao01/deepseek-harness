@@ -140,6 +140,7 @@ const PRIVILEGED_METHODS = new Set([
   // process. Pinning the switch would be a fence beside an open gate.
   'agentPreset.read',
   'agentPreset.copy',
+  'agentPreset.update',
   'agentPreset.openDocument',
   'agentPreset.remove',
   'host.pickDirectory',

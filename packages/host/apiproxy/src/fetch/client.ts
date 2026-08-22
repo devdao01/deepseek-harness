@@ -46,6 +46,7 @@ import { skillListValueSchema } from '../api/skills.schema.ts'
 import {
   agentPresetCopyValueSchema, agentPresetListValueSchema, agentPresetOpenDocumentValueSchema,
   agentPresetReadValueSchema, agentPresetRemoveValueSchema, agentPresetSelectValueSchema,
+  agentPresetUpdateValueSchema,
 } from '../api/agent-presets.schema.ts'
 import {
   goalCreateValueSchema,
@@ -136,6 +137,7 @@ export interface IApiClient {
     select(payload: RequestPayload<'agentPreset.select'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'agentPreset.select'>>>
     read(payload: RequestPayload<'agentPreset.read'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'agentPreset.read'>>>
     copy(payload: RequestPayload<'agentPreset.copy'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'agentPreset.copy'>>>
+    update(payload: RequestPayload<'agentPreset.update'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'agentPreset.update'>>>
     openDocument(payload: RequestPayload<'agentPreset.openDocument'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'agentPreset.openDocument'>>>
     remove(payload: RequestPayload<'agentPreset.remove'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'agentPreset.remove'>>>
   }
@@ -212,6 +214,7 @@ const UNARY_VALUE_SCHEMAS: { [K in keyof RpcMethodMap]: z.ZodType<Wire<ResponseV
   'agentPreset.select': agentPresetSelectValueSchema,
   'agentPreset.read': agentPresetReadValueSchema,
   'agentPreset.copy': agentPresetCopyValueSchema,
+  'agentPreset.update': agentPresetUpdateValueSchema,
   'agentPreset.openDocument': agentPresetOpenDocumentValueSchema,
   'agentPreset.remove': agentPresetRemoveValueSchema,
   'goal.create': goalCreateValueSchema,
@@ -479,6 +482,7 @@ export abstract class AbstractApiClient implements IApiClient {
     select: (payload, signal) => this.callUnary('agentPreset.select', payload, signal),
     read: (payload, signal) => this.callUnary('agentPreset.read', payload, signal),
     copy: (payload, signal) => this.callUnary('agentPreset.copy', payload, signal),
+    update: (payload, signal) => this.callUnary('agentPreset.update', payload, signal),
     openDocument: (payload, signal) => this.callUnary('agentPreset.openDocument', payload, signal),
     remove: (payload, signal) => this.callUnary('agentPreset.remove', payload, signal),
   }

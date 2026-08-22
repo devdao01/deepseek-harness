@@ -20,7 +20,7 @@ import { MemoryStorageBackend } from '../../../storage/storage-domain/tests/help
 import { RpcId, type RpcRequest } from '../src/api/rpc.ts'
 import type { HostFrame } from '../src/api/events.ts'
 import {
-  InvalidPresetIdError, PresetExistsError, resolveSessionPreset, UnknownPresetError,
+  InvalidPresetIdError, PresetExistsError, PresetNotWritableError, resolveSessionPreset, UnknownPresetError,
 } from '@deepseek-ai/dsh-agent-presets'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import { GoalId } from '@deepseek-ai/dsh-goal'
@@ -45,8 +45,11 @@ function stubAgent(session: Session): Agent {
  */
 function roster(ids: readonly string[], userIds: readonly string[] = []): unknown {
   const trustOf = (id: string): 'system' | 'user' => (userIds.includes(id) ? 'user' : 'system')
+  // Display edits the double keeps so a re-resolve after `setDisplay` reports
+  // the effective name/description the gateway echoes back.
+  const displays = new Map<string, { name?: string; description?: string }>()
   const presetOf = (id: string): object =>
-    ({ id, trust: trustOf(id), path: `/presets/${id}/agent.cordis.yml` })
+    ({ id, trust: trustOf(id), path: `/presets/${id}/agent.cordis.yml`, ...displays.get(id) })
   return {
     defaultId: ids[0],
     list: () => Promise.resolve(ids.map(presetOf)),
@@ -78,6 +81,28 @@ function roster(ids: readonly string[], userIds: readonly string[] = []): unknow
     // This double's `copy` does not add the id to `ids`, so stamping is a
     // plain no-op here; the real stamp semantics live in the preset package.
     setWorkspacePath: () => Promise.resolve(),
+    // Mirrors the real trust/writable guards enough for the gateway: unknown
+    // ids and shipped presets are refused, and an accepted edit records the
+    // effective display text (empty string clears) for the re-resolve to read.
+    setDisplay: (id: string, updates: { name?: string; description?: string }) => {
+      if (!ids.includes(id)) return Promise.reject(new UnknownPresetError(id, ids))
+      if (trustOf(id) !== 'user') {
+        return Promise.reject(new PresetNotWritableError(id, 'it ships with the deployment'))
+      }
+      const next = { ...displays.get(id) }
+      if ('name' in updates) {
+        const trimmed = updates.name?.trim()
+        if (trimmed) next.name = trimmed
+        else delete next.name
+      }
+      if ('description' in updates) {
+        const trimmed = updates.description?.trim()
+        if (trimmed) next.description = trimmed
+        else delete next.description
+      }
+      displays.set(id, next)
+      return Promise.resolve()
+    },
     recompose: (_ctx: Context, id: string) => {
       if (!ids.includes(id)) return Promise.reject(new UnknownPresetError(id, ids))
       return Promise.resolve({ id, trust: 'system', path: `/presets/${id}.yml` })
@@ -560,6 +585,61 @@ describe('authoring over the wire', () => {
     const { api } = await harness(['standard'])
 
     const response = await api.agentPresets.remove(request({ agentPreset: 'never-existed' }))
+
+    expect(response.result.ok).toBe(false)
+    if (response.result.ok) throw new Error('unreachable')
+    expect(response.result.error.code).toBe('agent-preset-not-found')
+  })
+
+  it('sets a preset display name and description, echoing the effective values', async () => {
+    const { api } = await harness(['standard', 'mine'], undefined, { userIds: ['mine'] })
+
+    const response = await api.agentPresets.update(
+      request({ agentPreset: 'mine', name: '我的模式', description: '只做检索。' }))
+
+    expect(response.result.ok).toBe(true)
+    if (!response.result.ok) throw new Error('unreachable')
+    // The echo is the text read back from the resolved preset, not the request.
+    expect(response.result.value).toEqual({ name: '我的模式', description: '只做检索。' })
+  })
+
+  it('reports the cleared field as absent when an empty string clears it', async () => {
+    const { api } = await harness(['standard', 'mine'], undefined, { userIds: ['mine'] })
+    await api.agentPresets.update(request({ agentPreset: 'mine', name: '我的模式', description: '旧描述' }))
+
+    const response = await api.agentPresets.update(request({ agentPreset: 'mine', description: '' }))
+
+    expect(response.result.ok).toBe(true)
+    if (!response.result.ok) throw new Error('unreachable')
+    // Description cleared, name kept: an omitted key keeps its value, a blank
+    // one clears, so the effective row carries only the name.
+    expect(response.result.value).toEqual({ name: '我的模式' })
+  })
+
+  it('refuses to edit a preset that ships with the deployment', async () => {
+    const { api } = await harness(['standard'])
+
+    const response = await api.agentPresets.update(request({ agentPreset: 'standard', name: 'nope' }))
+
+    expect(response.result.ok).toBe(false)
+    if (response.result.ok) throw new Error('unreachable')
+    expect(response.result.error.code).toBe('agent-preset-read-only')
+  })
+
+  it('reports an unknown id on update rather than editing nothing', async () => {
+    const { api } = await harness(['standard'])
+
+    const response = await api.agentPresets.update(request({ agentPreset: 'never-existed', name: 'x' }))
+
+    expect(response.result.ok).toBe(false)
+    if (response.result.ok) throw new Error('unreachable')
+    expect(response.result.error.code).toBe('agent-preset-not-found')
+  })
+
+  it('reports a deployment that composes no presets on update', async () => {
+    const { api } = await harness()
+
+    const response = await api.agentPresets.update(request({ agentPreset: 'anything', name: 'x' }))
 
     expect(response.result.ok).toBe(false)
     if (response.result.ok) throw new Error('unreachable')

@@ -24,6 +24,7 @@
 - `ctx.agentPresets.copy(from, id, name?): Promise<void>` 通过整目录复制一个既有 preset 来创建本地创作的 preset——唯一的创作写入。组装文本不经过这道接缝，因此副本与其来源同等可加载；复制出的元数据保留来源的描述、但绝不保留其名称与 roster 排序，`name`（或回退到 id）才是区分两行的依据。
 - `ctx.agentPresets.remove(id): Promise<void>` 删除一个本地创作的 preset；已加入的会话保留其常驻挂载。若用户默认值恰好指向刚删除的 preset 则一并清除：存一个尚不存在的默认值是刻意的，但本次删除的这个再也不会有人提供，留着会让所有未显式指定的新会话无法启动。
 - `ctx.agentPresets.setWorkspacePath(id, workspacePath): Promise<void>` 把一个本地创作 preset 的默认工作区目录 stamp 进其元数据，保留其既有展示文本。调用方传入绝对规范路径（它刚 provision 的工作区）；只有位于可写根下的 `user` preset 才可被 stamp，与 `remove` 相同的归属守卫。
+- `ctx.agentPresets.setDisplay(id, { name?, description? }): Promise<void>` 在一个本地创作 preset 的 `preset.yml` 中设置其展示用 name 和/或 description，保留其 `order` 与已 stamp 的工作区路径。这是 `copy` 无法做到的编辑：副本会保留 source 的 description 且事后无从更改，其名字在选定之前是 id 回退值。`updates` 中 present 的字段被应用——非空字符串设置它，空串或纯空白清除它——而缺席的键保留当前值；清空全部字段会删除元信息文件，让该 preset 什么都不发布。只有位于可写根下的 `user` preset 才可被编辑，与 `remove` 相同的归属守卫。底层的 `writePresetDisplay(roots, preset, updates)` 已导出，供持有已解析 preset 的调用方使用。
 
 `AgentPreset` 携带 `id`（目录名）、`trust`（`system` 或 `user`，取自它所在的根目录）、`path`（组装文件的绝对路径）、`workspacePath`（preset 在创作时存储的绝对默认工作区目录，随附 preset 与 stamp 之前的副本没有它），以及——仅当该 preset 无法组装会话时——`broken`（一条人类可读的原因，名单界面原样展示）。
 

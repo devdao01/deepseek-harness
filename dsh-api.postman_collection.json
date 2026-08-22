@@ -2457,6 +2457,78 @@
           ]
         },
         {
+          "name": "agentPreset.update",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/agentPreset.update",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "agentPreset.update"
+              ]
+            },
+            "description": "Sets a locally authored preset's display `name` and/or `description` in its `preset.yml`, preserving `order` and `workspacePath` (composition stays copy-only). A present value sets it, an empty string clears it, an omitted field keeps the current one; the response reports the effective values. Shipped presets refused (agent-preset-read-only). Privileged authoring: loopback-pinned, OR callable by an authenticated client when the deployment lists it in `auth.unpinned`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"client-request\",\n  \"rpcId\": \"{{$guid}}\",\n  \"method\": \"agentPreset.update\",\n  \"payload\": {\n    \"agentPreset\": \"my-preset\",\n    \"name\": \"My Preset\",\n    \"description\": \"One sentence on what this preset is for.\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Success (ServerResponse)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": true,\n    \"value\": {\n      \"name\": \"My Preset\",\n      \"description\": \"One sentence on what this preset is for.\"\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "200 — Business error (RpcError)",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"server-response\",\n  \"rpcId\": \"{{$guid}}\",\n  \"result\": {\n    \"ok\": false,\n    \"error\": {\n      \"code\": \"internal\",\n      \"message\": \"<error message>\",\n      \"details\": {}\n    }\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
           "name": "agentPreset.openDocument",
           "request": {
             "method": "POST",

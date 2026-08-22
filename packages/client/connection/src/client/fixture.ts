@@ -1537,7 +1537,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
    * constants so the settings editor's save and delete are exercisable: the
    * roster a GUI journey sees after writing is the text it wrote.
    */
-  const fixturePresets = new Map<string, { trust: 'system' | 'user'; content: string; workspacePath?: string }>([
+  const fixturePresets = new Map<string, { trust: 'system' | 'user'; content: string; workspacePath?: string; name?: string; description?: string }>([
     ['standard', { trust: 'system', content: "- id: tool-bash\n  name: '@deepseek-ai/dsh-tool-bash'\n" }],
     ['minimal', { trust: 'system', content: "- id: tool-web-search\n  name: '@deepseek-ai/dsh-tool-web-search'\n" }],
     ['my-agent', { trust: 'user', content: "- id: tool-read\n  name: '@deepseek-ai/dsh-tool-read'\n", workspacePath: '/fixture/workspace/my-agent' }],
@@ -2703,6 +2703,8 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           id,
           trust: preset.trust,
           isDefault: id === fixtureDefaultPreset,
+          ...preset.name === undefined ? {} : { name: preset.name },
+          ...preset.description === undefined ? {} : { description: preset.description },
           ...preset.workspacePath === undefined ? {} : { workspacePath: preset.workspacePath },
         })),
         authorable: true,
@@ -2726,6 +2728,8 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           agentPreset,
           trust: preset.trust,
           content: preset.content,
+          ...preset.name === undefined ? {} : { name: preset.name },
+          ...preset.description === undefined ? {} : { description: preset.description },
         })
       },
       copy: (request) => {
@@ -2766,6 +2770,37 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           emitHost({ type: 'host/workspace-changed', workspace: { ...workspace } })
         }
         return ok(request, { agentPreset, workspace: { ...workspace } })
+      },
+      // Set a user preset's display text, mirroring the host: a present field
+      // (empty string included) sets or clears it, an omitted one is kept, and
+      // the effective values are read back for the echo. Shipped and unknown
+      // presets are refused exactly as `remove` is.
+      update: (request) => {
+        const { agentPreset } = request.payload
+        const existing = fixturePresets.get(agentPreset)
+        if (existing === undefined || existing.trust === 'system') {
+          return err(request, {
+            code: 'agent-preset-read-only',
+            message: `agent preset "${agentPreset}" ships with the deployment`,
+            details: { agentPreset, reason: 'it ships with the deployment' },
+          })
+        }
+        const next = { ...existing }
+        if ('name' in request.payload) {
+          const trimmed = request.payload.name?.trim()
+          if (trimmed) next.name = trimmed
+          else delete next.name
+        }
+        if ('description' in request.payload) {
+          const trimmed = request.payload.description?.trim()
+          if (trimmed) next.description = trimmed
+          else delete next.description
+        }
+        fixturePresets.set(agentPreset, next)
+        return ok(request, {
+          ...next.name === undefined ? {} : { name: next.name },
+          ...next.description === undefined ? {} : { description: next.description },
+        })
       },
       // Native opens are deterministic no-op successes in this fixture, so the
       // open-directory affordance renders and the path-text fallback stays a
@@ -3139,6 +3174,7 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'agentPreset.select': return this.api.agentPresets.select(request)
       case 'agentPreset.read': return this.api.agentPresets.read(request)
       case 'agentPreset.copy': return this.api.agentPresets.copy(request)
+      case 'agentPreset.update': return this.api.agentPresets.update(request)
       case 'agentPreset.openDocument': return this.api.agentPresets.openDocument(request, new AbortController().signal)
       case 'agentPreset.remove': return this.api.agentPresets.remove(request)
       case 'goal.create': return this.api.goals.create(request)

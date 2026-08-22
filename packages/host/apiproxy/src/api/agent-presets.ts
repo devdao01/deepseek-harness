@@ -119,6 +119,22 @@ export interface AgentPresetsApi {
   Promise<RpcResponse<{ agentPreset: string; workspace: WorkspaceView }>>
 
   /**
+   * Set a locally authored preset's display name and/or description in its
+   * `preset.yml`, preserving its `order` and stamped workspace path.
+   *
+   * Privileged authoring: it edits what the deployment's picker shows for a
+   * `user` preset, which `copy` cannot do afterwards — a copy keeps the
+   * source's description and the id fallback for its name. Composition stays
+   * copy-only; this only edits display metadata, so no plugin row crosses the
+   * wire. A provided string SETS the field, an empty or whitespace one CLEARS
+   * it, and an omitted field KEEPS the current value; the response reports the
+   * effective name/description read back after the edit. A preset that ships
+   * with the deployment is refused with `agent-preset-read-only`.
+   */
+  update(request: RpcRequest<{ agentPreset: string; name?: string; description?: string }>):
+  Promise<RpcResponse<{ name?: string; description?: string }>>
+
+  /**
    * Hand one locally authored preset's DIRECTORY to the platform opener, for
    * editing the files that are now the only composition editor. The request
    * carries an id, never a path — the Host resolves it — so no browser

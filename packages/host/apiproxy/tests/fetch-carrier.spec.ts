@@ -214,6 +214,13 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
         }
         return Promise.resolve({ rpcId: request.rpcId, result: { ok: true as const, value } })
       },
+      update(request: RpcRequest<{ agentPreset: string; name?: string; description?: string }>) {
+        const value = {
+          ...request.payload.name === undefined ? {} : { name: request.payload.name },
+          ...request.payload.description === undefined ? {} : { description: request.payload.description },
+        }
+        return Promise.resolve({ rpcId: request.rpcId, result: { ok: true as const, value } })
+      },
       openDocument(request: RpcRequest<{ agentPreset: string }>) {
         return Promise.resolve({ rpcId: request.rpcId, result: { ok: true as const, value: { opened: true as const } } })
       },

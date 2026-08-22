@@ -98,6 +98,10 @@ function scriptedApi(overrides: {
         agentPreset: r.payload.agentPreset,
         workspace: { workspaceId: 'ws-stub' as never, path: '/w', title: 'w', sessionIds: [], createdAt: '', updatedAt: '' },
       }),
+      update: r => ok(r, {
+        ...r.payload.name === undefined ? {} : { name: r.payload.name },
+        ...r.payload.description === undefined ? {} : { description: r.payload.description },
+      }),
       openDocument: r => ok(r, { opened: true as const }),
       remove: r => ok(r, {}),
       ...overrides.agentPresets,

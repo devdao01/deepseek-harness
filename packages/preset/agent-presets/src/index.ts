@@ -30,7 +30,7 @@ import type {} from '@deepseek-ai/dsh-agent'
 import { settingsNamespace, type SettingsScope, type default as SettingsService } from '@deepseek-ai/dsh-settings'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { discoverPresets, USER_PRESET_DIR } from './discovery.ts'
-import { copyComposition, deleteComposition, readComposition, writePresetWorkspacePath } from './authoring.ts'
+import { copyComposition, deleteComposition, readComposition, writePresetDisplay, writePresetWorkspacePath } from './authoring.ts'
 import { mountPreset, serviceForAgent, standingMountFor } from './mount.ts'
 import { PresetExistsError } from './authoring.ts'
 import { PresetMountError, UnknownPresetError, type AgentPreset, type Config, type PresetRoot } from './preset.ts'
@@ -60,7 +60,7 @@ export {
 } from './mount.ts'
 export {
   copyComposition, deleteComposition, InvalidPresetIdError, PresetExistsError,
-  PresetNotWritableError, readComposition, writableRoot, writePresetWorkspacePath,
+  PresetNotWritableError, readComposition, writableRoot, writePresetDisplay, writePresetWorkspacePath,
 } from './authoring.ts'
 export { resolveSessionPreset, type PresetBearingSession } from './session.ts'
 export { PresetMountError, UnknownPresetError } from './preset.ts'
@@ -404,6 +404,21 @@ export class AgentPresets extends Service {
    */
   async setWorkspacePath(id: string, workspacePath: string): Promise<void> {
     await writePresetWorkspacePath(this.resolvedRoots, await this.resolve(id), workspacePath)
+  }
+
+  /**
+   * Set a locally authored preset's display name and/or description, keeping
+   * its `order` and stamped workspace path. This is the edit `copy` cannot
+   * make: a copy keeps the source's description with no later way to change it.
+   * A field present in `updates` is applied (an empty string clears it), an
+   * absent one is kept; clearing every field removes the metadata file.
+   * @param id - the preset id.
+   * @param updates - the display fields to set or clear; absent keys are kept.
+   * @throws when the preset is unknown, ships with the deployment, or lies
+   * outside the writable root.
+   */
+  async setDisplay(id: string, updates: { name?: string; description?: string }): Promise<void> {
+    await writePresetDisplay(this.resolvedRoots, await this.resolve(id), updates)
   }
 
   /**
