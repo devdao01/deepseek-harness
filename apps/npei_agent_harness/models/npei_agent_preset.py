@@ -23,10 +23,11 @@ class NpeiAgentPreset(models.Model):
 
     preset_id = fields.Char(
         string='Harness Preset ID',
-        required=True,
         index=True,
         copy=False,
-        help="Preset id owned by the harness (``AgentPresetEntry.id``).",
+        help="Preset id owned by the harness (``AgentPresetEntry.id``). Left "
+             "blank on create, Odoo derives it from the name and authors the "
+             "preset on the harness; set only by the sync/adopt path.",
     )
     name = fields.Char(string='Name')
     description = fields.Text(string='Description')
