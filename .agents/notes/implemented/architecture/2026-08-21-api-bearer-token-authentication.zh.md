@@ -6,11 +6,11 @@ Status: implemented
 
 ## Problem
 
-/api 载体（[api-request-trust](../../../packages/client/connection/src/api-request-trust.ts)）一直是可达性栅栏，而非认证：当请求的 Host 为回环或已声明的 `trustedHosts` 权威、且其浏览器 CSRF 标记为同源时被接受，且一个特权子集（[浏览器信任边界 note](2026-07-28-api-browser-trust-boundary.md)）被钉在回环。这对同源 SPA 恰到好处，但它没有任何办法让某个特定的*服务端*客户端——部署自身的 Odoo 后端，从另一台机器通过 API 驱动 harness——触达该表面，或授予它对回环钉住方法的受控切片。信任栅栏刻意"不是认证层"，于是整个配置面因缺一层而只限回环本机。用户决定加上这一层：Bearer token，加一个配置驱动的、已认证客户端可调用的钉住方法清单。
+/api 载体（[api-request-trust](../../../../packages/client/connection/src/api-request-trust.ts)）一直是可达性栅栏，而非认证：当请求的 Host 为回环或已声明的 `trustedHosts` 权威、且其浏览器 CSRF 标记为同源时被接受，且一个特权子集（[浏览器信任边界 note](2026-07-28-api-browser-trust-boundary.md)）被钉在回环。这对同源 SPA 恰到好处，但它没有任何办法让某个特定的*服务端*客户端——部署自身的 Odoo 后端，从另一台机器通过 API 驱动 harness——触达该表面，或授予它对回环钉住方法的受控切片。信任栅栏刻意"不是认证层"，于是整个配置面因缺一层而只限回环本机。用户决定加上这一层：Bearer token，加一个配置驱动的、已认证客户端可调用的钉住方法清单。
 
 ## Decision
 
-连接插件上一个选择性开启的 `auth` 配置，在可达性栅栏之上叠加 Bearer token 认证，位于新的受门控模块 [api-auth](../../../packages/client/connection/src/api-auth.ts)。默认与今天完全一致：未配置 token 时，`prepareApiAuth` 返回 undefined，每条路径原样运行。
+连接插件上一个选择性开启的 `auth` 配置，在可达性栅栏之上叠加 Bearer token 认证，位于新的受门控模块 [api-auth](../../../../packages/client/connection/src/api-auth.ts)。默认与今天完全一致：未配置 token 时，`prepareApiAuth` 返回 undefined，每条路径原样运行。
 
 **认证。** `authenticateApiRequest(headers, prepared)` 读取 `Authorization: Bearer <token>`（scheme 大小写不敏感），并分类为 `authenticated` / `invalid` / `absent`。比较在 SHA-256 摘要上做常量时间比较（固定 32 字节 `timingSafeEqual` 输入），且对每个已配置 token 都比较、无提前返回，因此 token 的值与位置都不会通过时间泄露。token `name` 仅用于日志与轮换，绝非 API 信任的身份。
 
@@ -20,7 +20,7 @@ Status: implemented
 
 **配置，高声失败。** `auth: { tokens: [{ name, token }], unpinned: [<钉住方法>, …] }`。`prepareApiAuth` 在 token 短于 `MIN_API_TOKEN_LENGTH`（16；文档推荐 ≥32 个随机字符）或 `unpinned` 条目不在 `PRIVILEGED_METHODS` 中时于加载期抛出。`unpinned` 的代码默认为空；部署的初始选择——`agentPreset.read/copy/openDocument/remove`——位于其 cordis.yml 覆盖层，而非代码。
 
-**对 Web 部署为强制。** `connection` 插件的 auth 保持通用的选择性开启（其他组合包不变），但 Web 表层（`dsh web`，`@deepseek-ai/dsh-web-app`）始终带 token 启动，使服务端客户端开箱即可认证。新的受门控模块 [`api-token.ts`](../../../packages/bundle/web-app/src/api-token.ts) 按以下顺序解析 token：设置了 `DSH_API_TOKEN` env 时用它（校验 ≥16，绝不持久化）→ 上一次启动持久化在 `$DSH_HOME/api-token`（默认 `~/.dsh/api-token`，与 harness 其余持久状态同一个根）的 token → 否则生成一个新的 32 字节十六进制 token，以 0600 原子持久化，并按文件路径（绝非值）记录一次日志：`dsh web: no API token found; generated one at <path> — read it with: cat <path>`。存在但不可读或格式错误（空/过短）的持久化文件会令启动失败，而非悄悄覆盖操作者的文件；可读但权限不对的文件保持原样。`web-runtime` 行解析它并发布 `webRuntime.apiToken`。因此 Web 认证始终激活，而回环 SPA 与 curl 通道不变。
+**对 Web 部署为强制。** `connection` 插件的 auth 保持通用的选择性开启（其他组合包不变），但 Web 表层（`dsh web`，`@deepseek-ai/dsh-web-app`）始终带 token 启动，使服务端客户端开箱即可认证。新的受门控模块 [`api-token.ts`](../../../../packages/bundle/web-app/src/api-token.ts) 按以下顺序解析 token：设置了 `DSH_API_TOKEN` env 时用它（校验 ≥16，绝不持久化）→ 上一次启动持久化在 `$DSH_HOME/api-token`（默认 `~/.dsh/api-token`，与 harness 其余持久状态同一个根）的 token → 否则生成一个新的 32 字节十六进制 token，以 0600 原子持久化，并按文件路径（绝非值）记录一次日志：`dsh web: no API token found; generated one at <path> — read it with: cat <path>`。存在但不可读或格式错误（空/过短）的持久化文件会令启动失败，而非悄悄覆盖操作者的文件；可读但权限不对的文件保持原样。`web-runtime` 行解析它并发布 `webRuntime.apiToken`。因此 Web 认证始终激活，而回环 SPA 与 curl 通道不变。
 
 **默认位于代码，而非 bundle patch。** 由于每个 Web 部署都用完全相同的设置，`apiTokenFile`、`trustedHosts` 与 `auth` 是代码默认，而非 cordis.patch.yml 表达式。`web-app` 的 `Config.apiTokenFile` 可选，缺省时解析为 `dshHomePath('api-token')`（web-app 现依赖 `@deepseek-ai/dsh-home-paths`），其 `Config.trustedHosts` 在为空时读取注入的 `webStartup` 服务。`connection` 插件通过 `ctx.get('webRuntime')` 读取可选的 `webRuntime`（绝非声明式 inject，因此没有 web-app 时仍可组合），当部署两者都未配置时，把 `trustedHosts` 默认为 `webRuntime.trustedHosts`、`auth` 默认为 `deriveWebRuntimeAuth(webRuntime.apiToken)`——一个授予 `DEFAULT_UNPINNED_METHODS`（`agentPreset.*` 创作面）的 `web` token。bundle patch 的 `connection` 行只保留 `inject: [webRuntime]` 用于启动排序（元数据，非配置），因此派生运行时 `webRuntime` 已存在。显式的 `trustedHosts`/`auth` 配置始终整体替换派生默认；schemastery 把缺省的数组/块物化为空，因此"空"即缺省信号。
 

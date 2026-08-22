@@ -230,6 +230,14 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Owns WorkspaceId-branded records over the domain facility; stable sessionIds accounts drive Host RPC and GUI projections.',
   },
   {
+    key: 'sessionAccess',
+    pkg: 'session-access',
+    title: 'Per-session access-control list',
+    mode: 'core',
+    consumers: ['apiproxy'],
+    note: 'Durable per-user grant/revoke list over the domain facility; a ticket caller fails closed on a session absent from the list, a full token bypasses the list entirely.',
+  },
+  {
     key: 'sessionQuery',
     pkg: 'session-query',
     title: 'Session reads, traces, filters, and search',

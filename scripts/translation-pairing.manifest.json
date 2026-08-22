@@ -3,10 +3,15 @@
     ".agents/notes/AGENTS.md",
     ".agents/notes/implemented/AGENTS.md",
     ".agents/notes/implemented/CLAUDE.md",
+    ".agents/notes/implemented/architecture/2026-08-21-per-user-ticket-and-session-access.md",
+    "apps/frontend/README.md",
+    "apps/npei_agent_harness/README.md",
     "docs/AGENTS.md",
     "docs/cordis-api/inherited.md",
     "docs/i18n/style-samples.md",
     "docs/i18n/terminology.md",
-    "docs/i18n/translation-prompt.md"
+    "docs/i18n/translation-prompt.md",
+    "packages/identity/user-ticket/README.md",
+    "packages/session/session-access/README.md"
   ]
 }

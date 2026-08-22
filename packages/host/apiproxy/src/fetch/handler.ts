@@ -347,6 +347,7 @@ function sseResponse(frames: AsyncIterable<RpcRequest<MuxFrame | HostFrame>>): R
 /**
  * Wraps an ApiProxy into a pure fetch function (isomorphic point: feed the returned fetch straight to InProcessApiClient).
  * @param api - the host-side ApiProxy implementation.
+ * @param principal - the caller identity to thread into dispatch and the stream openers; defaults to an unscoped full-token principal.
  * @returns an object holding `fetch(Request)`; paths outside /api/ return 404.
  */
 export function toFetchHandler(api: ApiProxy, principal: ApiPrincipal = { kind: 'token' }): { fetch: typeof fetch } {

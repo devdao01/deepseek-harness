@@ -29,7 +29,7 @@ Requires `storageDomain`. Default-export the service class; mount it beside the 
 
 ## Model Experience
 
-None. The access list is transport-layer authorization; no entry reaches a model request, prompt, or model-visible content.
+None, as the access list is host authorization metadata whose entries never reach a model request, prompt, or model-visible content.
 
 #### KV Cache effect
 

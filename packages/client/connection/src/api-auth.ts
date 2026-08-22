@@ -95,12 +95,15 @@ export function deriveWebRuntimeAuth(
 
 /** One configured API token. `name` is for logs/rotation only, never trusted as identity. */
 export interface ApiAuthTokenConfig {
+  /** Label for logs and rotation; never trusted as identity. */
   readonly name: string
+  /** The bearer token value; compared in constant time against a presented credential. */
   readonly token: string
 }
 
 /** The `auth` config block: accepted tokens, the pins they may additionally call, and optional per-user tickets. */
 export interface ApiAuthConfig {
+  /** Accepted full-access tokens; each grants unscoped access when presented as a bearer credential. */
   readonly tokens: readonly ApiAuthTokenConfig[]
   /** Pinned methods an authenticated client may additionally call; defaults to none. */
   readonly unpinned?: readonly string[]
@@ -131,6 +134,11 @@ export interface PreparedApiAuth {
  */
 export type ApiAuthInvalidReason = 'unknown-token' | 'ticket-expired' | 'ticket-invalid'
 
+/**
+ * The classified outcome of {@link authenticateApiRequest}: a resolved
+ * principal (`ok`), no credential at all (`absent`), or a present-but-rejected
+ * credential with its {@link ApiAuthInvalidReason} (`invalid`).
+ */
 export type ApiAuthResult =
   | { readonly status: 'ok'; readonly principal: ApiPrincipal }
   | { readonly status: 'absent' }

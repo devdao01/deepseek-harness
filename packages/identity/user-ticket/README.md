@@ -25,7 +25,7 @@ This package is a pure library, not a Cordis plugin. `dsh-client-connection` con
 
 ## Model Experience
 
-None. Tickets are transport credentials; no ticket value or user id reaches a model request, prompt, or model-visible content.
+None, as tickets are transport credentials whose value and user id never reach a model request, prompt, or model-visible content.
 
 #### KV Cache effect
 

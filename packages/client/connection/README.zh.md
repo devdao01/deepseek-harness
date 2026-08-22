@@ -16,6 +16,18 @@ node 半侧在桥接或 upgrade 前守卫 `/api` 下的每个入口（`src/api-r
 
 在 `unpinned` 中列出 `settings.*` 或 `credentials.*` 会把部署自身的配置与 API-key 材料暴露给任何持有 token 者——这是部署的明确风险，只有当被认证客户端与宿主本身同等可信时才适用。
 
+## 按用户 ticket 认证与访问控制
+
+除完整 token 外，可选的 `auth.ticket` 配置块开启按用户签发的 ticket（`@deepseek-ai/dsh-user-ticket`），适用于由前置服务（Odoo/MTIL）认证用户、浏览器随后直接携带按用户 ticket 与本 API 通信的部署。`auth.ticket: { secret, maxTtlSeconds?, clockSkewSeconds? }` 与 ticket 签发方共享一个 HMAC 密钥；harness 只验证 ticket 并把调用方解析为按用户 principal，而完整 token 仍授予不限范围的管理访问。ticket 经由两种传输之一送达，二者都解析为同一 principal：`Authorization: Bearer <ticket>` 头（服务端客户端与浏览器 unary fetch），或浏览器在每个同源 `/api` 请求上自动发送的 `HttpOnly` cookie `dsh_ticket`（`TICKET_COOKIE_NAME`）。cookie 是浏览器无法设置请求头的通道所用的传输——`events.mux`/`events.host` 的 WebSocket 握手与 GET 下载——前置服务将其设置为 `HttpOnly; Secure; SameSite=Strict; Path=/api`；`Authorization` 头存在时是权威来源，cookie 仅在其缺席时才被查阅。cookie 值只会被当作 ticket 验证——完整 API token 绝不会从 cookie 接受，因此环境中存在的 cookie 无法升级为不限范围的访问。web-app bundle 仅在设置了 `DSH_TICKET_SECRET` 时才开启这一选择性功能，并随之同时组合按会话访问存储（`@deepseek-ai/dsh-session-access`）；未设置时，同源 SPA 依旧照常不带 token 工作。管理操作仅限完整 token，对 ticket 在分发时、早于 payload 解析前即被拒绝：按会话访问（`session.setAccess({ sessionId, userIds })`、`session.getAccess({ sessionId })`）与工作区变更（`workspace.create`/`rename`/`delete`/`insertBefore`/`insertSessionBefore`/`archiveSession`——注册宿主目录或重组共享名单属于部署管理）。ticket 仍可读取名单（`workspace.list`）并下载 `workspace.file`（由其会话 id 把关）。按用户调用方在 Node 流中被过滤／强制——按会话作用域的 unary 调用、`session.list`/`search` 结果、下载 GET，以及 `events.mux`/`events.host` 帧，都只放行该用户被授权的会话；撤销即时生效，授权则在流下一次重开时生效。**remote-gateway** 端点（`POST /api/<namespace>/<method>` 进入 Typert 网关——例如 `messageFeedback/*`、`commands/list`）同样按会话作用域，且绕开 ApiProxy 分发，因此载体在分发前对它们施加同一道访问闸门（ticket 调用方需要对调用的 `args.request.sessionId` / `args.agentId` 拥有访问权；匿名与无会话的 ticket 调用均被拒绝）。
+
+**无凭据故障关闭（absent-fail-closed）。** 一旦配置了 `auth.ticket`，可达性通道就不再在没有凭据的情况下授予访问：无凭据的 HTTP 请求会被解析为匿名 principal，对每个方法、流帧与下载均被拒绝。完整访问只能来自显式的完整 token 头或进程内 principal（它从不经过 HTTP 栅栏），绝不能仅凭 Host 得到——在反向代理之后，浏览器的 Host 是一个可信权威，因此由 principal 而非可达性来决定。未设置 `auth.ticket` 时行为不变：无凭据的同源请求仍逐字节保持完整访问。
+
+**三种界限分明的 SPA 侧信号**（前端不会把它们混为一谈）：
+
+- **HTTP `401`**（传输层，在栅栏处，带 `WWW-Authenticate: Bearer error="invalid_token"`）——ticket 过期（`error_description="ticket expired"` ⇒ 通过前置服务重新签发后重试）或签名错误／格式不对的 ticket（`error_description="invalid ticket"` ⇒ 凭据本身有问题，**不要**刷新）。
+- **`200` + `ServerResponse{ ok:false, error:{ code:'forbidden' } }`**（unary），或 `stream/error{ code:'forbidden' }` 帧（流）——一个有效、未过期的 ticket 只是缺少对该会话的访问权（或调用了仅限完整 token 的方法）。不可通过刷新解决；用户需要被授权。这与该表面上其他业务错误一样走信封。
+- **HTTP `403`**（下载 GET：`session.export`、`workspace.file`）——这些路由不带信封，因此 ACL 拒绝是一个真实的 HTTP 状态，与它们既有的收容性 `403` 一致。
+
 ## `/api` WebSocket 下行
 
 `/api/events.mux` 与 `/api/events.host` 各接受一条 WebSocket upgrade，并只向浏览器发送对应的 `ServerRequest` 文本消息；客户端不会在这些 socket 上发送业务数据。任一 socket 结束都会使当前 connection generation 失败并重建两条流，连接就绪仍要求两条 socket 均已打开且 `host.describe` HTTP 调用成功。Host teardown 会终止两条 socket、中止各自的 source，并等待 source 清理完成后再返回。普通网络 GET 这些路径会返回 426，不保留 SSE（Server-Sent Events）回退；`toFetchHandler` 的 SSE 编解码只服务进程内同构载体。

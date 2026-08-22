@@ -200,7 +200,7 @@ export interface PresetRoot {
 export type PresetTrust = 'system' | 'user'
 ```
 
-Source: [`packages/preset/agent-presets/src/preset.ts:52`](../packages/preset/agent-presets/src/preset.ts)
+Source: [`packages/preset/agent-presets/src/preset.ts:59`](../packages/preset/agent-presets/src/preset.ts)
 
 <a id="deepseek-aidsh-agent-spine-demo"></a>
 
@@ -407,10 +407,43 @@ export interface ConnectionConfig {
   trustedHosts?: string[]
   /** Maximum buffered JSON body for every `/api` request. */
   maxRequestBodyBytes?: number
+  /**
+   * Optional Bearer-token authentication. With no tokens configured the /api
+   * surface behaves exactly as today (reachability fence + loopback pins). A
+   * request whose `Authorization: Bearer <token>` matches a configured token
+   * passes the reachability fence from any Host and may additionally call the
+   * pinned methods listed in `unpinned`. Browser CSRF rules are never bypassed
+   * by a token. See [api-auth](./api-auth.ts).
+   */
+  auth?: ApiAuthConfig
+}
+
+/** The `auth` config block: accepted tokens, the pins they may additionally call, and optional per-user tickets. */
+export interface ApiAuthConfig {
+  /** Accepted full-access tokens; each grants unscoped access when presented as a bearer credential. */
+  readonly tokens: readonly ApiAuthTokenConfig[]
+  /** Pinned methods an authenticated client may additionally call; defaults to none. */
+  readonly unpinned?: readonly string[]
+  /**
+   * Optional per-user signed-ticket auth (see `@deepseek-ai/dsh-user-ticket`).
+   * A full token still grants unscoped access; a valid ticket resolves to a
+   * per-user principal the access layer filters and enforces against.
+   */
+  readonly ticket?: TicketAuthConfig
+}
+
+/** One configured API token. `name` is for logs/rotation only, never trusted as identity. */
+export interface ApiAuthTokenConfig {
+  /** Label for logs and rotation; never trusted as identity. */
+  readonly name: string
+  /** The bearer token value; compared in constant time against a presented credential. */
+  readonly token: string
 }
 ```
 
-Source: [`packages/client/connection/src/index.ts:50`](../packages/client/connection/src/index.ts)
+Depends on: [`TicketAuthConfig`](../packages/identity/user-ticket/src/index.ts)
+
+Source: [`packages/client/connection/src/index.ts:61`](../packages/client/connection/src/index.ts)
 
 <a id="deepseek-aidsh-client-hmr"></a>
 
@@ -750,6 +783,15 @@ export interface Config {
    * @default 1024
    */
   coldBlankProbeMaxBytes?: number
+  /**
+   * Directory under which preset-conventional default workspaces live:
+   * creating preset `accounting` provisions `<root>/accounting`, and a session
+   * that names only that preset attaches there. Absent, the root is
+   * `<home>/workspace`. A `~/`-prefixed value expands against the home
+   * directory; any other value must be absolute — a relative value is rejected
+   * at load.
+   */
+  presetWorkspacesRoot?: string
 }
 ```
 
@@ -2882,12 +2924,23 @@ export interface Config {
    * orientation text would be false.
    */
   surfaceContext: boolean
-  /** Explicit `--trusted-host` authorities from this invocation. */
+  /**
+   * Explicit `--trusted-host` authorities. When empty, the plugin reads them
+   * from the injected `webStartup` service instead, so the bundle patch does
+   * not restate the CLI value.
+   */
   trustedHosts: string[]
+  /**
+   * Absolute path of the persisted API-token file. Absent, it defaults in code
+   * to `dshHomePath('api-token')` (`<state-root>/api-token`); the web
+   * deployment always boots with Bearer auth active, so a token is resolved or
+   * generated here on every start ({@link resolveWebApiToken}).
+   */
+  apiTokenFile?: string
 }
 ```
 
-Source: [`packages/bundle/web-app/src/index.ts:38`](../packages/bundle/web-app/src/index.ts)
+Source: [`packages/bundle/web-app/src/index.ts:42`](../packages/bundle/web-app/src/index.ts)
 
 <a id="deepseek-aidsh-web-fetch-http"></a>
 
@@ -3075,6 +3128,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-lsp` ([`packages/lsp/lsp/src/index.ts`](../packages/lsp/lsp/src/index.ts))
 - `@deepseek-ai/dsh-schedule` — requires `agents` · `sessions` · `tools` · `sessionPersistence` ([`packages/schedule/schedule/src/index.ts`](../packages/schedule/schedule/src/index.ts))
 - `@deepseek-ai/dsh-session` ([`packages/core/session/src/index.ts`](../packages/core/session/src/index.ts))
+- `@deepseek-ai/dsh-session-access` — requires `storageDomain` ([`packages/session/session-access/src/index.ts`](../packages/session/session-access/src/index.ts))
 - `@deepseek-ai/dsh-session-checkpoint-policy` — requires `llm` · `sessionPersistence` · `sessions` · `tools` ([`packages/session/session-checkpoint-policy/src/index.ts`](../packages/session/session-checkpoint-policy/src/index.ts))
 - `@deepseek-ai/dsh-session-log-export` — requires `commands` ([`packages/session-query/session-log-export/src/index.ts`](../packages/session-query/session-log-export/src/index.ts))
 - `@deepseek-ai/dsh-session-projection` ([`packages/session/session-projection/src/index.ts`](../packages/session/session-projection/src/index.ts))
@@ -3149,3 +3203,4 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 - `@deepseek-ai/dsh-typert-generator` ([`packages/typert/generator/src/index.ts`](../packages/typert/generator/src/index.ts))
 - `@deepseek-ai/dsh-typert-protocol` ([`packages/typert/protocol/src/index.ts`](../packages/typert/protocol/src/index.ts))
 - `@deepseek-ai/dsh-typert-registry` ([`packages/typert/registry/src/index.ts`](../packages/typert/registry/src/index.ts))
+- `@deepseek-ai/dsh-user-ticket` ([`packages/identity/user-ticket/src/index.ts`](../packages/identity/user-ticket/src/index.ts))
