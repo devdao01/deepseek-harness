@@ -15,13 +15,18 @@ class TestPresetAuthoring(TransactionCase):
         super().setUp()
         self.Preset = self.env['npei.agent.preset']
         self._calls = []
+        # Extra harness roster entries a test can pre-seed to simulate a slug
+        # already taken on the harness; the default is a single system preset.
+        self._extra_presets = []
+        # When set, agentPreset.update raises to exercise the best-effort path.
+        self._fail_update = False
 
         client_cls = type(self.env['npei.agent.harness.client'])
 
         def fake_rpc(model, method, payload=None):
             self._calls.append((method, payload))
             if method == 'agentPreset.list':
-                return {'presets': [{'id': 'base', 'isDefault': True, 'trust': 'system'}]}
+                return {'presets': [{'id': 'base', 'isDefault': True, 'trust': 'system'}] + self._extra_presets}
             if method == 'agentPreset.copy':
                 agent_preset = (payload or {})['agentPreset']
                 return {
@@ -29,6 +34,8 @@ class TestPresetAuthoring(TransactionCase):
                     'workspace': {'path': '/home/u/workspace/%s' % agent_preset},
                 }
             if method == 'agentPreset.update':
+                if self._fail_update:
+                    raise UserError("simulated agentPreset.update failure")
                 return {
                     'name': (payload or {}).get('name'),
                     'description': (payload or {}).get('description'),
@@ -88,6 +95,25 @@ class TestPresetAuthoring(TransactionCase):
         self.Preset.action_sync_from_harness()
 
         self.assertEqual(self._update_calls(), [])
+
+    def test_slug_already_on_harness_raises_before_copy(self):
+        # An orphan from an earlier failed create: the slug exists on the
+        # harness but not in the Odoo mirror. 'Base' -> slug 'base' (seeded).
+        with self.assertRaises(UserError):
+            self.Preset.create({'name': 'Base'})
+        self.assertEqual([m for m, _ in self._calls if m == 'agentPreset.copy'], [])
+
+    def test_create_survives_failed_display_push(self):
+        # copy succeeds (external, unrollbackable); a failed update must NOT roll
+        # the Odoo record back and orphan the harness copy.
+        self._fail_update = True
+
+        preset = self.Preset.create({'name': 'Kế Toán', 'description': 'sổ sách'})
+
+        self.assertTrue(preset.exists())
+        self.assertEqual(preset.preset_id, 'ke-toan')
+        copy_calls = [payload for method, payload in self._calls if method == 'agentPreset.copy']
+        self.assertEqual(copy_calls, [{'from': 'base', 'agentPreset': 'ke-toan', 'name': 'Kế Toán'}])
 
     def test_duplicate_slug_raises_before_authoring(self):
         self.Preset.create({'preset_id': 'ho-so-x', 'name': 'seed'})

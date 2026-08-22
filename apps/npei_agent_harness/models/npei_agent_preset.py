@@ -7,11 +7,14 @@ the local mirror from ``agentPreset.list``, and creating a record WITHOUT a
 ``preset_id`` authors a new preset on the harness (``agentPreset.copy`` from the
 default) under a name-derived id.
 """
+import logging
 import re
 import unicodedata
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
+
+_logger = logging.getLogger(__name__)
 
 MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 
@@ -76,13 +79,10 @@ class NpeiAgentPreset(models.Model):
         return re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')
 
     @api.model
-    def _default_source_preset(self):
-        """Return the harness default preset id to copy a new preset from."""
+    def _harness_presets(self):
+        """Return the harness roster (``agentPreset.list`` entries)."""
         value = self.env['npei.agent.harness.client'].sudo()._rpc('agentPreset.list', {})
-        for entry in value.get('presets') or []:
-            if entry.get('isDefault'):
-                return entry.get('id')
-        raise UserError(_("The harness reports no default preset to copy from."))
+        return value.get('presets') or []
 
     def _author_on_harness(self, vals):
         """Create a preset on the harness and fill ``vals`` in place.
@@ -92,6 +92,11 @@ class NpeiAgentPreset(models.Model):
         trust. The provisioned workspace path is stored back. The description is
         pushed separately by :meth:`_push_display` after create (copy carries no
         description parameter).
+
+        Collisions are caught up front against BOTH the Odoo mirror and the
+        harness roster, so a slug already taken on the harness (e.g. a preset
+        left by an earlier failed create) reports a clear message instead of the
+        harness's raw ``agent-preset-invalid``.
 
         :param dict vals: the create values, mutated in place.
         :raises UserError: on a blank/unslugifiable name or a colliding id.
@@ -103,9 +108,19 @@ class NpeiAgentPreset(models.Model):
         if not slug:
             raise UserError(_("Cannot derive a preset id from the name %s.", name))
         if self.with_context(active_test=False).search_count([('preset_id', '=', slug)]):
-            raise UserError(_("A preset with id %s already exists.", slug))
+            raise UserError(_("A preset with id %s already exists in Odoo.", slug))
+        presets = self._harness_presets()
+        if any(entry.get('id') == slug for entry in presets):
+            raise UserError(_(
+                "A preset '%(slug)s' already exists on the harness (from the "
+                "name '%(name)s'). Pick a different name, or use 'Sync from "
+                "Harness' to adopt it into Odoo.",
+                slug=slug, name=name))
+        default_id = next((entry.get('id') for entry in presets if entry.get('isDefault')), None)
+        if not default_id:
+            raise UserError(_("The harness reports no default preset to copy from."))
         value = self.env['npei.agent.harness.client'].sudo()._rpc('agentPreset.copy', {
-            'from': self._default_source_preset(),
+            'from': default_id,
             'agentPreset': slug,
             'name': name,
         })
@@ -151,7 +166,15 @@ class NpeiAgentPreset(models.Model):
         records = super().create(vals_list)
         for record, was_authored in zip(records, authored):
             if was_authored:
-                record._push_display()
+                # Best-effort: the preset is ALREADY created on the harness
+                # (agentPreset.copy is an external effect Odoo cannot roll back),
+                # so a failed display push must not roll the Odoo record back and
+                # orphan the harness copy. a later write() (editing name/description) retries it.
+                try:
+                    record._push_display()
+                except UserError as exc:
+                    _logger.warning(
+                        "Failed to push display for preset %s: %s", record.preset_id, exc)
         return records
 
     def write(self, vals):
