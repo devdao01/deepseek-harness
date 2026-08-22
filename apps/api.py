@@ -51,8 +51,10 @@ import hmac
 import json
 import os
 import time
+import uuid
 
-from flask import Blueprint, jsonify, make_response
+import requests
+from flask import Blueprint, jsonify, make_response, request
 
 # --------------------------------------------------------------------------- #
 # Configuration (load real values from the environment / secret store)
@@ -83,6 +85,17 @@ TICKET_COOKIE_PATH = "/api"
 #: Emit the ``Secure`` attribute (HTTPS-only). Default on; set
 #: ``DSH_TICKET_COOKIE_SECURE=0`` for a plain-HTTP LAN until TLS is in front.
 COOKIE_SECURE = os.environ.get("DSH_TICKET_COOKIE_SECURE", "1") not in ("0", "false", "False", "")
+
+#: Harness ``/api`` base URL this API calls SERVER-SIDE with the full token to
+#: create sessions and grant their creator. Never exposed to the browser.
+HARNESS_BASE_URL = os.environ.get("DSH_HARNESS_BASE_URL", "http://127.0.0.1:3080").rstrip("/")
+
+#: Full harness API token (``~/.dsh/api-token`` on the harness host). Server-side
+#: secret; grants unscoped access, so it must NEVER reach the browser.
+HARNESS_API_TOKEN = os.environ.get("DSH_HARNESS_API_TOKEN", "")
+
+#: Seconds before a server-side harness call is abandoned.
+HARNESS_RPC_TIMEOUT = 30
 
 api = Blueprint("mtil_api", __name__)
 
@@ -180,6 +193,54 @@ def _clear_ticket_cookie(response):
 
 
 # --------------------------------------------------------------------------- #
+# Harness client (server-side, full token) — for session.create + setAccess
+# --------------------------------------------------------------------------- #
+
+class HarnessError(Exception):
+    """A harness call failed transport or returned a business error."""
+
+
+def _harness_rpc(method: str, payload: dict) -> dict:
+    """Call one unary harness method with the FULL token and return ``result.value``.
+
+    Wraps ``payload`` in the ``client-request`` envelope, mints an ``rpcId``,
+    POSTs to ``<base>/api/<method>`` with the Bearer full token, and unwraps the
+    ``server-response``. A server-side request carries no browser markers, so
+    the token alone passes the harness trust fence.
+
+    :raises HarnessError: on a missing token, transport failure, non-200, or a
+        business ``result.ok == false``.
+    """
+    if not HARNESS_API_TOKEN:
+        raise HarnessError("DSH_HARNESS_API_TOKEN is unset")
+    envelope = {
+        "type": "client-request",
+        "rpcId": str(uuid.uuid4()),
+        "method": method,
+        "payload": payload,
+    }
+    try:
+        response = requests.post(
+            "%s/api/%s" % (HARNESS_BASE_URL, method),
+            data=json.dumps(envelope),
+            headers={
+                "Authorization": "Bearer %s" % HARNESS_API_TOKEN,
+                "Content-Type": "application/json",
+            },
+            timeout=HARNESS_RPC_TIMEOUT,
+        )
+    except requests.RequestException as exc:
+        raise HarnessError("harness unreachable: %s" % exc)
+    if response.status_code != 200:
+        raise HarnessError("harness %s HTTP %s" % (method, response.status_code))
+    result = (response.json() or {}).get("result") or {}
+    if not result.get("ok", False):
+        error = result.get("error") or {}
+        raise HarnessError(error.get("code") or "harness error")
+    return result.get("value") or {}
+
+
+# --------------------------------------------------------------------------- #
 # Route
 # --------------------------------------------------------------------------- #
 
@@ -211,6 +272,46 @@ def get_config_v2():
     response = _envelope(True, 200, datas={"expires_at": expires_at})
     _set_ticket_cookie(response, ticket, TICKET_TTL_SECONDS)
     return response
+
+
+@api.route("/api/mtil/session_create", methods=["POST"])
+def session_create():
+    """Create a session ON BEHALF of the signed-in user and grant them access.
+
+    A per-user ticket cannot call the full-token-only ``session.setAccess``, so
+    a session it created directly on the harness would stay invisible to it
+    (fail-closed). This endpoint runs the two full-token steps server-side —
+    ``session.create`` then ``session.setAccess(sessionId, [user_id])`` — and
+    returns the new ``sessionId`` for the SPA to open. Everything else (prompt,
+    history, streams) the browser still calls on the harness DIRECTLY with its
+    ticket cookie.
+
+    Body (all optional): ``workspaceId`` | ``cwd`` (at most one) and
+    ``agentPreset``. Mirrors ``session.create``'s request.
+    """
+    user_id = _current_user_id()
+    if user_id is None:
+        return _envelope(False, 401, error_code="UNAUTHORIZED", message=u"Chưa Đăng nhập")
+
+    body = request.get_json(silent=True) or {}
+    payload = {}
+    for key in ("workspaceId", "cwd", "agentPreset"):
+        value = body.get(key)
+        if isinstance(value, str) and value:
+            payload[key] = value
+
+    try:
+        created = _harness_rpc("session.create", payload)
+        session_id = created.get("sessionId")
+        if not session_id:
+            raise HarnessError("session.create returned no sessionId")
+        # Grant the creator so the session is visible to their ticket. The id
+        # must match the ticket's ``u`` claim (same user-id space).
+        _harness_rpc("session.setAccess", {"sessionId": session_id, "userIds": [str(user_id)]})
+    except HarnessError as exc:
+        return _envelope(False, 502, error_code="HARNESS_ERROR", message=str(exc))
+
+    return _envelope(True, 200, datas={"sessionId": session_id})
 
 
 # --------------------------------------------------------------------------- #
