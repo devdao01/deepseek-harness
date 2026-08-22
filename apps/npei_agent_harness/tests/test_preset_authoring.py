@@ -92,6 +92,11 @@ class TestPresetAuthoring(TransactionCase):
         )
 
     def test_sync_does_not_echo_update(self):
+        # Sync is manager-gated (_check_manager); grant the group so the mirror
+        # path actually runs and we can assert it does NOT echo to the harness.
+        self.env.user.groups_id = [
+            (4, self.env.ref('npei_agent_harness.group_npei_agent_manager').id)]
+
         self.Preset.action_sync_from_harness()
 
         self.assertEqual(self._update_calls(), [])

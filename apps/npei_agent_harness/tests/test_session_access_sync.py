@@ -11,11 +11,23 @@ from odoo.tests.common import TransactionCase
 
 
 class TestSessionAccessSync(TransactionCase):
+    def _make_user(self, name, login):
+        """Create a test user, satisfying mail's ``notification_type`` NOT NULL.
+
+        The ``mail`` module makes ``notification_type`` required; a bare create
+        leaves it null and the INSERT fails. Set it only when the field exists,
+        so the module still tests on a DB without ``mail`` installed.
+        """
+        vals = {'name': name, 'login': login}
+        if 'notification_type' in self.env['res.users']._fields:
+            vals['notification_type'] = 'email'
+        return self.env['res.users'].create(vals)
+
     def setUp(self):
         super().setUp()
         self.Session = self.env['npei.agent.session']
-        self.user_a = self.env['res.users'].create({'name': 'Alice', 'login': 'alice_test'})
-        self.user_b = self.env['res.users'].create({'name': 'Bob', 'login': 'bob_test'})
+        self.user_a = self._make_user('Alice', 'alice_test')
+        self.user_b = self._make_user('Bob', 'bob_test')
         self._calls = []
 
         client_cls = type(self.env['npei.agent.harness.client'])
