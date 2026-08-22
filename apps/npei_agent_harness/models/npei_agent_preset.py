@@ -1,12 +1,17 @@
 # -*- coding: utf-8 -*-
-"""Agent preset mirror.
+"""Agent presets: mirror + authoring.
 
 Odoo-side management surface for harness agent presets. The harness stays the
-source of truth; :meth:`action_sync_from_harness` upserts the local mirror from
-``agentPreset.list``.
+source of truth for the composition; :meth:`action_sync_from_harness` upserts
+the local mirror from ``agentPreset.list``, and creating a record WITHOUT a
+``preset_id`` authors a new preset on the harness (``agentPreset.copy`` from the
+default) under a name-derived id.
 """
+import re
+import unicodedata
+
 from odoo import _, api, fields, models
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
 
 MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 
@@ -51,6 +56,114 @@ class NpeiAgentPreset(models.Model):
             raise AccessError(
                 _("Only NPEI Agent Managers can sync presets from the harness."))
 
+    # ------------------------------------------------------------------
+    # Authoring (create a preset on the harness)
+    # ------------------------------------------------------------------
+    @api.model
+    def _slugify(self, name):
+        """Derive a harness preset id from a display name (Vietnamese-aware).
+
+        Strips diacritics (``đ`` -> ``d``), lowercases, and collapses every run
+        of non ``[a-z0-9]`` to a single ``-``: ``'Hồ Sơ X'`` -> ``'ho-so-x'``,
+        ``'Tiếp Tân'`` -> ``'tiep-tan'``. Hyphen — not underscore — because the
+        harness preset id must match ``^[a-z0-9][a-z0-9-]*$`` (the id is a
+        directory segment); an underscore id would be rejected.
+        """
+        text = (name or '').replace('đ', 'd').replace('Đ', 'D')
+        text = unicodedata.normalize('NFD', text)
+        text = ''.join(ch for ch in text if unicodedata.category(ch) != 'Mn')
+        return re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')
+
+    @api.model
+    def _default_source_preset(self):
+        """Return the harness default preset id to copy a new preset from."""
+        value = self.env['npei.agent.harness.client'].sudo()._rpc('agentPreset.list', {})
+        for entry in value.get('presets') or []:
+            if entry.get('isDefault'):
+                return entry.get('id')
+        raise UserError(_("The harness reports no default preset to copy from."))
+
+    def _author_on_harness(self, vals):
+        """Create a preset on the harness and fill ``vals`` in place.
+
+        Copies the default preset under ``_slugify(name)``; the harness copy
+        keeps the SOURCE's composition, and an authored copy is always ``user``
+        trust. The provisioned workspace path is stored back. The description is
+        pushed separately by :meth:`_push_display` after create (copy carries no
+        description parameter).
+
+        :param dict vals: the create values, mutated in place.
+        :raises UserError: on a blank/unslugifiable name or a colliding id.
+        """
+        name = (vals.get('name') or '').strip()
+        if not name:
+            raise UserError(_("A preset name is required to create one."))
+        slug = self._slugify(name)
+        if not slug:
+            raise UserError(_("Cannot derive a preset id from the name %s.", name))
+        if self.with_context(active_test=False).search_count([('preset_id', '=', slug)]):
+            raise UserError(_("A preset with id %s already exists.", slug))
+        value = self.env['npei.agent.harness.client'].sudo()._rpc('agentPreset.copy', {
+            'from': self._default_source_preset(),
+            'agentPreset': slug,
+            'name': name,
+        })
+        vals['preset_id'] = value.get('agentPreset') or slug
+        workspace = value.get('workspace') or {}
+        if workspace.get('path'):
+            vals['workspace_path'] = workspace['path']
+        vals.setdefault('trust', 'user')
+
+    def _push_display(self):
+        """Push each preset's ``name``/``description`` to the harness metadata.
+
+        Calls ``agentPreset.update`` (full-token authoring) so a user preset's
+        display text on the harness/SPA matches Odoo. An empty value clears that
+        field on the harness. Fail-loud: a system preset is read-only on the
+        harness and raises, and an unreachable harness rolls the Odoo write back.
+        """
+        client = self.env['npei.agent.harness.client'].sudo()
+        for record in self:
+            if not record.preset_id:
+                continue
+            client._rpc('agentPreset.update', {
+                'agentPreset': record.preset_id,
+                'name': record.name or '',
+                'description': record.description or '',
+            })
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Author on the harness when no ``preset_id`` is given, else mirror.
+
+        A record saved without ``preset_id`` (the Odoo "new preset" flow) is
+        authored via ``agentPreset.copy`` and its display text pushed with
+        ``agentPreset.update``; a record given one (the sync/adopt path, e.g.
+        :meth:`action_sync_from_harness`) is mirrored as-is with no push.
+        """
+        authored = []
+        for vals in vals_list:
+            was_authored = not vals.get('preset_id')
+            if was_authored:
+                self._author_on_harness(vals)
+            authored.append(was_authored)
+        records = super().create(vals_list)
+        for record, was_authored in zip(records, authored):
+            if was_authored:
+                record._push_display()
+        return records
+
+    def write(self, vals):
+        """Write, then push display text when ``name``/``description`` changed.
+
+        The sync passes ``npei_syncing`` so mirroring harness values back does
+        not echo them straight to the harness again.
+        """
+        result = super().write(vals)
+        if not self.env.context.get('npei_syncing') and ({'name', 'description'} & set(vals)):
+            self._push_display()
+        return result
+
     @api.model
     def action_sync_from_harness(self):
         """Upsert local presets from the harness ``agentPreset.list``.
@@ -61,6 +174,9 @@ class NpeiAgentPreset(models.Model):
         self._check_manager()
         value = self.env['npei.agent.harness.client']._rpc('agentPreset.list', {})
         entries = value.get('presets') or []
+        # Mirroring writes harness values back into Odoo; the flag stops write()
+        # from echoing them straight to agentPreset.update.
+        model = self.with_context(npei_syncing=True)
         synced = 0
         for entry in entries:
             preset_id = entry.get('id')
@@ -72,11 +188,11 @@ class NpeiAgentPreset(models.Model):
                 'workspace_path': entry.get('workspacePath') or False,
                 'trust': entry.get('trust') or 'user',
             }
-            existing = self.search([('preset_id', '=', preset_id)], limit=1)
+            existing = model.search([('preset_id', '=', preset_id)], limit=1)
             if existing:
                 existing.write(vals)
             else:
-                self.create(dict(vals, preset_id=preset_id))
+                model.create(dict(vals, preset_id=preset_id))
             synced += 1
         return {
             'type': 'ir.actions.client',

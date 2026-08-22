@@ -24,18 +24,21 @@
                 </header>
                 <sheet>
                     <group>
-                        <group>
-                            <field name="preset_id"/>
-                            <field name="name"/>
-                            <field name="trust"/>
-                        </group>
-                        <group>
-                            <field name="workspace_path"/>
-                            <field name="active"/>
-                        </group>
+                        <field name="name" placeholder="e.g. Hồ Sơ X"/>
                     </group>
                     <group string="Description">
-                        <field name="description" nolabel="1"/>
+                        <field name="description" nolabel="1"
+                               placeholder="Shown in the preset picker; pushed to the harness on save"/>
+                    </group>
+                    <group string="Technical" col="2">
+                        <!-- All auto: preset_id is derived from the name and the
+                             workspace is provisioned by the harness on save;
+                             trust is always 'user' for an Odoo-authored copy. -->
+                        <field name="preset_id" readonly="1"
+                               placeholder="Derived from the name on save"/>
+                        <field name="workspace_path" readonly="1"/>
+                        <field name="trust" readonly="1"/>
+                        <field name="active"/>
                     </group>
                 </sheet>
             </form>

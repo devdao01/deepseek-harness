@@ -20,21 +20,32 @@
         <field name="model">npei.agent.session</field>
         <field name="arch" type="xml">
             <form string="Agent Session">
+                <header>
+                    <button name="action_push_access"
+                            type="object"
+                            string="Push Access to Harness"
+                            class="btn-secondary"
+                            help="Re-send the allowed-user set to the harness access store."/>
+                </header>
                 <sheet>
                     <group>
-                        <group>
-                            <field name="session_id"/>
-                            <field name="name"/>
-                            <field name="preset_id"/>
-                            <field name="workspace_path"/>
-                        </group>
-                        <group>
-                            <field name="create_uid" readonly="1"/>
-                            <field name="active"/>
-                        </group>
+                        <field name="name" string="Title" placeholder="e.g. Hồ sơ khách hàng X"/>
+                        <field name="preset_id"/>
                     </group>
                     <group string="Allowed Users">
                         <field name="user_ids" widget="many2many_tags" nolabel="1"/>
+                    </group>
+                    <group string="Technical" col="2">
+                        <!-- All auto-filled by the harness; shown read-only for
+                             reference. session_id stays editable before the first
+                             save only, to adopt an existing harness session. -->
+                        <field name="session_id"
+                               readonly="id != False"
+                               placeholder="Leave blank — created on the harness on save"/>
+                        <field name="workspace_path" readonly="1"
+                               placeholder="Defaults from the chosen preset"/>
+                        <field name="create_uid" readonly="1"/>
+                        <field name="active"/>
                     </group>
                 </sheet>
             </form>

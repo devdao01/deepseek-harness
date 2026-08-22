@@ -139,8 +139,8 @@ escape or executable files, 404, 400) relay verbatim.
 | Model | Purpose |
 |---|---|
 | `npei.agent.harness.client` | `AbstractModel` HTTP helper: `_get_connection()` (reads the config keys, fails loud), `_rpc(method, payload)` (unary call, unwraps `result.value`). |
-| `npei.agent.session` | Odoo-side ACL. `session_id` (unique), `name`, `user_ids` (allowed), `preset_id`, `workspace_path`, `active`, plus Odoo's `create_uid`/`create_date`/`write_date`. Access is defined by `user_ids`; `create_uid` (the creator) is always allowed. Helper `_user_can_access(session_id, user)`. SQL `unique(session_id)`. |
-| `npei.agent.preset` | Preset mirror. `preset_id` (unique), `name`, `description`, `workspace_path`, `trust` (`system`/`user`), `active`. `action_sync_from_harness()` upserts from `agentPreset.list`. |
+| `npei.agent.session` | Odoo-side ACL. `session_id` (unique, **auto-created**), `name`, `user_ids` (allowed), `preset_id`, `workspace_path`, `active`, plus Odoo's `create_uid`/`create_date`/`write_date`. Choosing a preset defaults `workspace_path` from the preset mirror's recorded `workspace_path` (the absolute `<presetWorkspacesRoot>/<preset id>` the harness provisioned — no re-slugging in Odoo). Saving without a `session_id` calls harness `session.create` (`cwd`=`workspace_path`, `agentPreset`=preset key) and fills the returned id; a blank workspace lets the harness derive it from the preset. A provided id adopts an existing session. Access is defined by `user_ids`; `create_uid` (the creator) is always allowed for Odoo visibility. Helper `_user_can_access(session_id, user)`. SQL `unique(session_id)`. |
+| `npei.agent.preset` | Preset mirror **+ authoring**. `preset_id` (unique, **auto**), `name`, `description`, `workspace_path`, `trust` (`system`/`user`), `active`. Creating a record with only a `name` (no `preset_id`) authors it on the harness: `agentPreset.copy(from=<default>, agentPreset=_slugify(name), name)` — `_slugify` strips Vietnamese diacritics to a hyphen id the harness accepts (`'Hồ Sơ X'`→`ho-so-x`), the provisioned `workspace.path` is stored, `trust` is `user`. `name`/`description` are pushed to the harness via `agentPreset.update` on create and on write (the copy carries no description); editing them in Odoo updates the preset's `preset.yml`. A record given a `preset_id` mirrors/adopts; `action_sync_from_harness()` upserts from `agentPreset.list` (with `npei_syncing` so mirrored values are not echoed back). |
 | `npei.agent.skill` | Skill mirror. `skill_key` (unique), `name`, `description`, `source`, `active`. `action_sync_from_harness()` upserts from `skill.list`. |
 | `res.config.settings` | Inherits to surface the two config keys in Settings. |
 
@@ -159,9 +159,19 @@ Odoo-side management + ACL layer only.
 2. **Controller re-check.** The proxy calls `_user_can_access` before forwarding
    any session-scoped call. Fails **closed**: an unmapped session id is denied to
    non-managers.
-3. **Harness (out of scope this phase).** The harness enforces its own ACL
-   independently. This module leaves a clean seam and does not rely on the
-   harness for authorization.
+3. **Harness access store (mirrored).** On every `npei.agent.session`
+   create/write/unlink the module pushes the allowed set to the harness
+   `session.setAccess` (full-token RPC), so a browser talking to the harness
+   directly with a per-user **ticket** is filtered by the SAME set. It sends
+   exactly `user_ids` as `str(res.users.id)`; an archived mapping or an unlink
+   sends the empty set (revoke all). The sync is **fail-loud** — an unreachable
+   harness raises and rolls the Odoo write back rather than letting the two
+   planes diverge — and the session form's **Push Access to Harness** button
+   (`action_push_access`) re-pushes on demand.
+
+   > The pushed `str(res.users.id)` MUST equal the `u` claim the ticket minter
+   > (MTIL `get_config_v2`) signs — the two must share one user-id space, or a
+   > user's ticket will not match the ids granted here.
 
 ---
 
