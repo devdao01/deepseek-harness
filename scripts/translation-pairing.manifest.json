@@ -5,6 +5,7 @@
     ".agents/notes/implemented/CLAUDE.md",
     ".agents/notes/implemented/architecture/2026-08-21-per-user-ticket-and-session-access.md",
     "apps/frontend/README.md",
+    "apps/nginx/README.md",
     "apps/npei_agent_harness/README.md",
     "docs/AGENTS.md",
     "docs/cordis-api/inherited.md",
