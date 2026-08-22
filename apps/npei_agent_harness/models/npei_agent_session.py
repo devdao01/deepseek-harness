@@ -6,6 +6,10 @@ drive it. This is the ORM half of the two-layer ACL: record rules scope which
 mappings a user sees, and the proxy controller re-checks
 :meth:`_user_can_access` before forwarding any session-scoped call. The harness
 enforces its own ACL independently (out of scope for this phase).
+
+Access is defined entirely by ``user_ids``; the record creator (Odoo's built-in
+``create_uid``) is always allowed so the mapping's author never locks itself
+out. There is no separate owner field.
 """
 from odoo import api, fields, models
 
@@ -29,7 +33,8 @@ class NpeiAgentSession(models.Model):
         'session_id',
         'user_id',
         string='Allowed Users',
-        help="Users allowed to access this session in addition to the owner.",
+        help="Users allowed to access this session. The record creator "
+             "(create_uid) is always allowed even when absent from this list.",
     )
     preset_id = fields.Many2one(
         'npei.agent.preset',
@@ -37,13 +42,6 @@ class NpeiAgentSession(models.Model):
         ondelete='set null',
     )
     workspace_path = fields.Char(string='Workspace Path')
-    owner_id = fields.Many2one(
-        'res.users',
-        string='Owner',
-        required=True,
-        default=lambda self: self.env.user,
-        ondelete='restrict',
-    )
     active = fields.Boolean(default=True)
 
     _sql_constraints = [
@@ -58,8 +56,8 @@ class NpeiAgentSession(models.Model):
     def _user_can_access(self, session_id, user):
         """Return whether ``user`` may act on the harness ``session_id``.
 
-        Access is granted when the user is an NPEI Agent Manager, or is the
-        owner of the mapping, or is listed in ``user_ids``. Fails closed: an
+        Access is granted when the user is an NPEI Agent Manager, created the
+        mapping (``create_uid``), or is listed in ``user_ids``. Fails closed: an
         unmapped session id is denied to non-managers.
 
         :param str session_id: the harness session id from a call payload.
@@ -71,4 +69,4 @@ class NpeiAgentSession(models.Model):
         record = self.sudo().search([('session_id', '=', session_id)], limit=1)
         if not record:
             return False
-        return user == record.owner_id or user in record.user_ids
+        return user == record.create_uid or user in record.user_ids

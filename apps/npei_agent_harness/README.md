@@ -139,7 +139,7 @@ escape or executable files, 404, 400) relay verbatim.
 | Model | Purpose |
 |---|---|
 | `npei.agent.harness.client` | `AbstractModel` HTTP helper: `_get_connection()` (reads the config keys, fails loud), `_rpc(method, payload)` (unary call, unwraps `result.value`). |
-| `npei.agent.session` | Odoo-side ACL. `session_id` (unique), `name`, `user_ids` (allowed), `preset_id`, `workspace_path`, `owner_id` (default current user), `active`, plus `create_date`/`write_date`. Helper `_user_can_access(session_id, user)`. SQL `unique(session_id)`. |
+| `npei.agent.session` | Odoo-side ACL. `session_id` (unique), `name`, `user_ids` (allowed), `preset_id`, `workspace_path`, `active`, plus Odoo's `create_uid`/`create_date`/`write_date`. Access is defined by `user_ids`; `create_uid` (the creator) is always allowed. Helper `_user_can_access(session_id, user)`. SQL `unique(session_id)`. |
 | `npei.agent.preset` | Preset mirror. `preset_id` (unique), `name`, `description`, `workspace_path`, `trust` (`system`/`user`), `active`. `action_sync_from_harness()` upserts from `agentPreset.list`. |
 | `npei.agent.skill` | Skill mirror. `skill_key` (unique), `name`, `description`, `source`, `active`. `action_sync_from_harness()` upserts from `skill.list`. |
 | `res.config.settings` | Inherits to surface the two config keys in Settings. |
@@ -155,7 +155,7 @@ Odoo-side management + ACL layer only.
    - ACL (`ir.model.access.csv`): users read presets/skills and CRUD their own
      sessions (no unlink); managers get everything.
    - Record rule on `npei.agent.session`: a non-manager sees a mapping only when
-     `owner_id == user` **or** `user in user_ids`; managers see all.
+     `create_uid == user` **or** `user in user_ids`; managers see all.
 2. **Controller re-check.** The proxy calls `_user_can_access` before forwarding
    any session-scoped call. Fails **closed**: an unmapped session id is denied to
    non-managers.

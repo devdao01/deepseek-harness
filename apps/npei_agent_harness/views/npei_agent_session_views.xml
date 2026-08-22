@@ -7,9 +7,9 @@
             <tree string="Agent Sessions">
                 <field name="session_id"/>
                 <field name="name"/>
-                <field name="owner_id"/>
                 <field name="user_ids" widget="many2many_tags"/>
                 <field name="preset_id"/>
+                <field name="create_uid"/>
                 <field name="write_date"/>
             </tree>
         </field>
@@ -29,7 +29,7 @@
                             <field name="workspace_path"/>
                         </group>
                         <group>
-                            <field name="owner_id"/>
+                            <field name="create_uid" readonly="1"/>
                             <field name="active"/>
                         </group>
                     </group>
@@ -48,11 +48,11 @@
             <search string="Agent Sessions">
                 <field name="session_id"/>
                 <field name="name"/>
-                <field name="owner_id"/>
+                <field name="create_uid"/>
                 <field name="user_ids"/>
                 <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
                 <group expand="0" string="Group By">
-                    <filter string="Owner" name="group_owner" context="{'group_by': 'owner_id'}"/>
+                    <filter string="Creator" name="group_creator" context="{'group_by': 'create_uid'}"/>
                     <filter string="Preset" name="group_preset" context="{'group_by': 'preset_id'}"/>
                 </group>
             </search>
