@@ -133,6 +133,42 @@ describe('per-session access management (full-token only)', () => {
   })
 })
 
+describe('workspace mutation (full-token only)', () => {
+  const WRITES: readonly string[] = [
+    'workspace.create',
+    'workspace.rename',
+    'workspace.delete',
+    'workspace.insertBefore',
+    'workspace.insertSessionBefore',
+    'workspace.archiveSession',
+  ]
+
+  it('refuses every workspace write from a ticket caller, before parsing the payload', async () => {
+    const { proxy } = await harness()
+    // Empty payloads: the full-token gate fires ahead of schema validation, so
+    // a ticket is forbidden regardless of what it sends.
+    for (const method of WRITES) {
+      const result = await call(proxy, ALICE, method, {})
+      expect(result.ok, `${method} should be refused`).toBe(false)
+      expect(result.error?.code, method).toBe('forbidden')
+    }
+  })
+
+  it('rejects a workspace write from an anonymous caller too', async () => {
+    const { proxy } = await harness()
+    const result = await call(proxy, ANON, 'workspace.create', { path: '/tmp' })
+    expect(result.error?.code).toBe('forbidden')
+  })
+
+  it('lets a full token reach a workspace write — the gate does not refuse it', async () => {
+    // `workspace.list` and `workspace.file` are deliberately NOT in the gate set
+    // (a ticket still reads the roster); a full token passes every write.
+    const { proxy } = await harness()
+    const result = await call(proxy, TOKEN, 'workspace.create', { path: '/tmp' })
+    expect(result.error?.code).not.toBe('forbidden')
+  })
+})
+
 describe('session-scoped unary enforcement', () => {
   it('forbids a ticket caller with no access to the session', async () => {
     const { proxy, a } = await harness()

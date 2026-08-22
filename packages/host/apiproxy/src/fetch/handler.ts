@@ -161,8 +161,25 @@ function methodFor(path: string): keyof RpcMethodMap | undefined {
  */
 const INVALID_REQUEST_RPC_ID = RpcId('invalid-request')
 
-/** Methods only a full token may call; a per-user ticket is refused at dispatch (a user cannot edit their own access). */
-const FULL_TOKEN_ONLY: ReadonlySet<string> = new Set(['session.setAccess', 'session.getAccess'])
+/**
+ * Methods only a full token may call; a per-user ticket is refused at dispatch.
+ * Two classes: per-session access management (a user cannot edit its own
+ * access), and workspace mutation (registering a host directory, or renaming,
+ * deleting, reordering, and archiving within the shared workspace roster is
+ * deployment management the Odoo/MTIL front owns — a ticket only READS the
+ * roster via `workspace.list`). The `workspace.file` download stays reachable,
+ * gated by its session id like any session-scoped read.
+ */
+const FULL_TOKEN_ONLY: ReadonlySet<string> = new Set([
+  'session.setAccess',
+  'session.getAccess',
+  'workspace.create',
+  'workspace.rename',
+  'workspace.delete',
+  'workspace.insertBefore',
+  'workspace.insertSessionBefore',
+  'workspace.archiveSession',
+])
 
 /**
  * The session a request scopes to for the per-user access gate, or undefined
@@ -259,13 +276,15 @@ async function handleUnary<K extends keyof RpcMethodMap>(
   // An anonymous (credential-less, ticket-configured) caller is denied every
   // method: the reachability lane grants no access without a real credential.
   if (principal.kind === 'anonymous') return forbiddenResponse(message.rpcId)
+  // Full-token-only management methods reject every per-user ticket up front,
+  // before the payload is parsed — a forbidden caller learns nothing about the
+  // method's schema.
+  if (FULL_TOKEN_ONLY.has(method) && principal.kind !== 'token') {
+    return forbiddenResponse(message.rpcId)
+  }
   const payload = route.schema.safeParse(message.payload)
   if (!payload.success) {
     return errorResponse(message.rpcId, { code: 'bad-request', message: `invalid payload for ${method}`, details: { issues: payload.error.issues } })
-  }
-  // Full-token-only management methods reject every per-user ticket.
-  if (FULL_TOKEN_ONLY.has(method) && principal.kind !== 'token') {
-    return forbiddenResponse(message.rpcId)
   }
   // A session-scoped call from a ticket caller requires access to that session.
   const scoped = sessionScopeOf(payload.data)
