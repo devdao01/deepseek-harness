@@ -346,6 +346,75 @@ class TestConfigManagement(TransactionCase):
             [m for m, _p in self._calls if m == 'settings.mutate'], [])
 
     # ------------------------------------------------------------------
+    # Add provider route wizard
+    # ------------------------------------------------------------------
+    def test_route_wizard_mutates_and_sets_credential(self):
+        wizard = self.env['npei.agent.provider.route'].create({
+            'route_key': 'openrouter',
+            'display_name': 'OpenRouter',
+            'api_protocol': 'openai-completions',
+            'base_url': 'https://openrouter.ai/api/v1',
+            'thinking_format': 'openrouter',
+            'api_key': 'sk-or-secret',
+            'models_text': 'openai/gpt-4o | GPT-4o\nanthropic/claude-3.5-sonnet',
+        })
+        self._calls.clear()
+
+        wizard.action_create_route()
+
+        self.assertEqual(
+            self._calls_for('settings.mutate'),
+            [{'ns': 'llm-pi-ai', 'ops': [{
+                'op': 'set', 'path': ['providers', 'openrouter'],
+                'value': {
+                    'api': 'openai-completions',
+                    'baseURL': 'https://openrouter.ai/api/v1',
+                    'displayName': 'OpenRouter',
+                    'apiKeyEnv': 'OPENROUTER_API_KEY',
+                    'compat': {'thinkingFormat': 'openrouter'},
+                    'models': [
+                        {'id': 'openai/gpt-4o', 'name': 'GPT-4o'},
+                        {'id': 'anthropic/claude-3.5-sonnet'}],
+                }}]}])
+        # A typed key is pushed under the derived reference.
+        self.assertEqual(
+            self._calls_for('credentials.set'),
+            [{'ref': 'OPENROUTER_API_KEY', 'value': 'sk-or-secret'}])
+
+    def test_route_wizard_derives_ref_and_skips_blank_key(self):
+        wizard = self.env['npei.agent.provider.route'].create({
+            'route_key': 'together-ai',
+            'api_protocol': 'openai-completions',
+            'base_url': 'https://api.together.xyz/v1',
+        })
+        self._calls.clear()
+
+        wizard.action_create_route()
+
+        op = self._calls_for('settings.mutate')[0]['ops'][0]
+        self.assertEqual(op['path'], ['providers', 'together-ai'])
+        self.assertEqual(op['value']['apiKeyEnv'], 'TOGETHER_AI_API_KEY')
+        self.assertNotIn('compat', op['value'])  # no thinking format chosen
+        self.assertNotIn('models', op['value'])
+        self.assertEqual(self._calls_for('credentials.set'), [])  # no key typed
+
+    def test_route_wizard_rejects_bad_key(self):
+        wizard = self.env['npei.agent.provider.route'].create({
+            'route_key': 'Open Router',  # spaces + caps
+            'api_protocol': 'openai-completions',
+            'base_url': 'https://x',
+        })
+        with self.assertRaises(UserError):
+            wizard.action_create_route()
+
+    def test_route_wizard_denied_for_non_manager(self):
+        plain = self.env['res.users'].browse(15)
+        with self.assertRaises(AccessError):
+            self.env['npei.agent.provider.route'].with_user(plain).create({
+                'route_key': 'x', 'api_protocol': 'openai-completions',
+                'base_url': 'https://x'})
+
+    # ------------------------------------------------------------------
     # Host status panel
     # ------------------------------------------------------------------
     def test_host_status_refresh_maps_describe(self):

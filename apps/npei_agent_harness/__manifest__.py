@@ -39,6 +39,7 @@ This module provides:
         'views/res_config_settings_views.xml',
         'wizard/npei_discover_models_views.xml',
         'wizard/npei_host_status_views.xml',
+        'wizard/npei_provider_route_views.xml',
         'views/npei_agent_harness_menus.xml',
     ],
     'installable': True,

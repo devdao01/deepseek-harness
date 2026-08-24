@@ -147,6 +147,7 @@ escape or executable files, 404, 400) relay verbatim.
 | `npei.agent.model` | LLM model catalog mirror (**read-only**). `model_id`, `provider` (group id), `name`, `description`, `active`; `unique(provider, model_id)`. `action_sync_from_harness()` upserts each group's models from `llm.models`; group `failures` are logged as a warning. |
 | `npei.agent.provider.model` | **Editable** per-provider model catalog (the SPA's model-config equivalent). `provider_id` (M2o provider), `sequence`, `model_id`, `name`, `context_window`, `max_tokens`; `unique(provider_id, model_id)`. Every create/write/unlink recomputes the whole `models` array and pushes it via `settings.mutate({ns: provider.settings_ns, ops:[{op:'set', path: settings_path+['models'], value:[…]}]})`; emptying a provider's rows **unsets** the path (return to the inherited catalog). Optional `context_window`/`max_tokens` of 0 and a blank `name` omit their keys. `action_sync_from_harness()` mirrors each provider's effective `models` (resolved `value`, else raw `user`) into rows under `npei_syncing` so the mirror write is not echoed back. Manager-only writes. |
 | `npei.agent.setting` | Settings-namespace mirror + whole-section replace. `ns` (unique), `applies` (`live`/`restart`), `has_document`, `revision`, `value_json` (redacted resolved value, read-only), `user_json` (raw user section, editable). `action_sync_from_harness()` upserts from `settings.describe`; `action_save()` parses `user_json` and pushes `settings.replace({ns, section, expectedRevision})`, refusing a stale revision with a re-sync hint. Manager-only writes. |
+| `npei.agent.provider.route` | Transient wizard — **add** an OpenAI-/Anthropic-compatible provider route (OpenRouter, Together, …) on the `llm-pi-ai` adapter. `route_key`, `display_name`, `api` (protocol), `base_url`, `api_key_env`, `api_key` (write-only), `thinking_format`, `models_text`. `action_create_route()` writes the profile with a path-scoped `settings.mutate({ns:'llm-pi-ai', ops:[{op:'set', path:['providers', route_key], value:{…}}]})` (leaves sibling routes intact), pushes a typed key via `credentials.set`, and syncs providers. Manager-only. |
 | `npei.agent.discover.models` | Transient wizard. `settings_ns` (required), `provider`, `base_url`, `api`, `api_key` (write-only), `result_text`/`result_json` (read-only), `target_provider_id`. `action_discover()` sends `llm.discoverModels({settingsNs, …non-blank keys})` and keeps the raw list; `action_adopt()` appends the discovered models into `target_provider_id`'s `npei.agent.provider.model` rows (skipping ids it already configures), which pushes them into the provider's settings namespace. Manager-only. |
 | `npei.agent.host.status` | Transient read-only ops panel. `version`, `cwd`, `provider`, `model`, `attached_sessions`, `can_open_path` (all read-only). Opening it (`default_get`) and the **Refresh** button both call `host.describe({})` and map the snapshot; nothing is configurable. Absent optional `provider`/`model` map to blank. Manager-only. |
 | `res.config.settings` | Inherits to surface the two config keys in Settings. |
@@ -229,6 +230,27 @@ Configuration menu item so a sync can run even when the list is empty.
 > and `llm.models` are not pinned. Secrets (the credential `value` and the
 > discover `api_key`) are write-only, non-stored Odoo fields — they are never
 > persisted in an Odoo column, only forwarded to the harness.
+
+### Adding an OpenAI-compatible provider (e.g. OpenRouter)
+
+OpenRouter is not a separate adapter — it is a **route on the `llm-pi-ai`
+adapter** (OpenAI-compatible gateway). Prerequisite: the harness composes the
+`llm-pi-ai` adapter (a `llm-pi-ai` namespace shows up in **Settings** after a
+sync); a DeepSeek-only deployment has no route capability.
+
+1. **Configuration → Add Provider Route**: `route_key` = `openrouter`, protocol
+   = `openai-completions`, base URL = `https://openrouter.ai/api/v1`, thinking
+   format = `openrouter`, and optionally paste the API key and a few model ids.
+   The wizard writes `settings[llm-pi-ai].user.providers.openrouter` with a
+   path-scoped `settings.mutate` (sibling routes untouched) and stores the key
+   under `OPENROUTER_API_KEY`.
+2. **Providers** now lists `openrouter`; open it and edit **Configured Models**
+   (`npei.agent.provider.model`), or use **Discover Models** → **Adopt** to seed
+   them. Its `settings_path` is `providers/openrouter`, so the same model-config
+   surface pushes there.
+
+The same flow adds Together, Fireworks, a self-hosted vLLM gateway, etc. — pick
+the matching protocol and base URL.
 
 ### Ghi chú (vi)
 

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_npei_provider_route_form" model="ir.ui.view">
+        <field name="name">npei.agent.provider.route.form</field>
+        <field name="model">npei.agent.provider.route</field>
+        <field name="arch" type="xml">
+            <form string="Add Provider Route">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="route_key" placeholder="openrouter"/>
+                            <field name="display_name" placeholder="OpenRouter"/>
+                            <field name="api_protocol"/>
+                            <field name="thinking_format"/>
+                        </group>
+                        <group>
+                            <field name="base_url"
+                                   placeholder="https://openrouter.ai/api/v1"/>
+                            <field name="api_key_env" placeholder="OPENROUTER_API_KEY"/>
+                            <field name="api_key" password="True"/>
+                            <field name="settings_ns"/>
+                        </group>
+                    </group>
+                    <group string="Models (optional)">
+                        <field name="models_text" nolabel="1"
+                               placeholder="openai/gpt-4o | GPT-4o&#10;anthropic/claude-3.5-sonnet | Claude 3.5 Sonnet"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_create_route" type="object"
+                            string="Add Route" class="btn-primary"/>
+                    <button string="Cancel" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_npei_provider_route" model="ir.actions.act_window">
+        <field name="name">Add Provider Route</field>
+        <field name="res_model">npei.agent.provider.route</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>
