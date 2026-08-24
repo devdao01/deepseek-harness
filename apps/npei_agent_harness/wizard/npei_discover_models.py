@@ -3,12 +3,15 @@
 
 Manager-only wizard that probes a provider endpoint for the models it offers via
 the harness ``llm.discoverModels`` (a live network probe, not the static
-catalog). Results are formatted into a read-only text box; there is no adoption
-in this version — configure a discovered model through the settings namespaces
-(``npei.agent.setting``).
+catalog). Results are formatted into a read-only text box; the raw list is kept
+so **Adopt** can append the discovered models into a target provider's
+configurable catalog (``npei.agent.provider.model``), which pushes them into the
+provider's settings namespace.
 """
+import json
+
 from odoo import _, api, fields, models
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
 
 MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 
@@ -44,6 +47,18 @@ class NpeiDiscoverModels(models.TransientModel):
         readonly=True,
         help="One line per discovered model: id, name, context window, max "
              "tokens.",
+    )
+    result_json = fields.Text(
+        string='Discovered Models (raw)',
+        readonly=True,
+        help="The raw discovered models list, kept so Adopt can append them "
+             "into a provider's configurable catalog.",
+    )
+    target_provider_id = fields.Many2one(
+        'npei.agent.provider',
+        string='Adopt Into Provider',
+        help="Provider whose configurable models the discovered entries are "
+             "appended to when Adopt runs.",
     )
 
     def _check_manager(self):
@@ -93,7 +108,55 @@ class NpeiDiscoverModels(models.TransientModel):
             payload['apiKey'] = self.api_key
         value = self.env['npei.agent.harness.client'].sudo()._rpc(
             'llm.discoverModels', payload)
-        self.result_text = self._format_models(value.get('models') or [])
+        discovered = value.get('models') or []
+        self.result_text = self._format_models(discovered)
+        self.result_json = json.dumps(discovered)
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'npei.agent.discover.models',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }
+
+    def action_adopt(self):
+        """Append the discovered models into :attr:`target_provider_id`'s catalog.
+
+        Manager-gated. Requires a prior Discover (``result_json``) and a target
+        provider. Each discovered model becomes an ``npei.agent.provider.model``
+        row unless the provider already configures that id; creating the rows
+        pushes the updated ``models`` array to the harness. Re-opens the wizard.
+
+        :raises UserError: when no target provider is set or nothing was
+            discovered yet.
+        """
+        self.ensure_one()
+        self._check_manager()
+        if not self.target_provider_id:
+            raise UserError(_("Choose a provider to adopt the models into."))
+        try:
+            discovered = json.loads(self.result_json or '[]')
+        except (ValueError, TypeError):
+            discovered = []
+        if not discovered:
+            raise UserError(_("Discover models first, then Adopt."))
+        ProviderModel = self.env['npei.agent.provider.model']
+        existing_ids = set(ProviderModel.search([
+            ('provider_id', '=', self.target_provider_id.id)]).mapped('model_id'))
+        adopted = 0
+        for entry in discovered:
+            model_id = entry.get('id') if isinstance(entry, dict) else None
+            if not model_id or model_id in existing_ids:
+                continue
+            ProviderModel.create({
+                'provider_id': self.target_provider_id.id,
+                'model_id': model_id,
+                'name': entry.get('name') or False,
+                'context_window': entry.get('contextWindow') or 0,
+                'max_tokens': entry.get('maxTokens') or 0,
+            })
+            existing_ids.add(model_id)
+            adopted += 1
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'npei.agent.discover.models',

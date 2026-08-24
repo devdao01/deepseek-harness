@@ -85,6 +85,8 @@ class TestConfigManagement(TransactionCase):
                         'revision': 3,
                     }],
                 }
+            if method == 'settings.mutate':
+                return {}
             if method == 'settings.replace':
                 request = payload or {}
                 return {
@@ -218,6 +220,130 @@ class TestConfigManagement(TransactionCase):
         self.assertIn('Model One', wizard.result_text)
         self.assertEqual(action['res_model'], 'npei.agent.discover.models')
         self.assertEqual(action['res_id'], wizard.id)
+
+    # ------------------------------------------------------------------
+    # Configurable provider models (settings.mutate)
+    # ------------------------------------------------------------------
+    def _make_provider(self, ns='llm-deepseek', path=False):
+        # A test-only provider id: mie-master already carries a real 'deepseek'
+        # provider, so a fresh unique id avoids the unique(provider) collision.
+        return self.env['npei.agent.provider'].create({
+            'provider': 'dsh-test-provider', 'display_name': 'Test Provider',
+            'settings_ns': ns, 'settings_path': path})
+
+    def test_provider_model_create_sets_array(self):
+        provider = self._make_provider()
+        self._calls.clear()
+
+        self.env['npei.agent.provider.model'].create({
+            'provider_id': provider.id, 'model_id': 'deepseek-chat',
+            'name': 'Chat', 'context_window': 4096})
+
+        self.assertEqual(
+            self._calls_for('settings.mutate'),
+            [{'ns': 'llm-deepseek', 'ops': [{
+                'op': 'set', 'path': ['models'],
+                'value': [{'id': 'deepseek-chat', 'name': 'Chat',
+                           'contextWindow': 4096}]}]}])
+
+    def test_provider_model_nested_path(self):
+        provider = self._make_provider(ns='llm-pi-ai', path='routes/foo')
+        self._calls.clear()
+
+        self.env['npei.agent.provider.model'].create({
+            'provider_id': provider.id, 'model_id': 'm1'})
+
+        self.assertEqual(
+            self._calls_for('settings.mutate'),
+            [{'ns': 'llm-pi-ai', 'ops': [{
+                'op': 'set', 'path': ['routes', 'foo', 'models'],
+                'value': [{'id': 'm1'}]}]}])
+
+    def test_provider_model_emptying_unsets(self):
+        provider = self._make_provider()
+        row = self.env['npei.agent.provider.model'].create({
+            'provider_id': provider.id, 'model_id': 'deepseek-chat'})
+        self._calls.clear()
+
+        row.unlink()
+
+        self.assertEqual(
+            self._calls_for('settings.mutate'),
+            [{'ns': 'llm-deepseek', 'ops': [{
+                'op': 'unset', 'path': ['models']}]}])
+
+    def test_provider_model_without_ns_fails_loud(self):
+        provider = self._make_provider(ns=False)
+        with self.assertRaises(UserError):
+            self.env['npei.agent.provider.model'].create({
+                'provider_id': provider.id, 'model_id': 'x'})
+
+    def test_provider_model_create_denied_for_non_manager(self):
+        provider = self._make_provider()
+        plain = self.env['res.users'].browse(15)
+        with self.assertRaises(AccessError):
+            self.env['npei.agent.provider.model'].with_user(plain).create({
+                'provider_id': provider.id, 'model_id': 'x'})
+
+    def test_adopt_appends_discovered_and_pushes(self):
+        provider = self._make_provider()
+        wizard = self.env['npei.agent.discover.models'].create({
+            'settings_ns': 'llm-deepseek', 'target_provider_id': provider.id})
+        wizard.action_discover()  # fills result_json from the mock (m1, m2)
+        self._calls.clear()
+
+        wizard.action_adopt()
+
+        rows = self.env['npei.agent.provider.model'].search([
+            ('provider_id', '=', provider.id)])
+        self.assertEqual(set(rows.mapped('model_id')), {'m1', 'm2'})
+        # Two creates → the final pushed array carries both discovered ids.
+        mutate = self._calls_for('settings.mutate')
+        self.assertTrue(mutate)
+        self.assertEqual(
+            {m['id'] for m in mutate[-1]['ops'][0]['value']}, {'m1', 'm2'})
+
+    def test_adopt_skips_already_configured_ids(self):
+        provider = self._make_provider()
+        self.env['npei.agent.provider.model'].create({
+            'provider_id': provider.id, 'model_id': 'm1', 'name': 'Kept'})
+        wizard = self.env['npei.agent.discover.models'].create({
+            'settings_ns': 'llm-deepseek', 'target_provider_id': provider.id})
+        wizard.action_discover()
+
+        wizard.action_adopt()
+
+        m1 = self.env['npei.agent.provider.model'].search([
+            ('provider_id', '=', provider.id), ('model_id', '=', 'm1')])
+        self.assertEqual(m1.name, 'Kept')  # not overwritten by adopt
+
+    def test_provider_model_sync_mirrors_effective(self):
+        provider = self._make_provider()
+        original = self._calls
+
+        def describe_with_models(model, method, payload=None):
+            original.append((method, payload))
+            if method == 'settings.describe':
+                return {'namespaces': [{
+                    'ns': 'llm-deepseek',
+                    'value': {'models': [
+                        {'id': 'deepseek-chat', 'name': 'Chat',
+                         'contextWindow': 4096, 'maxTokens': 2048}]},
+                    'user': {},
+                }]}
+            return {}
+
+        client_cls = type(self.env['npei.agent.harness.client'])
+        with patch.object(client_cls, '_rpc', describe_with_models):
+            self.env['npei.agent.provider.model'].action_sync_from_harness()
+
+        rows = self.env['npei.agent.provider.model'].search([
+            ('provider_id', '=', provider.id)])
+        self.assertEqual(rows.mapped('model_id'), ['deepseek-chat'])
+        self.assertEqual(rows.context_window, 4096)
+        # The mirror write is not echoed back as a mutate.
+        self.assertEqual(
+            [m for m, _p in self._calls if m == 'settings.mutate'], [])
 
     # ------------------------------------------------------------------
     # Host status panel

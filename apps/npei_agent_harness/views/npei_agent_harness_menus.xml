@@ -97,6 +97,12 @@
               action="action_npei_sync_models"
               sequence="50"/>
 
+    <menuitem id="menu_npei_sync_provider_models"
+              name="Sync Provider Models from Harness"
+              parent="menu_npei_agent_config"
+              action="action_npei_sync_provider_models"
+              sequence="55"/>
+
     <menuitem id="menu_npei_sync_credentials"
               name="Sync Credentials from Harness"
               parent="menu_npei_agent_config"

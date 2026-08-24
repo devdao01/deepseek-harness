@@ -48,6 +48,13 @@ class NpeiAgentProvider(models.Model):
         help="Whether the provider is explicitly declared in settings.",
     )
     active = fields.Boolean(default=True)
+    model_ids = fields.One2many(
+        'npei.agent.provider.model',
+        'provider_id',
+        string='Configured Models',
+        help="Editable models array pushed to this provider's settings "
+             "namespace (settings[ns].user[...path].models).",
+    )
 
     _sql_constraints = [
         (
@@ -106,3 +113,12 @@ class NpeiAgentProvider(models.Model):
                 self.create(dict(vals, provider=provider))
             synced += 1
         return self._notify(_("%s provider(s) synced from the harness.", synced))
+
+    def action_sync_models(self):
+        """Mirror every provider's configured models from the harness.
+
+        Manager-gated (delegates to
+        ``npei.agent.provider.model.action_sync_from_harness``). Backs the
+        provider form's *Sync Models from Harness* button.
+        """
+        return self.env['npei.agent.provider.model'].action_sync_from_harness()

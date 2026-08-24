@@ -22,6 +22,9 @@
                 <header>
                     <button name="action_sync_from_harness" type="object"
                             string="Sync from Harness" class="btn-primary"/>
+                    <button name="action_sync_models" type="object"
+                            string="Sync Models from Harness"
+                            groups="npei_agent_harness.group_npei_agent_manager"/>
                 </header>
                 <sheet>
                     <group>
@@ -37,6 +40,25 @@
                             <field name="declared" readonly="1"/>
                         </group>
                     </group>
+                    <notebook>
+                        <page string="Configured Models" name="models">
+                            <field name="model_ids"
+                                   groups="npei_agent_harness.group_npei_agent_manager">
+                                <tree editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="model_id"/>
+                                    <field name="name"/>
+                                    <field name="context_window"/>
+                                    <field name="max_tokens"/>
+                                </tree>
+                            </field>
+                            <p class="text-muted" colspan="2">
+                                These rows are pushed to the provider's settings
+                                namespace as its models array. Emptying them
+                                returns to the inherited catalog.
+                            </p>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>
@@ -52,6 +74,14 @@
     <record id="action_npei_sync_providers" model="ir.actions.server">
         <field name="name">Sync Providers from Harness</field>
         <field name="model_id" ref="model_npei_agent_provider"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_sync_from_harness()</field>
+    </record>
+
+    <!-- Sync every provider's configurable models from the harness. -->
+    <record id="action_npei_sync_provider_models" model="ir.actions.server">
+        <field name="name">Sync Provider Models from Harness</field>
+        <field name="model_id" ref="model_npei_agent_provider_model"/>
         <field name="state">code</field>
         <field name="code">action = model.action_sync_from_harness()</field>
     </record>

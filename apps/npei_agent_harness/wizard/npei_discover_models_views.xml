@@ -18,12 +18,19 @@
                         </group>
                     </group>
                     <group string="Discovered Models">
+                        <field name="result_json" invisible="1"/>
                         <field name="result_text" nolabel="1" readonly="1"/>
+                    </group>
+                    <group string="Adopt">
+                        <field name="target_provider_id"/>
                     </group>
                 </sheet>
                 <footer>
                     <button name="action_discover" type="object"
                             string="Discover" class="btn-primary"/>
+                    <button name="action_adopt" type="object"
+                            string="Adopt Into Provider"
+                            invisible="not result_json or not target_provider_id"/>
                     <button string="Close" special="cancel"/>
                 </footer>
             </form>
