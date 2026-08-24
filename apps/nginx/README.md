@@ -40,6 +40,11 @@ dsh web --trusted-host mtil.example.com
 # or trustedHosts: ['mtil.example.com'] in the web bundle's cordis.patch.yml
 ```
 
+The value is a **bare host authority** — `host` or `host:port`, NOT a URL.
+`https://mtil.example.com`, a trailing `/`, or a path fails the load with
+"is not a bare host[:port] authority". Omit `:port` when the browser reaches it
+on the default 443 through nginx.
+
 Without it, every browser `/api` request answers `403` at the fence.
 
 ## Env that must line up
