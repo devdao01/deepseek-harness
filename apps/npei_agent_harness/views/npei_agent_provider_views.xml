@@ -50,12 +50,7 @@
                     </group>
                     <notebook>
                         <page string="Catalog Models" name="catalog_models">
-                            <p class="text-muted" colspan="2">
-                                Read-only resolved models this provider offers
-                                (from llm.models). Run "Sync Models from Harness"
-                                to refresh. This is what the provider serves when
-                                Configured Models below is empty (inherited).
-                            </p>
+                            <p class="text-muted" colspan="2">Read-only resolved models this provider offers (from llm.models). Run "Sync Models from Harness" to refresh. This is what the provider serves when Configured Models below is empty (inherited).</p>
                             <field name="catalog_model_ids" readonly="1">
                                 <tree>
                                     <field name="model_id"/>
@@ -75,12 +70,7 @@
                                     <field name="max_tokens"/>
                                 </tree>
                             </field>
-                            <p class="text-muted" colspan="2">
-                                Optional overrides pushed to the provider's
-                                settings namespace as its models array. Leave
-                                empty to use the inherited catalog above;
-                                emptying it returns to that catalog.
-                            </p>
+                            <p class="text-muted" colspan="2">Optional overrides pushed to the provider's settings namespace as its models array. Leave empty to use the inherited catalog above; emptying it returns to that catalog.</p>
                         </page>
                     </notebook>
                 </sheet>
