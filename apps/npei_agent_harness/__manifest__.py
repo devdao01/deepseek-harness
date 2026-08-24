@@ -29,6 +29,8 @@ This module provides:
         'security/npei_agent_harness_groups.xml',
         'security/ir_rule.xml',
         'security/ir.model.access.csv',
+        'data/provider_route_templates.xml',
+        'views/npei_agent_provider_route_template_views.xml',
         'views/npei_agent_session_views.xml',
         'views/npei_agent_preset_views.xml',
         'views/npei_agent_skill_views.xml',

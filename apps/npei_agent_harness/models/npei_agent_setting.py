@@ -58,6 +58,13 @@ class NpeiAgentSetting(models.Model):
         help="Pretty-printed raw user section. Edit and Save to replace it on "
              "the harness.",
     )
+    provider_ids = fields.One2many(
+        'npei.agent.provider',
+        'settings_id',
+        string='Providers',
+        help="Provider routes that read their configuration from this "
+             "namespace.",
+    )
 
     _sql_constraints = [
         (
@@ -132,8 +139,14 @@ class NpeiAgentSetting(models.Model):
             existing = self.search([('ns', '=', ns)], limit=1)
             if existing:
                 existing.write(vals)
+                record = existing
             else:
-                self.create(dict(vals, ns=ns))
+                record = self.create(dict(vals, ns=ns))
+            # Backfill providers that named this namespace before it was mirrored.
+            self.env['npei.agent.provider'].search([
+                ('settings_ns', '=', ns),
+                ('settings_id', '!=', record.id),
+            ]).write({'settings_id': record.id})
             synced += 1
         return self._notify(
             _("%s settings namespace(s) synced from the harness.", synced))

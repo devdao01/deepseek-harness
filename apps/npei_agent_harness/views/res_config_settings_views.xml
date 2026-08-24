@@ -24,6 +24,15 @@
                                     string="Test Connection"
                                     class="btn-secondary"/>
                         </setting>
+                        <setting string="Clear Data"
+                                 groups="base.group_system"
+                                 help="Delete every MTIL Agent record (sessions, presets, skills, credentials, providers, models, settings) except the seeded provider route templates. Does not touch the harness. Irreversible.">
+                            <button name="action_clear_data"
+                                    type="object"
+                                    string="Clear Data"
+                                    class="btn-danger"
+                                    confirm="This permanently deletes all MTIL Agent data in Odoo (except seeded route templates). The harness is not affected. Continue?"/>
+                        </setting>
                     </block>
                 </app>
             </xpath>

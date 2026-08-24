@@ -45,6 +45,34 @@ class NpeiAgentPreset(models.Model):
         default='user',
     )
     active = fields.Boolean(default=True)
+    session_ids = fields.One2many(
+        'npei.agent.session',
+        'preset_id',
+        string='Sessions',
+        help="Sessions running under this preset.",
+    )
+    session_count = fields.Integer(
+        string='Session Count',
+        compute='_compute_session_count',
+    )
+
+    @api.depends('session_ids')
+    def _compute_session_count(self):
+        """Count of sessions linked to this preset."""
+        for record in self:
+            record.session_count = len(record.session_ids)
+
+    def action_view_sessions(self):
+        """Open the sessions running under this preset."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _("Sessions"),
+            'res_model': 'npei.agent.session',
+            'view_mode': 'tree,form',
+            'domain': [('preset_id', '=', self.id)],
+            'context': {'default_preset_id': self.id},
+        }
 
     _sql_constraints = [
         (

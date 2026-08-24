@@ -42,6 +42,16 @@
                     <group string="Resolved Value (read-only)">
                         <field name="value_json" nolabel="1" readonly="1"/>
                     </group>
+                    <group string="Providers using this namespace">
+                        <field name="provider_ids" nolabel="1" readonly="1">
+                            <tree>
+                                <field name="provider"/>
+                                <field name="display_name"/>
+                                <field name="settings_path"/>
+                                <field name="route_active"/>
+                            </tree>
+                        </field>
+                    </group>
                 </sheet>
             </form>
         </field>

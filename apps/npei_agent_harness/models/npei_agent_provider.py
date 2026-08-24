@@ -33,7 +33,16 @@ class NpeiAgentProvider(models.Model):
     )
     settings_ns = fields.Char(
         string='Settings Namespace',
-        help="Settings namespace this provider reads its configuration from.",
+        help="Settings namespace this provider reads its configuration from "
+             "(raw key; the settings_id match partner).",
+    )
+    settings_id = fields.Many2one(
+        'npei.agent.setting',
+        string='Settings Namespace Record',
+        index=True,
+        ondelete='set null',
+        help="The settings-namespace mirror matching settings_ns; blank until "
+             "settings are synced. Many providers may share one namespace.",
     )
     settings_path = fields.Char(
         string='Settings Path',
@@ -55,6 +64,35 @@ class NpeiAgentProvider(models.Model):
         help="Editable models array pushed to this provider's settings "
              "namespace (settings[ns].user[...path].models).",
     )
+    catalog_model_ids = fields.One2many(
+        'npei.agent.model',
+        'provider_id',
+        string='Catalog Models',
+        help="Read-only resolved catalog models (llm.models) whose group id "
+             "matches this provider.",
+    )
+    catalog_model_count = fields.Integer(
+        string='Catalog Model Count',
+        compute='_compute_catalog_model_count',
+    )
+
+    @api.depends('catalog_model_ids')
+    def _compute_catalog_model_count(self):
+        """Count of resolved catalog models linked to this provider."""
+        for record in self:
+            record.catalog_model_count = len(record.catalog_model_ids)
+
+    def action_view_catalog_models(self):
+        """Open the resolved catalog models linked to this provider."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _("Catalog Models"),
+            'res_model': 'npei.agent.model',
+            'view_mode': 'tree,form',
+            'domain': [('provider_id', '=', self.id)],
+            'context': {'default_provider_id': self.id},
+        }
 
     _sql_constraints = [
         (
@@ -99,9 +137,13 @@ class NpeiAgentProvider(models.Model):
             if not provider:
                 continue
             path = entry.get('settingsPath') or []
+            settings_ns = entry.get('settingsNs') or False
+            setting = self.env['npei.agent.setting'].search(
+                [('ns', '=', settings_ns)], limit=1) if settings_ns else False
             vals = {
                 'display_name': entry.get('displayName') or provider,
-                'settings_ns': entry.get('settingsNs') or False,
+                'settings_ns': settings_ns,
+                'settings_id': setting.id if setting else False,
                 'settings_path': '/'.join(path) if path else False,
                 'route_active': bool(entry.get('active')),
                 'declared': bool(entry.get('declared')),
@@ -109,8 +151,14 @@ class NpeiAgentProvider(models.Model):
             existing = self.search([('provider', '=', provider)], limit=1)
             if existing:
                 existing.write(vals)
+                record = existing
             else:
-                self.create(dict(vals, provider=provider))
+                record = self.create(dict(vals, provider=provider))
+            # Backfill catalog models synced before this provider existed.
+            self.env['npei.agent.model'].search([
+                ('provider', '=', provider),
+                ('provider_id', '!=', record.id),
+            ]).write({'provider_id': record.id})
             synced += 1
         return self._notify(_("%s provider(s) synced from the harness.", synced))
 

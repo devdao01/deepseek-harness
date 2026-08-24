@@ -186,6 +186,45 @@ class TestConfigManagement(TransactionCase):
         self.assertEqual(
             len(Provider.search([('provider', '=', 'deepseek')])), 1)
 
+    def test_provider_sync_links_settings_namespace(self):
+        setting = self.env['npei.agent.setting'].create({'ns': 'zzz-ns'})
+
+        def fake(model, method, payload=None):
+            if method == 'llm.providers':
+                return {'providers': [{
+                    'provider': 'zzz-p', 'displayName': 'ZP',
+                    'settingsNs': 'zzz-ns',
+                    'settingsPath': ['providers', 'zzz-p'],
+                    'active': True, 'declared': True}]}
+            return {}
+
+        client_cls = type(self.env['npei.agent.harness.client'])
+        with patch.object(client_cls, '_rpc', fake):
+            self.env['npei.agent.provider'].action_sync_from_harness()
+
+        prov = self.env['npei.agent.provider'].search([('provider', '=', 'zzz-p')])
+        self.assertEqual(prov.settings_id, setting)
+        self.assertIn(prov, setting.provider_ids)
+
+    def test_setting_sync_backfills_provider_link(self):
+        prov = self.env['npei.agent.provider'].create({
+            'provider': 'zzz-b', 'display_name': 'ZB', 'settings_ns': 'zzz-bns'})
+        self.assertFalse(prov.settings_id)
+
+        def fake(model, method, payload=None):
+            if method == 'settings.describe':
+                return {'hasDocument': False, 'namespaces': [{
+                    'ns': 'zzz-bns', 'value': {}, 'user': {},
+                    'applies': 'live', 'revision': 1}]}
+            return {}
+
+        client_cls = type(self.env['npei.agent.harness.client'])
+        with patch.object(client_cls, '_rpc', fake):
+            self.env['npei.agent.setting'].action_sync_from_harness()
+
+        setting = self.env['npei.agent.setting'].search([('ns', '=', 'zzz-bns')])
+        self.assertEqual(prov.settings_id, setting)
+
     # ------------------------------------------------------------------
     # Models
     # ------------------------------------------------------------------
@@ -201,6 +240,54 @@ class TestConfigManagement(TransactionCase):
             ('provider', '=', 'deepseek'), ('model_id', '=', 'deepseek-chat')])
         self.assertEqual(chat.name, 'Chat')
         self.assertEqual(chat.description, 'general')
+
+    def test_model_sync_links_when_provider_exists(self):
+        prov = self.env['npei.agent.provider'].create({
+            'provider': 'zzz-fwd', 'display_name': 'Z',
+            'settings_ns': 'llm-pi-ai'})
+
+        def fake(model, method, payload=None):
+            if method == 'llm.models':
+                return {'groups': [{'id': 'zzz-fwd',
+                                    'models': [{'id': 'm-x'}]}], 'failures': []}
+            return {}
+
+        client_cls = type(self.env['npei.agent.harness.client'])
+        with patch.object(client_cls, '_rpc', fake):
+            self.env['npei.agent.model'].action_sync_from_harness()
+
+        m = self.env['npei.agent.model'].search([
+            ('provider', '=', 'zzz-fwd'), ('model_id', '=', 'm-x')])
+        self.assertEqual(m.provider_id, prov)
+        self.assertEqual(prov.catalog_model_ids, m)
+        self.assertEqual(prov.catalog_model_count, 1)
+
+    def test_model_link_backfilled_when_provider_synced_after(self):
+        def fake(model, method, payload=None):
+            if method == 'llm.models':
+                return {'groups': [{'id': 'zzz-back',
+                                    'models': [{'id': 'm-b'}]}], 'failures': []}
+            if method == 'llm.providers':
+                return {'providers': [{
+                    'provider': 'zzz-back', 'displayName': 'ZB',
+                    'settingsNs': 'llm-pi-ai',
+                    'settingsPath': ['providers', 'zzz-back'],
+                    'active': True, 'declared': True}]}
+            return {}
+
+        client_cls = type(self.env['npei.agent.harness.client'])
+        with patch.object(client_cls, '_rpc', fake):
+            # Models first: no provider mirror yet, so the link is blank.
+            self.env['npei.agent.model'].action_sync_from_harness()
+            m = self.env['npei.agent.model'].search([
+                ('provider', '=', 'zzz-back'), ('model_id', '=', 'm-b')])
+            self.assertFalse(m.provider_id)
+            # Providers next: the sync backfills the link.
+            self.env['npei.agent.provider'].action_sync_from_harness()
+
+        prov = self.env['npei.agent.provider'].search([
+            ('provider', '=', 'zzz-back')])
+        self.assertEqual(m.provider_id, prov)
 
     # ------------------------------------------------------------------
     # Discover wizard
@@ -398,6 +485,54 @@ class TestConfigManagement(TransactionCase):
         self.assertNotIn('models', op['value'])
         self.assertEqual(self._calls_for('credentials.set'), [])  # no key typed
 
+    def test_route_wizard_template_prefills_then_key_only(self):
+        template = self.env.ref(
+            'npei_agent_harness.route_tpl_openrouter')
+        wizard = self.env['npei.agent.provider.route'].new({})
+        wizard.template_id = template
+        wizard._onchange_template_id()
+
+        # The template pre-fills everything but the key.
+        self.assertEqual(wizard.route_key, 'openrouter')
+        self.assertEqual(wizard.base_url, 'https://openrouter.ai/api/v1')
+        self.assertEqual(wizard.thinking_format, 'openrouter')
+        self.assertEqual(wizard.api_key_env, 'OPENROUTER_API_KEY')
+
+        # Persist the pre-filled draft (as the form save would) + a typed key.
+        saved = self.env['npei.agent.provider.route'].create({
+            'template_id': template.id,
+            'route_key': wizard.route_key,
+            'display_name': wizard.display_name,
+            'api_protocol': wizard.api_protocol,
+            'base_url': wizard.base_url,
+            'thinking_format': wizard.thinking_format,
+            'api_key_env': wizard.api_key_env,
+            'api_key': 'sk-or-x',
+        })
+        self._calls.clear()
+        saved.action_create_route()
+
+        op = self._calls_for('settings.mutate')[0]['ops'][0]
+        self.assertEqual(op['path'], ['providers', 'openrouter'])
+        self.assertEqual(op['value']['baseURL'], 'https://openrouter.ai/api/v1')
+        self.assertEqual(op['value']['compat'], {'thinkingFormat': 'openrouter'})
+        self.assertEqual(
+            self._calls_for('credentials.set'),
+            [{'ref': 'OPENROUTER_API_KEY', 'value': 'sk-or-x'}])
+
+    def test_route_wizard_blank_base_url_omitted(self):
+        wizard = self.env['npei.agent.provider.route'].create({
+            'route_key': 'catalogprov',
+            'api_protocol': 'openai-completions',
+            # no base_url: a pi-ai catalog provider inherits its endpoint
+        })
+        self._calls.clear()
+
+        wizard.action_create_route()
+
+        op = self._calls_for('settings.mutate')[0]['ops'][0]
+        self.assertNotIn('baseURL', op['value'])
+
     def test_route_wizard_rejects_bad_key(self):
         wizard = self.env['npei.agent.provider.route'].create({
             'route_key': 'Open Router',  # spaces + caps
@@ -413,6 +548,40 @@ class TestConfigManagement(TransactionCase):
             self.env['npei.agent.provider.route'].with_user(plain).create({
                 'route_key': 'x', 'api_protocol': 'openai-completions',
                 'base_url': 'https://x'})
+
+    # ------------------------------------------------------------------
+    # Clear data (system-only)
+    # ------------------------------------------------------------------
+    def test_clear_data_keeps_seeded_templates_only(self):
+        self.env.user.groups_id = [
+            (4, self.env.ref('base.group_system').id)]
+        seeded = self.env.ref('npei_agent_harness.route_tpl_openrouter')
+        custom_tpl = self.env['npei.agent.provider.route.template'].create({
+            'name': 'Custom', 'route_key': 'customx',
+            'api_protocol': 'openai-completions'})
+        prov = self._make_provider(ns='llm-pi-ai')
+        self.env['npei.agent.provider.model'].create({
+            'provider_id': prov.id, 'model_id': 'm'})
+        setting = self.env['npei.agent.setting'].create({'ns': 'zzz-clr'})
+        session = self.env['npei.agent.session'].with_context(
+            npei_syncing=True).create({'session_id': 'sess-clr', 'name': 'S'})
+        self._calls.clear()
+
+        self.env['res.config.settings'].create({}).action_clear_data()
+
+        self.assertTrue(seeded.exists())         # XML-seeded template kept
+        self.assertFalse(custom_tpl.exists())    # hand-added template cleared
+        self.assertFalse(prov.exists())
+        self.assertFalse(setting.exists())
+        self.assertFalse(session.exists())
+        # A local reset makes no harness call.
+        self.assertEqual(self._calls, [])
+
+    def test_clear_data_denied_for_non_system(self):
+        settings = self.env['res.config.settings'].create({})
+        plain = self.env['res.users'].browse(15)
+        with self.assertRaises(AccessError):
+            settings.with_user(plain).action_clear_data()
 
     # ------------------------------------------------------------------
     # Host status panel

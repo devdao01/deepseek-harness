@@ -7,6 +7,10 @@
             <form string="Add Provider Route">
                 <sheet>
                     <group>
+                        <field name="template_id"
+                               options="{'no_create': True, 'no_open': True}"/>
+                    </group>
+                    <group>
                         <group>
                             <field name="route_key" placeholder="openrouter"/>
                             <field name="display_name" placeholder="OpenRouter"/>

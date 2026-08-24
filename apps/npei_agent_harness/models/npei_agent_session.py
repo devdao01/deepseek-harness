@@ -105,7 +105,13 @@ class NpeiAgentSession(models.Model):
         return [str(uid) for uid in sorted(self.user_ids.ids)]
 
     def _push_access(self):
-        """Push each record's allowed-user set to the harness access store."""
+        """Push each record's allowed-user set to the harness access store.
+
+        Suppressed under ``npei_syncing`` (a mirror-only operation such as Clear
+        Data), so a bulk local change makes no harness call.
+        """
+        if self.env.context.get('npei_syncing'):
+            return
         client = self.env['npei.agent.harness.client'].sudo()
         for record in self:
             if not record.session_id:
@@ -117,8 +123,13 @@ class NpeiAgentSession(models.Model):
 
     @api.model
     def _revoke_harness_access(self, session_id):
-        """Revoke all per-user access for one harness session id (empty set)."""
-        if not session_id:
+        """Revoke all per-user access for one harness session id (empty set).
+
+        Suppressed under ``npei_syncing`` so Clear Data deletes the local mapping
+        without a harness call (the reset must work even when the harness is
+        unreachable).
+        """
+        if self.env.context.get('npei_syncing') or not session_id:
             return
         self.env['npei.agent.harness.client'].sudo()._rpc('session.setAccess', {
             'sessionId': session_id,
@@ -131,7 +142,10 @@ class NpeiAgentSession(models.Model):
         The title is cosmetic, so a failure here is logged and swallowed rather
         than rolled back — unlike access, a bad title must not orphan or undo a
         created session. Skips blank names (the harness rejects an empty title).
+        Suppressed under ``npei_syncing`` (mirror-only operations).
         """
+        if self.env.context.get('npei_syncing'):
+            return
         client = self.env['npei.agent.harness.client'].sudo()
         for record in self:
             if not record.session_id or not (record.name or '').strip():

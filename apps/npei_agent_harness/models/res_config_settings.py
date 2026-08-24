@@ -6,6 +6,11 @@ standard Settings screen. The ``config_parameter`` attribute makes each field
 read from and write to the parameter store transparently.
 """
 from odoo import _, fields, models
+from odoo.exceptions import AccessError
+
+# Records seeded by this data file are preserved by Clear Data.
+TEMPLATE_DATA_MODULE = 'npei_agent_harness'
+TEMPLATE_MODEL = 'npei.agent.provider.route.template'
 
 
 class ResConfigSettings(models.TransientModel):
@@ -47,6 +52,57 @@ class ResConfigSettings(models.TransientModel):
             'params': {
                 'title': _("MTIL Agent"),
                 'message': message,
+                'type': 'success',
+                'sticky': False,
+            },
+        }
+
+    def action_clear_data(self):
+        """Delete every persistent ``npei.agent.*`` record except the XML-seeded
+        provider route templates.
+
+        System-only (``base.group_system``): a destructive maintenance reset of
+        the Odoo-side mirror/ACL/config records. It does NOT touch the harness —
+        provider-model unlinks run under ``npei_syncing`` so no ``settings.mutate``
+        is pushed. The route templates created by
+        ``data/provider_route_templates.xml`` are kept (identified by their
+        ``ir.model.data`` external ids); a manager's hand-added templates, having
+        no seed external id, are cleared with the rest.
+
+        :raises AccessError: when the caller is not in ``base.group_system``.
+        :returns: a success notification with the deleted-record count.
+        """
+        self.ensure_one()
+        if not self.env.user.has_group('base.group_system'):
+            raise AccessError(_(
+                "Only the system administrator can clear MTIL Agent data."))
+
+        kept_template_ids = set(self.env['ir.model.data'].sudo().search([
+            ('module', '=', TEMPLATE_DATA_MODULE),
+            ('model', '=', TEMPLATE_MODEL),
+        ]).mapped('res_id'))
+
+        model_names = self.env['ir.model'].sudo().search(
+            [('model', '=like', 'npei.agent.%')]).mapped('model')
+        deleted = 0
+        for name in model_names:
+            model = self.env[name]
+            # Transient wizards hold no durable data; abstract models have no
+            # table. Neither participates in the reset.
+            if model._transient or model._abstract:
+                continue
+            records = model.sudo().with_context(npei_syncing=True).search([])
+            if name == TEMPLATE_MODEL:
+                records = records.filtered(lambda r: r.id not in kept_template_ids)
+            deleted += len(records)
+            records.unlink()
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _("MTIL Agent"),
+                'message': _("Cleared %s record(s); route templates kept.", deleted),
                 'type': 'success',
                 'sticky': False,
             },

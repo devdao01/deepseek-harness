@@ -27,6 +27,13 @@
                             groups="npei_agent_harness.group_npei_agent_manager"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_catalog_models" type="object"
+                                class="oe_stat_button" icon="fa-cubes">
+                            <field name="catalog_model_count" widget="statinfo"
+                                   string="Catalog Models"/>
+                        </button>
+                    </div>
                     <group>
                         <group>
                             <field name="provider" readonly="1"/>
@@ -35,6 +42,7 @@
                         </group>
                         <group>
                             <field name="settings_ns" readonly="1"/>
+                            <field name="settings_id" readonly="1"/>
                             <field name="settings_path" readonly="1"/>
                             <field name="route_active" readonly="1"/>
                             <field name="declared" readonly="1"/>

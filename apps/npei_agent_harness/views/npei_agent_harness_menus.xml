@@ -73,6 +73,12 @@
               action="action_npei_provider_route"
               sequence="14"/>
 
+    <menuitem id="menu_npei_route_template"
+              name="Provider Route Templates"
+              parent="menu_npei_agent_config"
+              action="action_npei_route_template"
+              sequence="16"/>
+
     <menuitem id="menu_npei_discover_models"
               name="Discover Models"
               parent="menu_npei_agent_config"

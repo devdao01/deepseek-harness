@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_npei_route_template_tree" model="ir.ui.view">
+        <field name="name">npei.agent.provider.route.template.tree</field>
+        <field name="model">npei.agent.provider.route.template</field>
+        <field name="arch" type="xml">
+            <tree string="Provider Route Templates">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="route_key"/>
+                <field name="api_protocol"/>
+                <field name="base_url"/>
+                <field name="thinking_format"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_npei_route_template_form" model="ir.ui.view">
+        <field name="name">npei.agent.provider.route.template.form</field>
+        <field name="model">npei.agent.provider.route.template</field>
+        <field name="arch" type="xml">
+            <form string="Provider Route Template">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="route_key"/>
+                            <field name="api_protocol"/>
+                        </group>
+                        <group>
+                            <field name="base_url"/>
+                            <field name="thinking_format"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="note"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_npei_route_template" model="ir.actions.act_window">
+        <field name="name">Provider Route Templates</field>
+        <field name="res_model">npei.agent.provider.route.template</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

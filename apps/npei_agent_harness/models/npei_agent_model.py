@@ -32,10 +32,20 @@ class NpeiAgentModel(models.Model):
     )
     name = fields.Char(string='Name')
     provider = fields.Char(
-        string='Provider',
+        string='Provider ID',
         required=True,
         index=True,
-        help="Provider group id this model belongs to (``group.id``).",
+        help="Provider group id this model belongs to (``group.id``); the raw "
+             "key from llm.models and the unique-constraint partner.",
+    )
+    provider_id = fields.Many2one(
+        'npei.agent.provider',
+        string='Provider Route',
+        index=True,
+        ondelete='set null',
+        help="The provider route this model's group maps to (matched by "
+             "group id == provider id); blank when no provider mirror matches "
+             "yet. Resolved by either sync.",
     )
     description = fields.Text(string='Description')
     active = fields.Boolean(default=True)
@@ -85,6 +95,8 @@ class NpeiAgentModel(models.Model):
             provider = group.get('id')
             if not provider:
                 continue
+            provider_record = self.env['npei.agent.provider'].search(
+                [('provider', '=', provider)], limit=1)
             for model in group.get('models') or []:
                 model_id = model.get('id')
                 if not model_id:
@@ -92,6 +104,7 @@ class NpeiAgentModel(models.Model):
                 vals = {
                     'name': model.get('name') or model_id,
                     'description': model.get('description') or False,
+                    'provider_id': provider_record.id or False,
                 }
                 existing = self.search([
                     ('provider', '=', provider),

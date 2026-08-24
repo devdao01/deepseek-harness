@@ -60,6 +60,12 @@ class NpeiProviderRoute(models.TransientModel):
         help="The pi-ai adapter namespace that owns provider routes. Leave as "
              "llm-pi-ai unless the deployment renamed it.",
     )
+    template_id = fields.Many2one(
+        'npei.agent.provider.route.template',
+        string='From Template',
+        help="Pick a known gateway to pre-fill key/protocol/base URL/thinking "
+             "format; then just enter the API key.",
+    )
     route_key = fields.Char(
         string='Route Key',
         required=True,
@@ -81,8 +87,8 @@ class NpeiProviderRoute(models.TransientModel):
     )
     base_url = fields.Char(
         string='Base URL',
-        required=True,
-        help="Endpoint base, e.g. https://openrouter.ai/api/v1.",
+        help="Endpoint base, e.g. https://openrouter.ai/api/v1. Blank inherits "
+             "the pi-ai catalog endpoint for a provider it already ships.",
     )
     api_key_env = fields.Char(
         string='Credential Reference',
@@ -118,6 +124,19 @@ class NpeiProviderRoute(models.TransientModel):
         """The conventional credential reference for a route (``<KEY>_API_KEY``)."""
         upper = re.sub(r'[^A-Z0-9]+', '_', (route_key or '').upper())
         return '%s_API_KEY' % upper.strip('_')
+
+    @api.onchange('template_id')
+    def _onchange_template_id(self):
+        """Pre-fill the route fields from the chosen template (key stays manual)."""
+        template = self.template_id
+        if not template:
+            return
+        self.route_key = template.route_key
+        self.display_name = template.name
+        self.api_protocol = template.api_protocol
+        self.base_url = template.base_url or False
+        self.thinking_format = template.thinking_format or False
+        self.api_key_env = self._derive_key_ref(template.route_key)
 
     @api.onchange('route_key')
     def _onchange_route_key(self):
@@ -171,7 +190,10 @@ class NpeiProviderRoute(models.TransientModel):
                 "hyphens, starting with a letter or digit.", route_key))
         api_key_env = (self.api_key_env or '').strip() or self._derive_key_ref(route_key)
 
-        profile = {'api': self.api_protocol, 'baseURL': (self.base_url or '').strip()}
+        profile = {'api': self.api_protocol}
+        base_url = (self.base_url or '').strip()
+        if base_url:
+            profile['baseURL'] = base_url
         if self.display_name:
             profile['displayName'] = self.display_name
         if api_key_env:

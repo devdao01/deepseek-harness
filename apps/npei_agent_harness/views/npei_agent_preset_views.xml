@@ -23,6 +23,13 @@
                             string="Sync from Harness" class="btn-primary"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_sessions" type="object"
+                                class="oe_stat_button" icon="fa-comments">
+                            <field name="session_count" widget="statinfo"
+                                   string="Sessions"/>
+                        </button>
+                    </div>
                     <group>
                         <field name="name" placeholder="e.g. Hồ Sơ X"/>
                     </group>
