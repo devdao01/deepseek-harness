@@ -147,6 +147,7 @@ escape or executable files, 404, 400) relay verbatim.
 | `npei.agent.model` | LLM model catalog mirror. `model_id`, `provider` (group id), `name`, `description`, `active`; `unique(provider, model_id)`. `action_sync_from_harness()` upserts each group's models from `llm.models`; group `failures` are logged as a warning. |
 | `npei.agent.setting` | Settings-namespace mirror + whole-section replace. `ns` (unique), `applies` (`live`/`restart`), `has_document`, `revision`, `value_json` (redacted resolved value, read-only), `user_json` (raw user section, editable). `action_sync_from_harness()` upserts from `settings.describe`; `action_save()` parses `user_json` and pushes `settings.replace({ns, section, expectedRevision})`, refusing a stale revision with a re-sync hint. Manager-only writes. |
 | `npei.agent.discover.models` | Transient wizard. `settings_ns` (required), `provider`, `base_url`, `api`, `api_key` (write-only), `result_text` (read-only). `action_discover()` sends `llm.discoverModels({settingsNs, …non-blank keys})` and formats the returned models; adoption is done through `npei.agent.setting`. Manager-only. |
+| `npei.agent.host.status` | Transient read-only ops panel. `version`, `cwd`, `provider`, `model`, `attached_sessions`, `can_open_path` (all read-only). Opening it (`default_get`) and the **Refresh** button both call `host.describe({})` and map the snapshot; nothing is configurable. Absent optional `provider`/`model` map to blank. Manager-only. |
 | `res.config.settings` | Inherits to surface the two config keys in Settings. |
 
 The harness stays the source of truth for live data; these models are the
@@ -211,6 +212,7 @@ with the server-side full token. Each action maps to one harness method:
 | `npei.agent.discover.models.action_discover` | `llm.discoverModels({settingsNs, provider?, baseURL?, api?, apiKey?})` (blank optional keys omitted) |
 | `npei.agent.setting.action_sync_from_harness` | `settings.describe({})` |
 | `npei.agent.setting.action_save` | `settings.replace({ns, section, expectedRevision})` |
+| `npei.agent.host.status.action_refresh` / `default_get` | `host.describe({})` |
 
 Reach these under **MTIL Agent** (Providers, Models are user-readable;
 Credentials, Settings, and the Configuration → Discover Models / Sync … menus are

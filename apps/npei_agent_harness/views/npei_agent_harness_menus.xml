@@ -61,6 +61,12 @@
               action="action_npei_agent_config_settings"
               sequence="10"/>
 
+    <menuitem id="menu_npei_host_status"
+              name="Harness Host Status"
+              parent="menu_npei_agent_config"
+              action="action_npei_host_status"
+              sequence="12"/>
+
     <menuitem id="menu_npei_discover_models"
               name="Discover Models"
               parent="menu_npei_agent_config"

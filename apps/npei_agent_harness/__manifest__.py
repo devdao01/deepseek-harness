@@ -38,6 +38,7 @@ This module provides:
         'views/npei_agent_setting_views.xml',
         'views/res_config_settings_views.xml',
         'wizard/npei_discover_models_views.xml',
+        'wizard/npei_host_status_views.xml',
         'views/npei_agent_harness_menus.xml',
     ],
     'installable': True,

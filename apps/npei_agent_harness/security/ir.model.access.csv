@@ -13,3 +13,4 @@ access_npei_agent_model_manager,npei.agent.model manager,model_npei_agent_model,
 access_npei_agent_setting_user,npei.agent.setting user,model_npei_agent_setting,npei_agent_harness.group_npei_agent_user,1,0,0,0
 access_npei_agent_setting_manager,npei.agent.setting manager,model_npei_agent_setting,npei_agent_harness.group_npei_agent_manager,1,1,1,1
 access_npei_agent_discover_models_manager,npei.agent.discover.models manager,model_npei_agent_discover_models,npei_agent_harness.group_npei_agent_manager,1,1,1,1
+access_npei_agent_host_status_manager,npei.agent.host.status manager,model_npei_agent_host_status,npei_agent_harness.group_npei_agent_manager,1,1,1,1

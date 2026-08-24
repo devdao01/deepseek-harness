@@ -7,7 +7,7 @@ test user is granted the NPEI Agent Manager group in setUp.
 """
 from unittest.mock import patch
 
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 from odoo.tests.common import TransactionCase
 
 
@@ -55,6 +55,15 @@ class TestConfigManagement(TransactionCase):
                     }],
                     'failures': [{'id': 'broken', 'name': 'Broken',
                                   'message': 'boom'}],
+                }
+            if method == 'host.describe':
+                return {
+                    'version': '17.0.0',
+                    'cwd': '/home/dsh',
+                    'provider': 'deepseek',
+                    'model': 'deepseek-chat',
+                    'attachedSessions': 3,
+                    'canOpenPath': False,
                 }
             if method == 'llm.discoverModels':
                 return {'models': [
@@ -209,6 +218,60 @@ class TestConfigManagement(TransactionCase):
         self.assertIn('Model One', wizard.result_text)
         self.assertEqual(action['res_model'], 'npei.agent.discover.models')
         self.assertEqual(action['res_id'], wizard.id)
+
+    # ------------------------------------------------------------------
+    # Host status panel
+    # ------------------------------------------------------------------
+    def test_host_status_refresh_maps_describe(self):
+        panel = self.env['npei.agent.host.status'].create({})
+        self._calls.clear()
+
+        action = panel.action_refresh()
+
+        self.assertEqual(self._calls_for('host.describe'), [{}])
+        self.assertEqual(panel.version, '17.0.0')
+        self.assertEqual(panel.cwd, '/home/dsh')
+        self.assertEqual(panel.provider, 'deepseek')
+        self.assertEqual(panel.model, 'deepseek-chat')
+        self.assertEqual(panel.attached_sessions, 3)
+        self.assertFalse(panel.can_open_path)
+        self.assertEqual(action['res_model'], 'npei.agent.host.status')
+        self.assertEqual(action['res_id'], panel.id)
+
+    def test_host_status_default_get_fetches_snapshot(self):
+        defaults = self.env['npei.agent.host.status'].default_get(
+            ['version', 'attached_sessions', 'can_open_path'])
+
+        self.assertEqual(self._calls_for('host.describe'), [{}])
+        self.assertEqual(defaults['version'], '17.0.0')
+        self.assertEqual(defaults['attached_sessions'], 3)
+        self.assertFalse(defaults['can_open_path'])
+
+    def test_host_status_absent_default_model_maps_blank(self):
+        # A host with no explicit default omits provider/model; they map blank.
+        original = self._calls
+
+        def describe_without_default(model, method, payload=None):
+            original.append((method, payload))
+            if method == 'host.describe':
+                return {'version': '17.0.0', 'cwd': '/home/dsh',
+                        'attachedSessions': 0, 'canOpenPath': True}
+            return {}
+
+        client_cls = type(self.env['npei.agent.harness.client'])
+        with patch.object(client_cls, '_rpc', describe_without_default):
+            panel = self.env['npei.agent.host.status'].create({})
+            panel.action_refresh()
+
+        self.assertFalse(panel.provider)
+        self.assertFalse(panel.model)
+        self.assertTrue(panel.can_open_path)
+
+    def test_host_status_denied_for_non_manager(self):
+        plain = self.env['res.users'].browse(15)  # an existing non-manager user
+        with self.assertRaises(AccessError):
+            self.env['npei.agent.host.status'].with_user(
+                plain)._describe_values()
 
     # ------------------------------------------------------------------
     # Settings namespaces
