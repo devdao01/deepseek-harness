@@ -33,9 +33,6 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Stable Cordis plugin/service name. */
-export const name = 'session-access'
-
 /** Unique, order-stable copy of the ids, so the stored array carries no duplicates. */
 function uniqueUserIds(userIds: readonly UserId[]): UserId[] {
   return [...new Set(userIds)]
