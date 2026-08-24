@@ -30,9 +30,10 @@ class NpeiDiscoverModels(models.TransientModel):
         string='Base URL',
         help="Optional base URL override for the probe endpoint.",
     )
-    api = fields.Char(
+    api_type = fields.Char(
         string='API',
-        help="Optional provider API flavour override.",
+        help="Optional provider API flavour override (sent as the `api` param). "
+             "Named api_type so it does not shadow the odoo `api` module.",
     )
     api_key = fields.Char(
         string='API Key',
@@ -86,8 +87,8 @@ class NpeiDiscoverModels(models.TransientModel):
             payload['provider'] = self.provider
         if self.base_url:
             payload['baseURL'] = self.base_url
-        if self.api:
-            payload['api'] = self.api
+        if self.api_type:
+            payload['api'] = self.api_type
         if self.api_key:
             payload['apiKey'] = self.api_key
         value = self.env['npei.agent.harness.client'].sudo()._rpc(

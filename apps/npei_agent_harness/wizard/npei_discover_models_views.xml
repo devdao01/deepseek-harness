@@ -13,7 +13,7 @@
                         </group>
                         <group>
                             <field name="base_url"/>
-                            <field name="api"/>
+                            <field name="api_type"/>
                             <field name="api_key" password="True"/>
                         </group>
                     </group>
