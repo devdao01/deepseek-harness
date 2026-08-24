@@ -142,6 +142,11 @@ escape or executable files, 404, 400) relay verbatim.
 | `npei.agent.session` | Odoo-side ACL. `session_id` (unique, **auto-created**), `name`, `user_ids` (allowed), `preset_id`, `workspace_path`, `active`, plus Odoo's `create_uid`/`create_date`/`write_date`. Choosing a preset defaults `workspace_path` from the preset mirror's recorded `workspace_path` (the absolute `<presetWorkspacesRoot>/<preset id>` the harness provisioned — no re-slugging in Odoo). Saving without a `session_id` calls harness `session.create` (`cwd`=`workspace_path`, `agentPreset`=preset key) and fills the returned id; a blank workspace lets the harness derive it from the preset. A provided id adopts an existing session. Access is defined by `user_ids`; `create_uid` (the creator) is always allowed for Odoo visibility. Helper `_user_can_access(session_id, user)`. SQL `unique(session_id)`. |
 | `npei.agent.preset` | Preset mirror **+ authoring**. `preset_id` (unique, **auto**), `name`, `description`, `workspace_path`, `trust` (`system`/`user`), `active`. Creating a record with only a `name` (no `preset_id`) authors it on the harness: `agentPreset.copy(from=<default>, agentPreset=_slugify(name), name)` — `_slugify` strips Vietnamese diacritics to a hyphen id the harness accepts (`'Hồ Sơ X'`→`ho-so-x`), the provisioned `workspace.path` is stored, `trust` is `user`. `name`/`description` are pushed to the harness via `agentPreset.update` on create and on write (the copy carries no description); editing them in Odoo updates the preset's `preset.yml`. A slug already taken on the harness (e.g. an orphan from an earlier failed create) is rejected up front with a clear message pointing at Sync, not the raw `agent-preset-invalid`; the post-copy display push is best-effort so a transient failure never rolls the record back and orphans the harness copy. A record given a `preset_id` mirrors/adopts; `action_sync_from_harness()` upserts from `agentPreset.list` (with `npei_syncing` so mirrored values are not echoed back). |
 | `npei.agent.skill` | Skill mirror. `skill_key` (unique), `name`, `description`, `source`, `active`. `action_sync_from_harness()` upserts from `skill.list`. |
+| `npei.agent.credential` | Credential-reference mirror + write-only set/unset. `ref` (unique), `configured`/`source`/`writable` (read-only, from `credentials.describe`), `value` (write-only, `store=False`, never persisted). `action_sync_from_harness()` describes every ref; `action_set_value()` pushes `credentials.set({ref, value})` then re-describes and blanks the value; `action_unset()` pushes `credentials.unset({ref})` then re-describes. Manager-only. |
+| `npei.agent.provider` | LLM provider mirror. `provider` (unique), `display_name`, `settings_ns`, `settings_path` (the harness `settingsPath` joined with `/`), `route_active` (harness `active`), `declared`, Odoo `active` (archive). `action_sync_from_harness()` upserts from `llm.providers`. |
+| `npei.agent.model` | LLM model catalog mirror. `model_id`, `provider` (group id), `name`, `description`, `active`; `unique(provider, model_id)`. `action_sync_from_harness()` upserts each group's models from `llm.models`; group `failures` are logged as a warning. |
+| `npei.agent.setting` | Settings-namespace mirror + whole-section replace. `ns` (unique), `applies` (`live`/`restart`), `has_document`, `revision`, `value_json` (redacted resolved value, read-only), `user_json` (raw user section, editable). `action_sync_from_harness()` upserts from `settings.describe`; `action_save()` parses `user_json` and pushes `settings.replace({ns, section, expectedRevision})`, refusing a stale revision with a re-sync hint. Manager-only writes. |
+| `npei.agent.discover.models` | Transient wizard. `settings_ns` (required), `provider`, `base_url`, `api`, `api_key` (write-only), `result_text` (read-only). `action_discover()` sends `llm.discoverModels({settingsNs, …non-blank keys})` and formats the returned models; adoption is done through `npei.agent.setting`. Manager-only. |
 | `res.config.settings` | Inherits to surface the two config keys in Settings. |
 
 The harness stays the source of truth for live data; these models are the
@@ -188,6 +193,47 @@ Odoo-side management + ACL layer only.
 > exists yet. `SkillEntry` carries only `{name, description, whenToUse?,
 > modelInvocable}` — `skill_key`/`name` map to `name`, and `source` is populated
 > from `whenToUse` (there is no dedicated key/source on the wire).
+
+---
+
+## Config-plane management (credentials, providers, models, settings)
+
+The config-plane models let a manager drive the harness configuration from Odoo
+with the server-side full token. Each action maps to one harness method:
+
+| Odoo action | Harness method + payload |
+|---|---|
+| `npei.agent.credential.action_sync_from_harness` | `credentials.describe({refs: [all mirror refs]})` |
+| `npei.agent.credential.action_set_value` | `credentials.set({ref, value})`, then `credentials.describe({refs: [ref]})` |
+| `npei.agent.credential.action_unset` | `credentials.unset({ref})`, then `credentials.describe({refs: [ref]})` |
+| `npei.agent.provider.action_sync_from_harness` | `llm.providers({})` |
+| `npei.agent.model.action_sync_from_harness` | `llm.models({})` |
+| `npei.agent.discover.models.action_discover` | `llm.discoverModels({settingsNs, provider?, baseURL?, api?, apiKey?})` (blank optional keys omitted) |
+| `npei.agent.setting.action_sync_from_harness` | `settings.describe({})` |
+| `npei.agent.setting.action_save` | `settings.replace({ns, section, expectedRevision})` |
+
+Reach these under **MTIL Agent** (Providers, Models are user-readable;
+Credentials, Settings, and the Configuration → Discover Models / Sync … menus are
+manager-only). Each syncable model has an `ir.actions.server` behind a
+Configuration menu item so a sync can run even when the list is empty.
+
+> **Deployment note — unpin the config methods.** Odoo reaches these with the
+> harness full token, so the harness deployment must **unpin** `credentials.*`,
+> `settings.*`, and `llm.discoverModels`. The model-catalog reads `llm.providers`
+> and `llm.models` are not pinned. Secrets (the credential `value` and the
+> discover `api_key`) are write-only, non-stored Odoo fields — they are never
+> persisted in an Odoo column, only forwarded to the harness.
+
+### Ghi chú (vi)
+
+Nhóm model config-plane cho phép **NPEI Agent Manager** quản lý cấu hình harness
+ngay trong Odoo bằng full token phía máy chủ: credential (`credentials.*`),
+provider/model (`llm.providers`/`llm.models`), dò tìm model
+(`llm.discoverModels`) và settings namespace (`settings.describe`/`replace`).
+Bí mật (`value` của credential, `api_key` khi dò model) là trường **write-only,
+không lưu** trong Odoo — chỉ chuyển tiếp cho harness. Deployment harness phải
+**unpin** `credentials.*`, `settings.*` và `llm.discoverModels` để full token của
+Odoo gọi được.
 
 ---
 

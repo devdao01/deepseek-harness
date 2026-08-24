@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_npei_agent_provider_tree" model="ir.ui.view">
+        <field name="name">npei.agent.provider.tree</field>
+        <field name="model">npei.agent.provider</field>
+        <field name="arch" type="xml">
+            <tree string="Providers">
+                <field name="provider"/>
+                <field name="display_name"/>
+                <field name="settings_ns"/>
+                <field name="route_active"/>
+                <field name="declared"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_npei_agent_provider_form" model="ir.ui.view">
+        <field name="name">npei.agent.provider.form</field>
+        <field name="model">npei.agent.provider</field>
+        <field name="arch" type="xml">
+            <form string="Provider">
+                <header>
+                    <button name="action_sync_from_harness" type="object"
+                            string="Sync from Harness" class="btn-primary"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="provider" readonly="1"/>
+                            <field name="display_name" readonly="1"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="settings_ns" readonly="1"/>
+                            <field name="settings_path" readonly="1"/>
+                            <field name="route_active" readonly="1"/>
+                            <field name="declared" readonly="1"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_npei_agent_provider" model="ir.actions.act_window">
+        <field name="name">Providers</field>
+        <field name="res_model">npei.agent.provider</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <!-- Server action so the sync can run from a menu when the list is empty. -->
+    <record id="action_npei_sync_providers" model="ir.actions.server">
+        <field name="name">Sync Providers from Harness</field>
+        <field name="model_id" ref="model_npei_agent_provider"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_sync_from_harness()</field>
+    </record>
+</odoo>

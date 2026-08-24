@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'NPEI Agent Harness',
-    'version': '17.0.1.0.0',
+    'version': '17.0.1.1.0',
     'summary': 'Odoo gateway and session ACL for the DeepSeek Harness backend',
     'description': """
 NPEI Agent Harness
@@ -32,7 +32,12 @@ This module provides:
         'views/npei_agent_session_views.xml',
         'views/npei_agent_preset_views.xml',
         'views/npei_agent_skill_views.xml',
+        'views/npei_agent_credential_views.xml',
+        'views/npei_agent_provider_views.xml',
+        'views/npei_agent_model_views.xml',
+        'views/npei_agent_setting_views.xml',
         'views/res_config_settings_views.xml',
+        'wizard/npei_discover_models_views.xml',
         'views/npei_agent_harness_menus.xml',
     ],
     'installable': True,
