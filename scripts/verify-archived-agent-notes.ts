@@ -50,6 +50,9 @@ for (const entry of readdirSync(archiveRoot, { withFileTypes: true })) {
       errors.push(`${rel}: archived kind directories contain regular files only`)
       continue
     }
+    // A Vietnamese counterpart (foo.vi.md) is a translation sidecar, not a sealed
+    // archive artifact: the triplet and manifest-seal rules do not apply to it.
+    if (child.name.endsWith('.vi.md')) continue
     artifacts.set(rel, readFileSync(resolve(archiveRoot, rel)))
   }
 }
