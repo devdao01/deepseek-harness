@@ -196,3 +196,54 @@ class TestSessionAccessSync(TransactionCase):
         self.assertEqual(calls[0], {'sessionId': 'session-old', 'userIds': []})
         self.assertEqual(calls[1]['sessionId'], 'session-new')
         self.assertEqual(calls[1]['userIds'], [str(self.user_a.id)])
+
+
+class TestSessionUserCanAccess(TransactionCase):
+    """`_user_can_access`: restricted to the allowed set, public when it is empty."""
+
+    def setUp(self):
+        super().setUp()
+        self.Session = self.env['npei.agent.session']
+        self.user_a = self.env['res.users'].browse(2)
+        self.user_b = self.env['res.users'].browse(15)
+        self.assertTrue(self.user_a.exists() and self.user_b.exists(),
+                        "test expects res.users id 2 and 15 to exist")
+        # Mock the harness client so create/write never make a real RPC.
+        client_cls = type(self.env['npei.agent.harness.client'])
+
+        def fake_rpc(model, method, payload=None):
+            if method == 'session.create':
+                return {'sessionId': 'session-generated'}
+            return {'userIds': (payload or {}).get('userIds', [])}
+
+        patcher = patch.object(client_cls, '_rpc', fake_rpc)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_restricted_session_denies_non_member(self):
+        # Arrange: an allowed set that excludes user_b.
+        self.Session.create({
+            'session_id': 'session-restricted',
+            'user_ids': [(6, 0, [self.user_a.id])],
+        })
+
+        # Act / Assert: the listed user is allowed, an outsider is not.
+        self.assertTrue(self.Session._user_can_access('session-restricted', self.user_a))
+        self.assertFalse(self.Session._user_can_access('session-restricted', self.user_b))
+
+    def test_empty_allowed_set_is_public(self):
+        # Arrange: a mapping with no Allowed Users.
+        self.Session.create({
+            'session_id': 'session-public',
+            'user_ids': [(6, 0, [])],
+        })
+
+        # Act / Assert: any user may use it — including one who is not the creator.
+        self.assertTrue(self.Session._user_can_access('session-public', self.user_a))
+        self.assertTrue(self.Session._user_can_access('session-public', self.user_b))
+
+    def test_unmapped_session_denied_to_non_manager(self):
+        # A session id with no mapping stays fail-closed for a plain user.
+        plain = self.user_b
+        self.assertFalse(plain.has_group('npei_agent_harness.group_npei_agent_manager'))
+        self.assertFalse(self.Session._user_can_access('session-unknown', plain))

@@ -12,12 +12,19 @@ drive it. Two enforcement planes stay in sync:
   pushed ids are ``str(res.users.id)`` and MUST equal the ``u`` claim the ticket
   minter signs (same user-id space).
 
-Access is defined entirely by ``user_ids``. Pushing sends exactly that set (not
-the creator): a manager configuring a mapping for other users is not itself
-granted runtime access unless listed. An archived mapping, or an unlink, pushes
-an empty set (revoke all). Harness sync is fail-loud: an unreachable harness
-raises and rolls the Odoo write back rather than leaving the two planes
-divergent; :meth:`action_push_access` re-pushes on demand.
+Access is defined entirely by ``user_ids``. A non-empty set restricts the
+session to those users (plus the creator); an EMPTY set makes it public — every
+Odoo user may see and use it through the proxy (which authenticates to the
+harness with the full token, so ``canRead`` always passes). Pushing sends
+exactly ``user_ids`` (not the creator): a manager configuring a mapping for
+other users is not itself granted runtime access unless listed. An archived
+mapping, an unlink, or a public (empty) mapping pushes an empty set to the
+harness — which the harness ticket plane reads as "revoke all per-user ticket
+access". That asymmetry is intentional: "public" applies to the Odoo-proxied
+path, and a browser talking to the harness DIRECTLY with a per-user ticket
+stays fail-closed. Harness sync is fail-loud: an unreachable harness raises and
+rolls the Odoo write back rather than leaving the two planes divergent;
+:meth:`action_push_access` re-pushes on demand.
 """
 import logging
 
@@ -52,7 +59,9 @@ class NpeiAgentSession(models.Model):
         'user_id',
         string='Allowed Users',
         help="Users allowed to access this session. The record creator "
-             "(create_uid) is always allowed even when absent from this list.",
+             "(create_uid) is always allowed even when absent from this list. "
+             "Leave empty to make the session public — every user may see and "
+             "use it.",
     )
     preset_id = fields.Many2one(
         'npei.agent.preset',
@@ -74,9 +83,11 @@ class NpeiAgentSession(models.Model):
     def _user_can_access(self, session_id, user):
         """Return whether ``user`` may act on the harness ``session_id``.
 
-        Access is granted when the user is an NPEI Agent Manager, created the
-        mapping (``create_uid``), or is listed in ``user_ids``. Fails closed: an
-        unmapped session id is denied to non-managers.
+        Access is granted when the user is an NPEI Agent Manager, the mapping
+        has an empty ``user_ids`` (public — any user may use it), the user
+        created the mapping (``create_uid``), or the user is listed in
+        ``user_ids``. Fails closed: an unmapped session id is denied to
+        non-managers.
 
         :param str session_id: the harness session id from a call payload.
         :param user: a ``res.users`` recordset (singleton).
@@ -87,6 +98,8 @@ class NpeiAgentSession(models.Model):
         record = self.sudo().search([('session_id', '=', session_id)], limit=1)
         if not record:
             return False
+        if not record.user_ids:
+            return True
         return user == record.create_uid or user in record.user_ids
 
     # ------------------------------------------------------------------
@@ -96,8 +109,10 @@ class NpeiAgentSession(models.Model):
         """Return the allowed set to push to the harness, as wire strings.
 
         Exactly ``user_ids`` (each ``res.users.id`` as a string), or the empty
-        list for an archived mapping — which the harness reads as "revoke all
-        per-user access".
+        list for an archived mapping OR a public (empty ``user_ids``) one —
+        which the harness reads as "revoke all per-user ticket access". A public
+        session stays reachable through the Odoo proxy (full token); see the
+        module docstring for why the two planes differ here.
         """
         self.ensure_one()
         if not self.active:
