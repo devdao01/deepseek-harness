@@ -17,6 +17,10 @@
                                  help="Bearer token for the harness (~/.dsh/api-token on the harness host). Never exposed to the browser.">
                             <field name="npei_harness_api_token" password="True"/>
                         </setting>
+                        <setting string="Ticket Secret"
+                                 help="Shared HMAC-SHA256 secret (>= 32 chars) the MTIL Flask API signs per-user tickets with; must equal the harness DSH_TICKET_SECRET. Never exposed to the browser.">
+                            <field name="npei_harness_ticket_secret" password="True"/>
+                        </setting>
                         <setting string="Connection"
                                  help="Ping the harness (host.describe) with the saved URL and token.">
                             <button name="action_test_harness_connection"

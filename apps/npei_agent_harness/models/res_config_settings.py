@@ -28,6 +28,13 @@ class ResConfigSettings(models.TransientModel):
         help="Bearer token for the harness. On the harness host it lives at "
              "~/.dsh/api-token. Never exposed to the browser.",
     )
+    npei_harness_ticket_secret = fields.Char(
+        string='Ticket Secret',
+        config_parameter='npei_agent_harness.ticket_secret',
+        help="Shared HMAC-SHA256 secret (>= 32 chars) the MTIL Flask API signs "
+             "per-user tickets with; MUST equal the harness DSH_TICKET_SECRET. "
+             "The Flask API reads it from this parameter. Never exposed to the browser.",
+    )
 
     def action_test_harness_connection(self):
         """Ping the harness with the saved settings and report the result.

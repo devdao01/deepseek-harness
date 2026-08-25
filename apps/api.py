@@ -21,11 +21,18 @@ The cookie is ``HttpOnly; Secure; SameSite=Strict; Path=/api``:
 * ``HttpOnly`` — page scripts cannot read it, so XSS cannot exfiltrate the ticket.
 * ``SameSite=Strict`` — never sent on cross-site requests, which (together with
   the harness Origin===Host fence) closes the CSRF that ambient cookies invite.
+  Strict still rides same-site requests, so it holds across subdomains of one
+  registrable domain (below).
 * ``Secure`` — HTTPS only. On a plain-HTTP LAN set ``DSH_TICKET_COOKIE_SECURE=0``
   until TLS is in front; re-enable it in production.
-* Same-origin deployment is REQUIRED: MTIL, the harness, and the SPA must share
-  one origin (nginx maps ``/api/mtil/*`` here and the rest of ``/api`` to the
-  harness) or the cookie never reaches the harness.
+* ``Domain`` — host-only by default, which fits ONE shared origin. When MTIL and
+  the harness sit on SIBLING subdomains (e.g. MTIL at ``mtil.mtil.vn`` serving
+  ``/api/mtil/*``, the harness+SPA at ``mtilai.mtil.vn``), set
+  ``DSH_TICKET_COOKIE_DOMAIN=.mtil.vn`` so the browser also sends the ticket to
+  the harness subdomain; a host-only cookie never leaves the host that set it.
+* Origin sharing is REQUIRED at the registrable-domain level: MTIL, the harness,
+  and the SPA either share one origin, OR sit on subdomains of one parent with
+  ``DSH_TICKET_COOKIE_DOMAIN`` set — otherwise the cookie never reaches the harness.
 
 Ticket wire format (must match ``@deepseek-ai/dsh-user-ticket`` exactly):
 
@@ -38,8 +45,11 @@ Ticket wire format (must match ``@deepseek-ai/dsh-user-ticket`` exactly):
 
 Two hard requirements for interop:
 
-1. ``TICKET_SECRET`` here MUST equal the harness ``DSH_TICKET_SECRET`` (>= 32
-   chars). Keep it out of source; load it from the environment / secret store.
+1. The ticket secret here MUST equal the harness ``DSH_TICKET_SECRET`` (>= 32
+   chars). It lives in Odoo ``ir.config_parameter``
+   (``npei_agent_harness.ticket_secret``, Settings > MTIL Agent) read back over
+   the shared database; ``DSH_TICKET_SECRET`` in the environment is the dev
+   fallback. Never in source.
 2. The ``user_id`` placed in the ticket MUST be the SAME identifier the session
    ACL is keyed by on the harness side (whatever populates
    ``dsh-session-access`` with the allowed users). A ticket only proves WHO the
@@ -60,8 +70,15 @@ from flask import Blueprint, jsonify, make_response, request
 # Configuration (load real values from the environment / secret store)
 # --------------------------------------------------------------------------- #
 
-#: Shared HMAC-SHA256 secret; identical to the harness ``DSH_TICKET_SECRET``.
-TICKET_SECRET = os.environ.get("DSH_TICKET_SECRET", "")
+#: Odoo Postgres DSN. MTIL and Odoo share one database, so the ticket secret has
+#: a single source of truth in ``ir.config_parameter`` (Odoo Settings > MTIL
+#: Agent) that this API reads back. e.g. ``postgresql://odoo:pass@127.0.0.1:5432/odoo``.
+ODOO_DATABASE_URL = os.environ.get("ODOO_DATABASE_URL", "")
+
+#: ``ir.config_parameter`` key holding the shared HMAC-SHA256 ticket secret
+#: (identical to the harness ``DSH_TICKET_SECRET``). Matches the Odoo module's
+#: ``res.config.settings`` field ``npei_harness_ticket_secret``.
+TICKET_SECRET_PARAM = os.environ.get("DSH_TICKET_SECRET_PARAM", "npei_agent_harness.ticket_secret")
 
 #: Minimum secret length the harness enforces; fail loud rather than mint weak tickets.
 MIN_TICKET_SECRET_LENGTH = 32
@@ -86,13 +103,19 @@ TICKET_COOKIE_PATH = "/api"
 #: ``DSH_TICKET_COOKIE_SECURE=0`` for a plain-HTTP LAN until TLS is in front.
 COOKIE_SECURE = os.environ.get("DSH_TICKET_COOKIE_SECURE", "1") not in ("0", "false", "False", "")
 
+#: Cookie ``Domain`` attribute. Empty = host-only (one shared origin). Set a
+#: shared parent like ``.mtil.vn`` when MTIL and the harness are on sibling
+#: subdomains, so the ticket reaches the harness subdomain too.
+TICKET_COOKIE_DOMAIN = os.environ.get("DSH_TICKET_COOKIE_DOMAIN", "") or None
+
 #: Harness ``/api`` base URL this API calls SERVER-SIDE with the full token to
 #: create sessions and grant their creator. Never exposed to the browser.
 HARNESS_BASE_URL = os.environ.get("DSH_HARNESS_BASE_URL", "http://127.0.0.1:3080").rstrip("/")
 
-#: Full harness API token (``~/.dsh/api-token`` on the harness host). Server-side
-#: secret; grants unscoped access, so it must NEVER reach the browser.
-HARNESS_API_TOKEN = os.environ.get("DSH_HARNESS_API_TOKEN", "")
+#: Full harness API token (``~/.dsh/api-token`` on the harness host); the same
+#: ``DSH_API_TOKEN`` the harness itself reads. Server-side secret; grants unscoped
+#: access, so it must NEVER reach the browser.
+HARNESS_API_TOKEN = os.environ.get("DSH_API_TOKEN", "")
 
 #: Seconds before a server-side harness call is abandoned.
 HARNESS_RPC_TIMEOUT = 30
@@ -126,19 +149,56 @@ def sign_ticket(user_id: str, exp: int, secret: str) -> str:
     return "%s.%s" % (signing_input, _b64url_nopad(mac))
 
 
+def _odoo_config_param(key: str) -> str:
+    """Read one ``ir.config_parameter`` value from the shared Odoo database.
+
+    The Odoo Settings screen writes ``ir_config_parameter``; this API reads it
+    back so the secret has one home. Returns ``""`` when no DSN is configured or
+    the key is unset. Fails loud on a genuine DB/driver error rather than minting
+    with a silently-empty secret.
+
+    :param key: the ``ir.config_parameter`` key.
+    :returns: the stored value, or ``""`` when unavailable.
+    """
+    if not ODOO_DATABASE_URL:
+        return ""
+    import psycopg2  # lazy: only the ir.config_parameter path needs the driver
+
+    conn = psycopg2.connect(ODOO_DATABASE_URL)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT value FROM ir_config_parameter WHERE key = %s", (key,))
+            row = cur.fetchone()
+    finally:
+        conn.close()
+    return (row[0] if row else "") or ""
+
+
+def _ticket_secret() -> str:
+    """Resolve the shared ticket secret: Odoo ``ir.config_parameter`` first.
+
+    Production keeps it in ``ir.config_parameter`` (Settings > MTIL Agent), so
+    rotating it in Odoo takes effect here with no redeploy. ``DSH_TICKET_SECRET``
+    in the environment is the fallback for standalone/dev runs with no Odoo DB.
+    """
+    return _odoo_config_param(TICKET_SECRET_PARAM).strip() or os.environ.get("DSH_TICKET_SECRET", "").strip()
+
+
 def mint_ticket(user_id: str) -> "tuple[str, int]":
     """Mint a fresh ticket for ``user_id``, returning ``(ticket, expires_at)``.
 
     :raises RuntimeError: when the secret is missing or shorter than the minimum
         the harness accepts — minting a rejectable ticket is never useful.
     """
-    if len(TICKET_SECRET) < MIN_TICKET_SECRET_LENGTH:
+    secret = _ticket_secret()
+    if len(secret) < MIN_TICKET_SECRET_LENGTH:
         raise RuntimeError(
-            "DSH_TICKET_SECRET is unset or shorter than %d characters; cannot mint a ticket"
-            % MIN_TICKET_SECRET_LENGTH
+            "The ticket secret (ir.config_parameter %s / DSH_TICKET_SECRET) is unset "
+            "or shorter than %d characters; cannot mint a ticket"
+            % (TICKET_SECRET_PARAM, MIN_TICKET_SECRET_LENGTH)
         )
     expires_at = int(time.time()) + TICKET_TTL_SECONDS
-    return sign_ticket(user_id, expires_at, TICKET_SECRET), expires_at
+    return sign_ticket(user_id, expires_at, secret), expires_at
 
 
 # --------------------------------------------------------------------------- #
@@ -184,12 +244,17 @@ def _set_ticket_cookie(response, ticket: str, max_age: int):
         secure=COOKIE_SECURE,
         samesite="Strict",
         path=TICKET_COOKIE_PATH,
+        domain=TICKET_COOKIE_DOMAIN,
     )
 
 
 def _clear_ticket_cookie(response):
-    """Drop any stale ticket cookie so a rejected caller keeps no credential."""
-    response.delete_cookie(TICKET_COOKIE_NAME, path=TICKET_COOKIE_PATH)
+    """Drop any stale ticket cookie so a rejected caller keeps no credential.
+
+    Passes the same ``domain`` as the set path — a delete whose Domain differs
+    from the cookie's own leaves the original standing.
+    """
+    response.delete_cookie(TICKET_COOKIE_NAME, path=TICKET_COOKIE_PATH, domain=TICKET_COOKIE_DOMAIN)
 
 
 # --------------------------------------------------------------------------- #
@@ -212,7 +277,7 @@ def _harness_rpc(method: str, payload: dict) -> dict:
         business ``result.ok == false``.
     """
     if not HARNESS_API_TOKEN:
-        raise HarnessError("DSH_HARNESS_API_TOKEN is unset")
+        raise HarnessError("DSH_API_TOKEN is unset")
     envelope = {
         "type": "client-request",
         "rpcId": str(uuid.uuid4()),
@@ -322,6 +387,6 @@ if __name__ == "__main__":
     # Print one sample ticket so its format can be cross-checked against the
     # harness verifier. Uses a fixed demo user; real requests resolve the user
     # from the session cookie.
-    demo_secret = TICKET_SECRET or ("x" * MIN_TICKET_SECRET_LENGTH)
+    demo_secret = _ticket_secret() or ("x" * MIN_TICKET_SECRET_LENGTH)
     demo_exp = int(time.time()) + TICKET_TTL_SECONDS
     print(sign_ticket("42", demo_exp, demo_secret))

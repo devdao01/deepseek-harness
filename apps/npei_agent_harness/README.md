@@ -36,6 +36,7 @@ screens driven by `get_config`) and the realtime event proxy are later phases.
 |---|---|---|
 | **Base URL** | `npei_agent_harness.base_url` | e.g. `https://harness.internal:8787`. The gateway appends `/api/<method>`. No trailing slash needed. |
 | **API Token** | `npei_agent_harness.api_token` | The harness Bearer token. On the harness host: `cat ~/.dsh/api-token`. Stored server-side only. |
+| **Ticket Secret** | `npei_agent_harness.ticket_secret` | Shared HMAC-SHA256 secret (≥ 32 chars) the MTIL Flask API (`apps/api.py`) signs per-user tickets with; must equal the harness `DSH_TICKET_SECRET`. The Flask API reads it from this parameter over the shared database. Stored server-side only. |
 
 If either value is unset, every proxy call fails loud with **HTTP 502**
 (`harness-not-configured`) and the sync actions raise a `UserError`.
