@@ -9,6 +9,7 @@ is never stored in an Odoo column: :attr:`value` is popped from the create/write
 vals BEFORE the row is written, pushed to the harness, and always reads back blank.
 """
 import logging
+import uuid
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
@@ -20,32 +21,33 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 
 class NpeiAgentCredential(models.Model):
     _name = 'npei.agent.credential'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'DeepSeek Harness Credential Reference'
-    _order = 'ref'
+    _order = 'seq, ref'
 
     ref = fields.Char(
         string='Reference',
         required=True,
         index=True,
-        copy=False,
+        copy=False, tracking=True,
         help="Credential reference key owned by the harness, e.g. "
              "``DEEPSEEK_API_KEY``.",
     )
     configured = fields.Boolean(
         string='Configured',
-        readonly=True,
+        readonly=True, tracking=True,
         help="Whether the harness holds a value for this ref (reported by "
              "``credentials.describe``).",
     )
     source = fields.Char(
         string='Source',
-        readonly=True,
+        readonly=True, tracking=True,
         help="Where the harness resolves this credential from (e.g. env, "
              ".env). Reported by ``credentials.describe``.",
     )
     writable = fields.Boolean(
         string='Writable',
-        readonly=True,
+        readonly=True, tracking=True,
         help="Whether the harness lets a full-token client set this ref.",
     )
     value = fields.Char(
@@ -55,6 +57,11 @@ class NpeiAgentCredential(models.Model):
              "``credentials.set`` and POPPED before the row is written, so it "
              "never lands in an Odoo column; the field always reads back blank.",
     )
+    active = fields.Boolean(default=True, tracking=True)
+    seq = fields.Integer('Trình tự*:', default=1)
+    is_locked = fields.Boolean('Đã Khóa*:', tracking=True)
+    uuid = fields.Char('Mã Chuỗi Ngẫu nhiên*:', copy=False, tracking=True,
+                       default=lambda self: str(uuid.uuid4()))
 
     _sql_constraints = [
         (
@@ -180,3 +187,9 @@ class NpeiAgentCredential(models.Model):
             'credentials.unset', {'ref': self.ref})
         self._apply_describe(self._describe([self.ref]))
         return self._notify(_("Credential %s unset on the harness.", self.ref))
+
+    def act_lock(self):
+        self.write({'is_locked': True})
+
+    def act_unlock(self):
+        self.write({'is_locked': False})

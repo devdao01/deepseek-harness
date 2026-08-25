@@ -9,6 +9,7 @@ as a warning rather than raised, so a single broken group does not abort the
 whole sync.
 """
 import logging
+import uuid
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
@@ -20,21 +21,22 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 
 class NpeiAgentModel(models.Model):
     _name = 'npei.agent.model'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'DeepSeek Harness LLM Model'
-    _order = 'provider, model_id'
+    _order = 'seq, provider, model_id'
 
     model_id = fields.Char(
         string='Model ID',
         required=True,
         index=True,
-        copy=False,
+        copy=False, tracking=True,
         help="Model id owned by the harness (``ModelView.id``).",
     )
-    name = fields.Char(string='Name')
+    name = fields.Char(string='Name', tracking=True)
     provider = fields.Char(
         string='Provider ID',
         required=True,
-        index=True,
+        index=True, tracking=True,
         help="Provider group id this model belongs to (``group.id``); the raw "
              "key from llm.models and the unique-constraint partner.",
     )
@@ -42,13 +44,17 @@ class NpeiAgentModel(models.Model):
         'npei.agent.provider',
         string='Provider Route',
         index=True,
-        ondelete='set null',
+        ondelete='set null', tracking=True,
         help="The provider route this model's group maps to (matched by "
              "group id == provider id); blank when no provider mirror matches "
              "yet. Resolved by either sync.",
     )
-    description = fields.Text(string='Description')
-    active = fields.Boolean(default=True)
+    description = fields.Text(string='Description', tracking=True)
+    active = fields.Boolean(default=True, tracking=True)
+    seq = fields.Integer('Trình tự*:', default=1)
+    is_locked = fields.Boolean('Đã Khóa*:', tracking=True)
+    uuid = fields.Char('Mã Chuỗi Ngẫu nhiên*:', copy=False, tracking=True,
+                       default=lambda self: str(uuid.uuid4()))
 
     _sql_constraints = [
         (
@@ -124,3 +130,9 @@ class NpeiAgentModel(models.Model):
                     for failure in failures),
             )
         return self._notify(_("%s model(s) synced from the harness.", synced))
+
+    def act_lock(self):
+        self.write({'is_locked': True})
+
+    def act_unlock(self):
+        self.write({'is_locked': False})

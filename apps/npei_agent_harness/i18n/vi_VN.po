@@ -1239,10 +1239,5 @@ msgstr "Chỉ ghi; đẩy lên harness khi Lưu"
 
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_session_form
-msgid "Leave blank — created on the harness on save"
-msgstr "Để trống — sẽ tạo trên harness khi lưu"
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_session_form
 msgid "Defaults from the chosen preset"
 msgstr "Mặc định theo preset đã chọn"

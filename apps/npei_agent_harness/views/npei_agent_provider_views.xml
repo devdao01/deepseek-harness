@@ -5,11 +5,21 @@
         <field name="model">npei.agent.provider</field>
         <field name="arch" type="xml">
             <tree string="Providers">
+                <field name="seq" widget='handle'/>
+                <field name="seq" optional="show"/>
+                <field name="id" optional="show"/>
                 <field name="provider"/>
                 <field name="display_name"/>
                 <field name="settings_ns"/>
                 <field name="route_active"/>
                 <field name="declared"/>
+                <field name="uuid" optional="show"/>
+                <field name="is_locked" optional="show"/>
+                <field name="active" optional="show"/>
+                <field name="create_uid" optional="show"/>
+                <field name="write_uid" optional="show"/>
+                <field name="create_date" optional="show"/>
+                <field name="write_date" optional="show"/>
             </tree>
         </field>
     </record>
@@ -25,8 +35,11 @@
                     <button name="action_sync_models" type="object"
                             string="Sync Models from Harness"
                             groups="npei_agent_harness.group_npei_agent_manager"/>
+                    <button name="act_lock" string="Khóa" type="object" groups="npei_base.npei_group_lock" invisible="is_locked"/>
+                    <button name="act_unlock" string="Mở Khóa" type="object" groups="npei_base.npei_group_lock" invisible="not is_locked"/>
                 </header>
                 <sheet>
+                    <div class="alert alert-success text-center o_form_header" role="alert" invisible="not is_locked"><div><strong>ĐÃ KHOÁ</strong></div></div>
                     <div class="oe_button_box" name="button_box">
                         <button name="action_view_catalog_models" type="object"
                                 class="oe_stat_button" icon="fa-cubes">
@@ -38,7 +51,6 @@
                         <group>
                             <field name="provider" readonly="1"/>
                             <field name="display_name" readonly="1"/>
-                            <field name="active"/>
                         </group>
                         <group>
                             <field name="settings_ns" readonly="1"/>
@@ -68,12 +80,46 @@
                                     <field name="name"/>
                                     <field name="context_window"/>
                                     <field name="max_tokens"/>
+                                    <field name="seq" optional="hide"/>
+                                    <field name="uuid" optional="hide"/>
+                                    <field name="is_locked" optional="hide"/>
+                                    <field name="active" optional="hide"/>
                                 </tree>
                             </field>
                             <p class="text-muted" colspan="2">Optional overrides pushed to the provider's settings namespace as its models array. Leave empty to use the inherited catalog above; emptying it returns to that catalog.</p>
                         </page>
+                        <page string="Quản lý Hệ thống*">
+                            <notebook>
+                                <page string="Cấu hình Hệ thống*">
+                                    <notebook>
+                                        <page string="Khởi tạo*">
+                                            <group>
+                                                <group>
+                                                    <field name="create_uid" string="Người dùng Khởi tạo Dữ liệu*:" readonly="1"/>
+                                                    <field name="write_uid" string="Người dùng Cập nhật Dữ liệu Lần cuối*:" readonly="1"/>
+                                                    <field name="create_date" string="Thời gian Khởi tạo Dữ liệu*:" readonly="1"/>
+                                                    <field name="write_date" string="Thời gian Cập nhật Dữ liệu Lần cuối*:" readonly="1"/>
+                                                </group>
+                                                <group>
+                                                    <field name="active" widget="boolean_toggle" readonly="is_locked"/>
+                                                    <field name="is_locked" readonly="1"/>
+                                                    <field name="id" readonly="1"/>
+                                                    <field name="uuid" readonly="is_locked"/>
+                                                    <field name="seq" readonly="is_locked"/>
+                                                </group>
+                                            </group>
+                                        </page>
+                                    </notebook>
+                                </page>
+                            </notebook>
+                        </page>
                     </notebook>
                 </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
             </form>
         </field>
     </record>

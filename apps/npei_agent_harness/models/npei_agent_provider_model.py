@@ -16,6 +16,8 @@ Distinct from :class:`~odoo.addons.npei_agent_harness.models.npei_agent_model`,
 which is the READ-ONLY mirror of the resolved ``llm.models`` catalog. This model
 is the user-layer override the manager edits.
 """
+import uuid
+
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 
@@ -24,15 +26,16 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 
 class NpeiAgentProviderModel(models.Model):
     _name = 'npei.agent.provider.model'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'DeepSeek Harness Provider Model (configurable)'
-    _order = 'provider_id, sequence, id'
+    _order = 'seq, provider_id, sequence, id'
 
     provider_id = fields.Many2one(
         'npei.agent.provider',
         string='Provider',
         required=True,
         index=True,
-        ondelete='cascade',
+        ondelete='cascade', tracking=True,
         help="The provider whose settings-namespace models array owns this row.",
     )
     sequence = fields.Integer(
@@ -42,23 +45,28 @@ class NpeiAgentProviderModel(models.Model):
     )
     model_id = fields.Char(
         string='Model ID',
-        required=True,
+        required=True, tracking=True,
         help="Model id sent to the adapter (``models[].id``).",
     )
     name = fields.Char(
-        string='Name',
+        string='Name', tracking=True,
         help="Optional display name (``models[].name``); blank omits the key.",
     )
     context_window = fields.Integer(
-        string='Context Window',
+        string='Context Window', tracking=True,
         help="Optional context capacity (``models[].contextWindow``); 0 omits "
              "the key so the adapter default applies.",
     )
     max_tokens = fields.Integer(
-        string='Max Tokens',
+        string='Max Tokens', tracking=True,
         help="Optional output cap (``models[].maxTokens``); 0 omits the key so "
              "the adapter default applies.",
     )
+    active = fields.Boolean(default=True, tracking=True)
+    seq = fields.Integer('Trình tự*:', default=1)
+    is_locked = fields.Boolean('Đã Khóa*:', tracking=True)
+    uuid = fields.Char('Mã Chuỗi Ngẫu nhiên*:', copy=False, tracking=True,
+                       default=lambda self: str(uuid.uuid4()))
 
     _sql_constraints = [
         (
@@ -232,3 +240,9 @@ class NpeiAgentProviderModel(models.Model):
                 ('provider_id', '=', provider.id)])
         stale.unlink()
         return kept
+
+    def act_lock(self):
+        self.write({'is_locked': True})
+
+    def act_unlock(self):
+        self.write({'is_locked': False})

@@ -27,6 +27,7 @@ rolls the Odoo write back rather than leaving the two planes divergent;
 :meth:`action_push_access` re-pushes on demand.
 """
 import logging
+import uuid
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
@@ -36,8 +37,9 @@ _logger = logging.getLogger(__name__)
 
 class NpeiAgentSession(models.Model):
     _name = 'npei.agent.session'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'DeepSeek Harness Session (Odoo ACL)'
-    _order = 'write_date desc'
+    _order = 'seq, write_date desc'
 
     # Fields whose change alters the harness-visible access set; a write touching
     # any of them re-pushes to session.setAccess.
@@ -49,9 +51,9 @@ class NpeiAgentSession(models.Model):
         copy=False,
         help="Opaque session id owned by the harness. Left blank on create, "
              "Odoo calls session.create and fills it; set it by hand only to "
-             "adopt an existing harness session.",
+             "adopt an existing harness session.", tracking=True
     )
-    name = fields.Char(string='Title')
+    name = fields.Char(string='Title',  tracking=True)
     user_ids = fields.Many2many(
         'res.users',
         'npei_agent_session_user_rel',
@@ -61,15 +63,19 @@ class NpeiAgentSession(models.Model):
         help="Users allowed to access this session. The record creator "
              "(create_uid) is always allowed even when absent from this list. "
              "Leave empty to make the session public — every user may see and "
-             "use it.",
+             "use it.", tracking=True
     )
     preset_id = fields.Many2one(
         'npei.agent.preset',
         string='Agent Preset',
-        ondelete='set null',
+        ondelete='set null', tracking=True
     )
-    workspace_path = fields.Char(string='Workspace Path')
-    active = fields.Boolean(default=True)
+    workspace_path = fields.Char(string='Workspace Path', tracking=True)
+    active = fields.Boolean(default=True, tracking=True)
+    seq = fields.Integer('Trình tự*:', default=1)
+    is_locked = fields.Boolean('Đã Khóa*:', tracking=True)
+    uuid = fields.Char('Mã Chuỗi Ngẫu nhiên*:', copy=False, tracking=True,
+                       default=lambda self: str(uuid.uuid4()))
 
     _sql_constraints = [
         (
@@ -288,3 +294,9 @@ class NpeiAgentSession(models.Model):
                 'sticky': False,
             },
         }
+
+    def act_lock(self):
+        self.write({'is_locked': True})
+
+    def act_unlock(self):
+        self.write({'is_locked': False})

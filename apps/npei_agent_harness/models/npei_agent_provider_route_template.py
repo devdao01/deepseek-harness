@@ -12,6 +12,8 @@ a manager may edit, disable, or add rows without losing them on upgrade. A blank
 base URL is legal: for a provider the pi-ai catalog already ships, the route
 inherits the catalog endpoint.
 """
+import uuid
+
 from odoo import fields, models
 
 # Kept in sync by hand with the pi-ai adapter's supportedProtocols() /
@@ -35,40 +37,51 @@ THINKING_FORMATS = [
 
 class NpeiAgentProviderRouteTemplate(models.Model):
     _name = 'npei.agent.provider.route.template'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'DeepSeek Harness Provider Route Template'
-    _order = 'sequence, name'
+    _order = 'seq, sequence, name'
 
     name = fields.Char(
         string='Name',
-        required=True,
+        required=True, tracking=True,
         help="Display name shown in the Add Provider Route wizard.",
     )
     route_key = fields.Char(
         string='Route Key',
-        required=True,
+        required=True, tracking=True,
         help="Default route id (providers.<key>), e.g. openrouter.",
     )
     api_protocol = fields.Selection(
         PROTOCOLS,
         string='Wire Protocol',
         required=True,
-        default='openai-completions',
+        default='openai-completions', tracking=True,
         help="Endpoint wire format sent as the profile `api` key.",
     )
     base_url = fields.Char(
-        string='Base URL',
+        string='Base URL', tracking=True,
         help="Endpoint base; blank inherits the pi-ai catalog endpoint for a "
              "provider it already ships.",
     )
     thinking_format = fields.Selection(
         THINKING_FORMATS,
-        string='Thinking Format',
+        string='Thinking Format', tracking=True,
         help="compat.thinkingFormat for the route's models; blank lets pi-ai "
              "guess from the base URL.",
     )
     note = fields.Char(
-        string='Note',
+        string='Note', tracking=True,
         help="Optional hint (where to get the key, model id examples).",
     )
     sequence = fields.Integer(string='Sequence', default=10)
-    active = fields.Boolean(default=True)
+    active = fields.Boolean(default=True, tracking=True)
+    seq = fields.Integer('Trình tự*:', default=1)
+    is_locked = fields.Boolean('Đã Khóa*:', tracking=True)
+    uuid = fields.Char('Mã Chuỗi Ngẫu nhiên*:', copy=False, tracking=True,
+                       default=lambda self: str(uuid.uuid4()))
+
+    def act_lock(self):
+        self.write({'is_locked': True})
+
+    def act_unlock(self):
+        self.write({'is_locked': False})

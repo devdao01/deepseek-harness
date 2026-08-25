@@ -5,9 +5,19 @@
         <field name="model">npei.agent.skill</field>
         <field name="arch" type="xml">
             <tree string="Agent Skills">
+                <field name="seq" widget='handle'/>
+                <field name="seq" optional="show"/>
+                <field name="id" optional="show"/>
                 <field name="skill_key"/>
                 <field name="name"/>
                 <field name="source"/>
+                <field name="uuid" optional="show"/>
+                <field name="is_locked" optional="show"/>
+                <field name="active" optional="show"/>
+                <field name="create_uid" optional="show"/>
+                <field name="write_uid" optional="show"/>
+                <field name="create_date" optional="show"/>
+                <field name="write_date" optional="show"/>
             </tree>
         </field>
     </record>
@@ -20,22 +30,57 @@
                 <header>
                     <button name="action_sync_from_harness" type="object"
                             string="Sync from Harness" class="btn-primary"/>
+                    <button name="act_lock" string="Khóa" type="object" groups="npei_base.npei_group_lock" invisible="is_locked"/>
+                    <button name="act_unlock" string="Mở Khóa" type="object" groups="npei_base.npei_group_lock" invisible="not is_locked"/>
                 </header>
                 <sheet>
+                    <div class="alert alert-success text-center o_form_header" role="alert" invisible="not is_locked"><div><strong>ĐÃ KHOÁ</strong></div></div>
                     <group>
                         <group>
-                            <field name="skill_key"/>
-                            <field name="name"/>
+                            <field name="skill_key" readonly="is_locked"/>
+                            <field name="name" readonly="is_locked"/>
                         </group>
                         <group>
-                            <field name="source"/>
-                            <field name="active"/>
+                            <field name="source" readonly="is_locked"/>
+                            <field name="active" readonly="is_locked"/>
                         </group>
                     </group>
-                    <group string="Description">
-                        <field name="description" nolabel="1"/>
-                    </group>
+                    <notebook>
+                        <page string="Description">
+                            <field name="description" nolabel="1" readonly="is_locked"/>
+                        </page>
+                        <page string="Quản lý Hệ thống*">
+                            <notebook>
+                                <page string="Cấu hình Hệ thống*">
+                                    <notebook>
+                                        <page string="Khởi tạo*">
+                                            <group>
+                                                <group>
+                                                    <field name="create_uid" string="Người dùng Khởi tạo Dữ liệu*:" readonly="1"/>
+                                                    <field name="write_uid" string="Người dùng Cập nhật Dữ liệu Lần cuối*:" readonly="1"/>
+                                                    <field name="create_date" string="Thời gian Khởi tạo Dữ liệu*:" readonly="1"/>
+                                                    <field name="write_date" string="Thời gian Cập nhật Dữ liệu Lần cuối*:" readonly="1"/>
+                                                </group>
+                                                <group>
+                                                    <field name="active" widget="boolean_toggle" readonly="is_locked"/>
+                                                    <field name="is_locked" readonly="1"/>
+                                                    <field name="id" readonly="1"/>
+                                                    <field name="uuid" readonly="is_locked"/>
+                                                    <field name="seq" readonly="is_locked"/>
+                                                </group>
+                                            </group>
+                                        </page>
+                                    </notebook>
+                                </page>
+                            </notebook>
+                        </page>
+                    </notebook>
                 </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
             </form>
         </field>
     </record>

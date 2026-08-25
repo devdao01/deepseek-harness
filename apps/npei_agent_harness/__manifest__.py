@@ -24,7 +24,7 @@ This module provides:
     'website': 'https://mtil.mtil.vn',
     'license': 'LGPL-3',
     'category': 'Tools',
-    'depends': ['base', 'web'],
+    'depends': ['base', 'mail', 'web', 'npei_base'],
     'data': [
         'security/npei_agent_harness_groups.xml',
         'security/ir_rule.xml',

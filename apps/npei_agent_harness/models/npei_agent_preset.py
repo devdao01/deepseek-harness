@@ -16,6 +16,7 @@ harness, so its ``active`` flag is a local-mirror concern that never pushes.
 import logging
 import re
 import unicodedata
+import uuid
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
@@ -27,28 +28,29 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 
 class NpeiAgentPreset(models.Model):
     _name = 'npei.agent.preset'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'DeepSeek Harness Agent Preset'
-    _order = 'name'
+    _order = 'seq, name'
 
     preset_id = fields.Char(
         string='Harness Preset ID',
         index=True,
-        copy=False,
+        copy=False, tracking=True,
         help="Preset id owned by the harness (``AgentPresetEntry.id``). Left "
              "blank on create, Odoo derives it from the name and authors the "
              "preset on the harness; set only by the sync/adopt path.",
     )
-    name = fields.Char(string='Name')
-    description = fields.Text(string='Description')
+    name = fields.Char(string='Name', tracking=True)
+    description = fields.Text(string='Description', tracking=True)
     workspace_path = fields.Char(
         string='Default Workspace Path',
         help="Canonical path of the preset's provisioned default workspace "
-             "(user presets only).",
+             "(user presets only).", tracking=True
     )
     trust = fields.Selection(
         [('system', 'System'), ('user', 'User')],
         string='Trust',
-        default='user',
+        default='user', tracking=True
     )
     active = fields.Boolean(
         default=True,
@@ -56,18 +58,22 @@ class NpeiAgentPreset(models.Model):
              "USER preset pushes ``disabled: true`` to the harness so it "
              "refuses to compose new sessions from it, and the sync reads "
              "``disabled`` back here. System presets are read-only on the "
-             "harness, so their flag only archives the local mirror.",
+             "harness, so their flag only archives the local mirror.", tracking=True
     )
     session_ids = fields.One2many(
         'npei.agent.session',
         'preset_id',
         string='Sessions',
-        help="Sessions running under this preset.",
+        help="Sessions running under this preset.", tracking=True
     )
     session_count = fields.Integer(
         string='Session Count',
-        compute='_compute_session_count',
+        compute='_compute_session_count', tracking=True
     )
+    seq = fields.Integer('Trình tự*:', default=1)
+    is_locked = fields.Boolean('Đã Khóa*:', tracking=True)
+    uuid = fields.Char('Mã Chuỗi Ngẫu nhiên*:', copy=False, tracking=True,
+                       default=lambda self: str(uuid.uuid4()))
 
     @api.depends('session_ids')
     def _compute_session_count(self):
@@ -285,3 +291,9 @@ class NpeiAgentPreset(models.Model):
                 'sticky': False,
             },
         }
+
+    def act_lock(self):
+        self.write({'is_locked': True})
+
+    def act_unlock(self):
+        self.write({'is_locked': False})

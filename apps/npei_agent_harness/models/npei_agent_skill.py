@@ -6,6 +6,8 @@ harness ``skill.list`` requires a ``sessionId`` (skills are resolved in the
 context of a live session), so the sync borrows the most recently updated
 mapped session; it fails loud if none exists yet.
 """
+import uuid
+
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 
@@ -14,25 +16,30 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 
 class NpeiAgentSkill(models.Model):
     _name = 'npei.agent.skill'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'DeepSeek Harness Skill'
-    _order = 'name'
+    _order = 'seq, name'
 
     skill_key = fields.Char(
         string='Skill Key',
         required=True,
         index=True,
-        copy=False,
+        copy=False, tracking=True,
         help="Skill identity. The harness ``SkillEntry`` exposes only a "
              "``name``, used here as the key.",
     )
-    name = fields.Char(string='Name')
-    description = fields.Text(string='Description')
+    name = fields.Char(string='Name', tracking=True)
+    description = fields.Text(string='Description', tracking=True)
     source = fields.Char(
-        string='Source',
+        string='Source', tracking=True,
         help="Provenance of the skill. Not carried on the harness wire; "
              "populated from ``whenToUse`` when available.",
     )
-    active = fields.Boolean(default=True)
+    active = fields.Boolean(default=True, tracking=True)
+    seq = fields.Integer('Trình tự*:', default=1)
+    is_locked = fields.Boolean('Đã Khóa*:', tracking=True)
+    uuid = fields.Char('Mã Chuỗi Ngẫu nhiên*:', copy=False, tracking=True,
+                       default=lambda self: str(uuid.uuid4()))
 
     _sql_constraints = [
         (
@@ -93,3 +100,9 @@ class NpeiAgentSkill(models.Model):
                 'sticky': False,
             },
         }
+
+    def act_lock(self):
+        self.write({'is_locked': True})
+
+    def act_unlock(self):
+        self.write({'is_locked': False})

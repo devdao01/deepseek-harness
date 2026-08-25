@@ -5,10 +5,20 @@
         <field name="model">npei.agent.preset</field>
         <field name="arch" type="xml">
             <tree string="Agent Presets">
-                <field name="preset_id"/>
+                <field name="seq" widget='handle'/>
+                <field name="seq" optional="show"/>
+                <field name="id" optional="show"/>
+<!--                <field name="preset_id"/>-->
                 <field name="name"/>
                 <field name="trust"/>
-                <field name="workspace_path"/>
+                <field name="uuid" optional="show"/>
+                <field name="is_locked" optional="show"/>
+                <field name="active" optional="show"/>
+                <field name="create_uid" optional="show"/>
+                <field name="write_uid" optional="show"/>
+                <field name="create_date" optional="show"/>
+                <field name="write_date" optional="show"/>
+<!--                <field name="workspace_path"/>-->
             </tree>
         </field>
     </record>
@@ -21,8 +31,11 @@
                 <header>
                     <button name="action_sync_from_harness" type="object"
                             string="Sync from Harness" class="btn-primary"/>
+                    <button name="act_lock" string="Khóa" type="object" groups="npei_base.npei_group_lock" invisible="is_locked"/>
+                    <button name="act_unlock" string="Mở Khóa" type="object" groups="npei_base.npei_group_lock" invisible="not is_locked"/>
                 </header>
                 <sheet>
+                    <div class="alert alert-success text-center o_form_header" role="alert" invisible="not is_locked"><div><strong>ĐÃ KHOÁ</strong></div></div>
                     <div class="oe_button_box" name="button_box">
                         <button name="action_view_sessions" type="object"
                                 class="oe_stat_button" icon="fa-comments">
@@ -31,24 +44,54 @@
                         </button>
                     </div>
                     <group>
-                        <field name="name" placeholder="e.g. Hồ Sơ X"/>
-                    </group>
-                    <group string="Description">
-                        <field name="description" nolabel="1"
-                               placeholder="Shown in the preset picker; pushed to the harness on save"/>
-                    </group>
-                    <group string="Technical" col="2">
-                        <!-- All auto: preset_id is derived from the name and the
-                             workspace is provisioned by the harness on save;
-                             trust is always 'user' for an Odoo-authored copy. -->
-                        <field name="preset_id"
-                               readonly="id != False"
+                        <group>
+                            <field name="name" placeholder="e.g. Hồ Sơ X" readonly="is_locked"/>
+                        </group>
+                        <group>
+                            <field name="preset_id" options="{'no_create': True, 'no_quick_create': True, 'no_open': True}"
+                               readonly="id != False or is_locked"
                                placeholder="Leave blank — derived from the name; or enter an existing id to adopt"/>
-                        <field name="workspace_path" readonly="1"/>
-                        <field name="trust" readonly="1"/>
-                        <field name="active"/>
+                            <field name="workspace_path" readonly="1"/>
+                            <field name="trust" readonly="1"/>
+                        </group>
                     </group>
+                    <notebook>
+                        <page string="Descriptionu">
+                            <field name="description" nolabel="1" readonly="is_locked"
+                               placeholder="Shown in the preset picker; pushed to the harness on save"/>
+                        </page>
+                        <page string="Quản lý Hệ thống*">
+                            <notebook>
+                                <page string="Cấu hình Hệ thống*">
+                                    <notebook>
+                                        <page string="Khởi tạo*">
+                                            <group>
+                                                <group>
+                                                    <field name="create_uid" string="Người dùng Khởi tạo Dữ liệu*:" readonly="1"/>
+                                                    <field name="write_uid" string="Người dùng Cập nhật Dữ liệu Lần cuối*:" readonly="1"/>
+                                                    <field name="create_date" string="Thời gian Khởi tạo Dữ liệu*:" readonly="1"/>
+                                                    <field name="write_date" string="Thời gian Cập nhật Dữ liệu Lần cuối*:" readonly="1"/>
+                                                </group>
+                                                <group>
+                                                    <field name="active" widget="boolean_toggle" readonly="is_locked"/>
+                                                    <field name="is_locked" readonly="1"/>
+                                                    <field name="id" readonly="1"/>
+                                                    <field name="uuid" readonly="is_locked"/>
+                                                    <field name="seq" readonly="is_locked"/>
+                                                </group>
+                                            </group>
+                                        </page>
+                                    </notebook>
+                                </page>
+                            </notebook>
+                        </page>
+                    </notebook>
                 </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
             </form>
         </field>
     </record>

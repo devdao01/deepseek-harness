@@ -10,6 +10,7 @@ is refused rather than silently overwritten.
 """
 import json
 import logging
+import uuid
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
@@ -21,30 +22,31 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 
 class NpeiAgentSetting(models.Model):
     _name = 'npei.agent.setting'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'DeepSeek Harness Settings Namespace'
-    _order = 'ns'
+    _order = 'seq, ns'
 
     ns = fields.Char(
         string='Namespace',
         required=True,
         index=True,
-        copy=False,
+        copy=False, tracking=True,
         help="Settings namespace key owned by the harness.",
     )
     applies = fields.Selection(
         [('live', 'Live'), ('restart', 'Restart')],
         string='Applies',
-        readonly=True,
+        readonly=True, tracking=True,
         help="Whether a change takes effect live or needs a harness restart.",
     )
     has_document = fields.Boolean(
         string='Has Document',
-        readonly=True,
+        readonly=True, tracking=True,
         help="Whether the harness has a persisted settings document.",
     )
     revision = fields.Integer(
         string='Revision',
-        readonly=True,
+        readonly=True, tracking=True,
         help="Namespace revision echoed as ``expectedRevision`` on save so a "
              "concurrent change is refused.",
     )
@@ -58,6 +60,11 @@ class NpeiAgentSetting(models.Model):
         help="Pretty-printed raw user section. Edit and Save to replace it on "
              "the harness.",
     )
+    active = fields.Boolean(default=True, tracking=True)
+    seq = fields.Integer('Trình tự*:', default=1)
+    is_locked = fields.Boolean('Đã Khóa*:', tracking=True)
+    uuid = fields.Char('Mã Chuỗi Ngẫu nhiên*:', copy=False, tracking=True,
+                       default=lambda self: str(uuid.uuid4()))
     provider_ids = fields.One2many(
         'npei.agent.provider',
         'settings_id',
@@ -191,3 +198,9 @@ class NpeiAgentSetting(models.Model):
         return self._notify(
             _("Settings namespace %(ns)s saved (revision %(rev)s).",
               ns=self.ns, rev=self.revision))
+
+    def act_lock(self):
+        self.write({'is_locked': True})
+
+    def act_unlock(self):
+        self.write({'is_locked': False})

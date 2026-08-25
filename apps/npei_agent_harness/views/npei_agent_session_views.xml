@@ -5,12 +5,20 @@
         <field name="model">npei.agent.session</field>
         <field name="arch" type="xml">
             <tree string="Agent Sessions">
+                <field name="seq" widget='handle'/>
+                <field name="seq" optional="show"/>
+                <field name="id" optional="show"/>
                 <field name="session_id"/>
                 <field name="name"/>
                 <field name="user_ids" widget="many2many_tags"/>
                 <field name="preset_id"/>
-                <field name="create_uid"/>
-                <field name="write_date"/>
+                <field name="uuid" optional="show"/>
+                <field name="is_locked" optional="show"/>
+                <field name="active" optional="show"/>
+                <field name="create_uid" optional="show"/>
+                <field name="write_uid" optional="show"/>
+                <field name="create_date" optional="show"/>
+                <field name="write_date" optional="show"/>
             </tree>
         </field>
     </record>
@@ -26,27 +34,54 @@
                             string="Push Access to Harness"
                             class="btn-secondary"
                             help="Re-send the allowed-user set to the harness access store."/>
+                    <button name="act_lock" string="Khóa" type="object" groups="npei_base.npei_group_lock" invisible="is_locked"/>
+                    <button name="act_unlock" string="Mở Khóa" type="object" groups="npei_base.npei_group_lock" invisible="not is_locked"/>
                 </header>
                 <sheet>
+                    <div class="alert alert-success text-center o_form_header" role="alert" invisible="not is_locked"><div><strong>ĐÃ KHOÁ</strong></div></div>
                     <group>
-                        <field name="name" string="Title" placeholder="e.g. Hồ sơ khách hàng X"/>
-                        <field name="preset_id"/>
+                        <group>
+                            <field name="name" string="Title"/>
+                            <field name="preset_id" options="{'no_create': True, 'no_quick_create': True, 'no_open': True}"/>
+                        </group>
+                        <group>
+                            <field name="session_id" options="{'no_create': True, 'no_quick_create': True, 'no_open': True}"
+                                   readonly="1"/>
+                            <field name="workspace_path" readonly="1"
+                                   placeholder="Defaults from the chosen preset"/>
+                            <field name="create_uid" readonly="1"/>
+                        </group>
                     </group>
-                    <group string="Allowed Users">
-                        <field name="user_ids" widget="many2many_tags" nolabel="1"/>
-                    </group>
-                    <group string="Technical" col="2">
-                        <!-- All auto-filled by the harness; shown read-only for
-                             reference. session_id stays editable before the first
-                             save only, to adopt an existing harness session. -->
-                        <field name="session_id"
-                               readonly="id != False"
-                               placeholder="Leave blank — created on the harness on save"/>
-                        <field name="workspace_path" readonly="1"
-                               placeholder="Defaults from the chosen preset"/>
-                        <field name="create_uid" readonly="1"/>
-                        <field name="active"/>
-                    </group>
+                    <notebook>
+                        <page string="Allowed Users">
+                            <field name="user_ids" options="{'no_create': True, 'no_quick_create': True, 'no_open': True}"/>
+                        </page>
+                        <page string="Quản lý Hệ thống*">
+                            <notebook>
+                                <page string="Cấu hình Hệ thống*">
+                                    <notebook>
+                                        <page string="Khởi tạo*">
+                                            <group>
+                                                <group>
+                                                    <field name="create_uid" string="Người dùng Khởi tạo Dữ liệu*:" readonly="1"/>
+                                                    <field name="write_uid" string="Người dùng Cập nhật Dữ liệu Lần cuối*:" readonly="1"/>
+                                                    <field name="create_date" string="Thời gian Khởi tạo Dữ liệu*:" readonly="1"/>
+                                                    <field name="write_date" string="Thời gian Cập nhật Dữ liệu Lần cuối*:" readonly="1"/>
+                                                </group>
+                                                <group>
+                                                    <field name="active" widget="boolean_toggle" readonly="is_locked"/>
+                                                    <field name="is_locked" readonly="1"/>
+                                                    <field name="id" readonly="1"/>
+                                                    <field name="uuid" readonly="is_locked"/>
+                                                    <field name="seq" readonly="is_locked"/>
+                                                </group>
+                                            </group>
+                                        </page>
+                                    </notebook>
+                                </page>
+                            </notebook>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>

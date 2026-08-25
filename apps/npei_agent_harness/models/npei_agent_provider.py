@@ -9,6 +9,8 @@ The harness ``active`` flag (whether the route is live) is stored as
 :attr:`route_active` so it does not clash with Odoo's own ``active`` archive
 field.
 """
+import uuid
+
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
 
@@ -17,22 +19,23 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 
 class NpeiAgentProvider(models.Model):
     _name = 'npei.agent.provider'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'DeepSeek Harness LLM Provider'
-    _order = 'provider'
+    _order = 'seq, provider'
 
     provider = fields.Char(
         string='Provider',
         required=True,
         index=True,
-        copy=False,
+        copy=False, tracking=True,
         help="Provider id owned by the harness (``ProviderView.provider``).",
     )
     display_name = fields.Char(
-        string='Display Name',
+        string='Display Name', tracking=True,
         help="Human-readable provider name from ``llm.providers``.",
     )
     settings_ns = fields.Char(
-        string='Settings Namespace',
+        string='Settings Namespace', tracking=True,
         help="Settings namespace this provider reads its configuration from "
              "(raw key; the settings_id match partner).",
     )
@@ -40,23 +43,27 @@ class NpeiAgentProvider(models.Model):
         'npei.agent.setting',
         string='Settings Namespace Record',
         index=True,
-        ondelete='set null',
+        ondelete='set null', tracking=True,
         help="The settings-namespace mirror matching settings_ns; blank until "
              "settings are synced. Many providers may share one namespace.",
     )
     settings_path = fields.Char(
-        string='Settings Path',
+        string='Settings Path', tracking=True,
         help="The harness ``settingsPath`` segments joined with ``/``.",
     )
     route_active = fields.Boolean(
-        string='Route Active',
+        string='Route Active', tracking=True,
         help="Whether the harness reports this provider's route as active.",
     )
     declared = fields.Boolean(
-        string='Declared',
+        string='Declared', tracking=True,
         help="Whether the provider is explicitly declared in settings.",
     )
-    active = fields.Boolean(default=True)
+    active = fields.Boolean(default=True, tracking=True)
+    seq = fields.Integer('Trình tự*:', default=1)
+    is_locked = fields.Boolean('Đã Khóa*:', tracking=True)
+    uuid = fields.Char('Mã Chuỗi Ngẫu nhiên*:', copy=False, tracking=True,
+                       default=lambda self: str(uuid.uuid4()))
     model_ids = fields.One2many(
         'npei.agent.provider.model',
         'provider_id',
@@ -170,3 +177,9 @@ class NpeiAgentProvider(models.Model):
         provider form's *Sync Models from Harness* button.
         """
         return self.env['npei.agent.provider.model'].action_sync_from_harness()
+
+    def act_lock(self):
+        self.write({'is_locked': True})
+
+    def act_unlock(self):
+        self.write({'is_locked': False})
