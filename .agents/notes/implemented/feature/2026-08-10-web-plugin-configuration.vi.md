@@ -1,0 +1,52 @@
+# Agent Note: Plugin configuration in the web settings page
+
+Status: implemented
+
+[English](2026-08-10-web-plugin-configuration.md) | 中文
+
+> Ba mục con, việc giải quyết theo phân lớp và form lưu tạm vẫn còn hiệu lực. Danh sách trắng Host và danh sách thẻ không khóa đã được thay thế bởi [tầng settings do chính plugin sở hữu](../architecture/2026-08-12-plugin-owned-settings-surface.md): mọi namespace đã đăng ký đều được phục vụ, thẻ dùng namespace mà nó chỉnh sửa làm khóa.
+
+## Vấn đề
+
+Mọi thứ có thể cấu hình của plugin chỉ tồn tại trong `cordis.yml`. Muốn shell timeout dài hơn, endpoint tìm kiếm khác, hoặc ít lệnh gọi tool song song hơn, người dùng phải tìm file assembly, hiểu hình dạng của nó, rồi khởi động lại — trong khi trang Models đã chứng minh suốt nhiều tháng: namespace settings có thể được chỉnh sửa trong trình duyệt và có hiệu lực ngay lập tức.
+
+Seam hỗ trợ trang Models vốn đã mang tính tổng quát: bất kỳ plugin nào cũng có thể đăng ký namespace, `settings.describe` sẽ cung cấp schema, phân lớp và revision của nó. Cái còn thiếu là hai đầu. Ngoài adapter LLM và service quyền hạn, chưa có plugin nào đăng ký namespace; và với các namespace không phải nhà cung cấp model, cũng chưa có tầng hiển thị nào.
+
+## Quyết định
+
+Ba plugin ở mặt phẳng host tự đăng ký namespace settings của mình, một phân khu "plugin" phía trình duyệt tổng hợp các tab do từng tính năng sở hữu. Tab "Configurable" của nó render mọi setting có thể chỉnh sửa mà bản triển khai đó phơi bày.
+
+**Phân lớp không đổi.** Một mục con được giải quyết theo thứ tự schema mặc định → mục assembly của plugin → lớp người dùng. Mỗi plugin truyền mục `cordis.yml` của chính nó vào làm `base` và đọc cấu hình qua source thunk, do đó thay đổi đã lưu sẽ có tác dụng cho lần dùng tiếp theo, còn nhà cung cấp settings bị ngắt kết nối thì mục assembly vẫn tiếp tục chạy. Các ràng buộc mà schema không diễn đạt được — dương, cận trên bộ đếm giờ của `graceMs`, giới hạn song song phải là số nguyên dương — trở thành validator của mục con, do đó giá trị sai bị từ chối ngay lúc ghi, chứ không đợi đến lệnh tiếp theo mới thất bại.
+
+**Namespace shell đặt tên theo năng lực, không theo một cài đặt cụ thể.** `SHELL_SETTINGS_NAMESPACE` được `@deepseek-ai/dsh-shell` export, vì một host chỉ assembly một nhà cung cấp `ctx.shell`: tầng win32 sẽ thay các dòng POSIX bằng dòng pwsh, còn nếu gắn cả hai cùng lúc sẽ thất bại lúc load do đăng ký service trùng lặp. Vì vậy cả hai họ đều có thể dùng schema và mục của riêng mình để đăng ký cùng một namespace mà không bao giờ đụng nhau; `settings.yaml` mang theo giữa các nền tảng cũng tiếp tục giải quyết được ở cả hai bên — đối tượng schemastery giữ lại các khóa mà schema hiện tại chưa khai báo.
+
+**Khi cấu hình của plugin lớn hơn phần người dùng sở hữu, mục con là một tập con.** `agent-loop` chỉ phơi bày `maxParallelToolCalls`; mảng `agents` của nó chỉ được tiêu thụ một lần lúc service khởi động, nên thay đổi lưu ở đó chỉ *trông như* có hiệu lực.
+
+**Nhà cung cấp chiếu (project) theo từng lần dùng, không đóng băng.** `web-search-deepseek` truyền cho nhà cung cấp một thunk chứ không phải một giá trị options, do đó thay đổi endpoint hoặc model có tác dụng cho lần tìm kiếm tiếp theo mà không cần đăng ký lại nhà cung cấp — đăng ký lại sẽ khiến việc chọn nhà cung cấp của web seam bị người dùng nhìn thấy dưới dạng gián đoạn chớp nhoáng.
+
+**Việc phơi bày vẫn là danh sách trắng của Host.** Ba namespace này được thêm vào `WEB_SETTINGS_NAMESPACES`; chỉ riêng việc đăng ký vẫn không vượt qua được biên giới truyền tải, và namespace không nằm trong danh sách đó nhận được đúng `settings-not-exposed` giống hệt namespace chưa đăng ký.
+
+**Tab "Configurable" không biết về bất kỳ namespace nào.** `dsh-client-ui-settings-plugins` sở hữu phân khu "Plugin", đóng góp trang `configurable` của riêng nó qua `settings.plugins.tab`, và bên trong đó khai báo slot lồng `settings.plugin.item`. Nó render các thẻ đã đăng ký vào slot lồng này, do đó plugin có nửa phía trình duyệt sở hữu thẻ và control của riêng mình. Mỗi thẻ ràng buộc namespace của nó qua client settings scope, và scope đó bù đắp hai thứ mà form cần: lớp `user` thô — sự **tồn tại** của khóa mới đánh dấu field bị ghi đè — và `unset` để đưa một field đơn lẻ về lại lớp assembly. Khi namespace không khả dụng, thẻ không render gì cả, do đó bản triển khai chưa assembly plugin đó sẽ không hiển thị bất kỳ dấu vết nào của nó.
+
+**Thẻ lưu tạm thay đổi, chỉ ghi khi Save.** Control không giữ bản nháp của riêng nó: văn bản nháp thuộc về form của thẻ, mọi control render đều dựa vào đó, chỉ có **Save** mới biến nó thành thay đổi tài liệu. Ghi settings là bền vững và có hàng rào revision, do đó control kiểu "mất focus là commit" sẽ tốn một revision cho giá trị mà người dùng chưa quyết định lưu và cũng không có cách nào xem trước; reset cũng chỉ là lưu tạm giá trị mặc định assembly. Ràng buộc mà schema không diễn đạt được thuộc về validator của Host, nên form đọc lại mục con sau khi ghi, báo cáo phần lưu không thành công thay vì tự đoán kết quả, và giữ lại các bản nháp đó để người dùng chỉnh sửa. Control mật khẩu tuy được ghi qua domain credentials, vẫn được lưu tạm cùng các field khác, nên một lần Save ghi đè toàn bộ nội dung trên thẻ.
+
+## Phương án khác đã cân nhắc
+
+- **Thay danh sách trắng bằng khai báo phơi bày lúc đăng ký.** Đây mới là hình dạng trung thực — bên sở hữu namespace tự khai báo mức phơi bày của mình, và plugin phân phối bên ngoài repo này cũng có thể hiển thị cấu hình của nó mà không cần sửa `packages/host/apiproxy`. Bị hoãn lại vì nó đồng thời thay đổi hợp đồng seam, mọi điểm đăng ký hiện có, và ngữ nghĩa chống liệt kê; hơn nữa để plugin phơi bày schema tùy ý, trước tiên cần một đường che giấu (redaction) fail-closed: hiện tại secret chỉ có thể tới qua union hoặc transform sẽ bị trả về nguyên trạng.
+- **Bộ render form tổng quát điều khiển bởi schema.** Lại bị bác bỏ, cùng lý do đã ghi trong [ghi chú web-config-plane](../architecture/2026-07-30-web-config-plane.md): field thật không có từ vựng trình bày sẽ tạo ra thẻ không dùng được. Control viết tay của ba plugin có chi phí tương đương mà dễ đọc hơn, và slot này cho phép plugin thứ tư không cần đàm phán với package này.
+- **Chỉnh sửa plugin được gắn qua preset ngay trên trang này.** Ngoài phạm vi, và không chỉ là "chưa triển khai": các dòng preset nhúng cấu hình trực tiếp trong `agent.cordis.yml`, và hoàn toàn không thể đăng ký namespace settings — cùng một preset gắn vào phiên thứ hai sẽ thất bại do đăng ký trùng. Lớp người dùng dùng chung giữa các preset còn sẽ ghi đè các field mà preset dùng để định nghĩa danh tính agent của nó — văn bản nhân cách, kết nối ủy quyền — vốn theo thiết kế là riêng của từng preset.
+- **Mỗi package executor một namespace, thay vì `bash` đặt tên theo năng lực.** Bị bác bỏ, vì executor được assembly thay đổi theo nền tảng nhưng tài liệu cấu hình thì không: người dùng đã đặt timeout trên macOS sẽ âm thầm mất nó khi sang Windows.
+- **Ghi search key vào mục con settings.** Bị bác bỏ, vì như vậy giá trị thô phải đi kèm response của `describe` mới render được. Thẻ chỉ báo cáo có key đã được cấu hình hay không, và ghi qua domain credentials theo tham chiếu mà mục con đặt tên.
+- **Mỗi control commit ngay khi mất focus, không có Save.** Ban đầu làm như vậy, sau bị thay thế: mất focus không phải là quyết định. Nó tốn một revision namespace cho mỗi control, không cho người dùng cơ hội xem trước hay hoàn tác trước khi ghi, và âm thầm loại bỏ bản nháp không hợp lệ — giá trị bị validator của Host từ chối chỉ đơn giản bật lại nguyên trạng, không có lý do gì cả. Mỗi thẻ một Save mới biến việc ghi thành hành động do người dùng thực hiện.
+- **Để nhà cung cấp đọc options theo từng thuộc tính, mỗi lần một cái.** Ban đầu để tránh sửa điểm đọc, thunk được đọc ở mỗi nơi sử dụng, điều này âm thầm vi phạm hợp đồng mà chính constructor đã khai báo: `search()` await giải quyết credential trước, sau đó mới đọc endpoint, model và ngân sách, do đó việc ghi settings rơi vào khoảng await đó sẽ gửi key được giải quyết theo mục con cũ tới endpoint đặt tên theo mục con mới. Bây giờ mỗi thao tác chụp nhanh (snapshot) một lần tại điểm vào, và truyền snapshot đó vào việc giải quyết credential.
+- **Validate field ở phía trình duyệt để việc Save trung thực hơn.** Bị bác bỏ: các ràng buộc này thuộc về validator của mục con trong plugin sở hữu; nhắc lại ở đây sẽ khiến cùng một quy tắc có hai nơi cư trú, và có thể lệch nhau theo phiên bản. Thẻ chỉ phán đoán những gì control của chính nó phán đoán được — bản nháp số có phải là số không — phần còn lại để Host trả lời, đó chính là lý do Save phải đọc lại mục con.
+
+## Tác động
+
+Người dùng có thể chỉnh sửa command timeout và giới hạn output của shell, giới hạn song song lệnh gọi tool của agent loop, và key, endpoint, ngân sách mỗi request của nhà cung cấp tìm kiếm ngay trên trang settings, mỗi field đều được đánh dấu là do người dùng tự đặt hay không, và có tùy chọn reset.
+
+Có hai chi phí thực sự. Thêm plugin thứ tư vẫn cần thêm một dòng vào danh sách trắng apiproxy, do đó phạm vi bao phủ của trang này là quyết định của Host chứ không phải của plugin. Còn các plugin mà bản triển khai web chuyển sang mặt phẳng agent — file tool, skill, compaction, todo tool — không xuất hiện ở đây dù đó chính là những thứ người dùng nhiều khả năng mong đợi tìm thấy nhất; cấu hình của chúng vẫn thuộc về preset editor.
+
+Executor bash và pwsh giờ phơi bày `config` như một getter đặt trên source thunk, chứ không còn là field readonly nữa. Mọi điểm đọc vốn đã đọc theo từng lần dùng, nên không có gì thay đổi; nhưng nếu một subclass nào đó chụp `this.config` lúc construct, nó sẽ âm thầm cố định mục assembly.
+
+`verify-cordis-config` có thêm một kiểm tra, cái giá do nhánh này trả: sau khi merge master với việc đổi tên field manifest phía client (`dshClient` → `dsh.client`), package này vẫn khai báo tên cũ, khiến toàn bộ phân khu biến mất khỏi trình duyệt mà không báo lỗi ở đâu cả — dòng vẫn assembly bình thường, nửa node rỗng vẫn kích hoạt bình thường, chỉ là quá trình quét roster trên trình duyệt vĩnh viễn không khớp được nó. Điều này không thể bị các gate hiện có phát hiện, vì file assembly không phân biệt được plugin surface với plugin Host: khác biệt nằm ở manifest. Giờ gate yêu cầu export `./client` của package `packages/client` và khai báo `dsh.client` phải nhất quán hai chiều. Sở dĩ chỉ giới hạn ở nhóm này: export `./client` của package Host là wire face đã gõ kiểu (typed) để bên tiêu thụ trên trình duyệt import, không phải plugin mà roster cần phục vụ.

@@ -1,0 +1,60 @@
+# Agent Note: Tham chiếu chéo giữa các session
+
+Status: implemented
+
+[English](2026-07-21-cross-session-references.md) | Tiếng Việt
+
+## Vấn đề
+
+Người dùng TUI cần mang phần công việc liên quan từ một cuộc hội thoại khác vào một tin nhắn mới, nhưng không khôi phục, không fork, và cũng không để transcript nguồn (bản ghi văn bản) có tính thẩm quyền đối với session hiện tại. harness đã cung cấp khả năng liệt kê session chính xác và kiểm tra sự kiện thô, nhưng nếu mỗi host tự phân tích log riêng thì sẽ lặp lại việc hiện thực gấp compaction (nén), lọc theo seq của sự kiện nguồn được tham chiếu, giới hạn kích thước, hành vi lỗi và persistence. Việc mã hoá thẳng ký hiệu của host vào quy ước tin nhắn của agent (tác tử) còn khiến vòng lặp lõi bị ràng buộc vào một cú pháp UI cụ thể.
+
+## Quyết định
+
+`@deepseek-ai/dsh-session-reference` là service tiêu thụ ngữ cảnh duy nhất, đăng ký trên `ctx.sessionReferenceResolver`. Host trước hết chuẩn hoá giao thức riêng của mình thành `SessionReferenceInput[]`, rồi gọi `prepare()` trước khi bàn giao. Service trả về nội dung đọc được đã tách riêng cùng một ảnh chụp `UserMessage` tuỳ chọn, có định danh và đã đóng băng; package agent lõi không phân tích session URI, cũng không đọc log khác.
+
+`dsh-session:<base64url(JSON.stringify(sessionId))>` là định danh chuẩn tắc, độc lập với host. Hệ thống thực hiện mã hoá chuỗi JSON trước, rồi mới mã hoá base64url, nhờ vậy dấu nháy, dấu gạch chéo xuôi, dấu gạch chéo ngược, Unicode, ký tự xuống dòng cùng mọi giá trị chuỗi JavaScript tuỳ ý đều khứ hồi không mất mát và không gây nhập nhằng vì dấu phân tách. TUI kết xuất URI đó vào `@[label](uri)`; client thuần văn bản có thể dùng cùng một ký hiệu nhắc (mention) nội dòng. Ký hiệu nhắc Markdown tường minh sẽ từ chối URI sai định dạng. Văn bản trần chỉ trở thành tham chiếu khi payload không rỗng và có dạng đúng base64url, đồng thời quá trình giải mã vẫn phải vượt qua kiểm tra tính chuẩn tắc; payload rỗng hoặc chỉ chứa dấu câu vẫn được xử lý như văn bản thảo luận thông thường.
+
+Service này dùng `ctx.sessionQuery.readSurface(sessionId)`: nó ưu tiên nạp một lần kết quả quan sát ngữ liệu từ session đang chạy, thực hiện gấp bằng thuật toán bề mặt chuẩn tắc của package session, rồi trả về phần đầu session, số thứ tự đã bắt được và nút hiện tại — tất cả tách rời khỏi dữ liệu nguồn. FTS không phải là phụ thuộc: việc tìm ứng viên khớp theo id, cwd hoặc tiêu đề mới nhất sau khi gấp, còn phần thân tin nhắn không đi vào lớp ứng viên. Truy vấn không rỗng sẽ xử lý theo lô các kết quả quan sát tiêu đề trong ngữ liệu hiển thị, đọc log đã persist với mức song song có giới hạn, và hỗ trợ huỷ; một chỉ mục tiêu đề chuyên dụng có thể thay thế đường tìm kiếm này mà không cần đổi định danh tham chiếu hay quá trình chuẩn bị.
+
+## Ảnh chụp và phép chiếu
+
+Quá trình chuẩn bị khử trùng lặp theo thứ tự xuất hiện đầu tiên, từ chối chính id của session đích, và áp dụng giới hạn số lượng có thể cấu hình, nhưng trần cứng cho tham chiếu là ba, và mọi thao tác đọc đều chạy song song. Quá trình này không trả về ngữ cảnh hoàn thành một phần: bất kỳ lỗi đọc, huỷ, kiểm tra hay ngân sách nào cũng khiến thao tác bị từ chối trước khi gọi `followup()` hoặc `steer()`. Việc huỷ chạy đua với quá trình tìm ứng viên và đọc chính xác đang diễn ra, nên ngay cả khi backend persistence không thể ngắt các thao tác đang chờ, host vẫn kết thúc chờ đợi kịp thời; kết quả hoàn thành đến muộn từ backend vẫn được quan sát, nhưng không thể đưa tin nhắn vào hàng đợi. Session nguồn được đọc xong trước khi vào hàng đợi, nên việc session nguồn sau đó thêm tin nhắn, thực hiện compaction, bị xoá hay bị thay nội dung persist đều không thể làm thay đổi ảnh chụp trong session đích.
+
+Phép chiếu giữ lại tin nhắn người dùng trực tiếp và steering (dẫn hướng giữa chừng), văn bản assistant đã hoàn tất, cùng tin nhắn người dùng dạng checkpoint mang ký hiệu nguồn chuẩn tắc do `dsh-compaction` xuất ra. Ký hiệu này thuộc về quy ước của capability compaction, chứ không phải tên của một package backend nào đó. Khi prompt nguồn đã chứa ngữ cảnh tiền tố được ghép vào, phép chiếu chỉ đọc phần nội dung hiển thị mà mô hình không thấy, nên việc tham chiếu đích đó về sau sẽ không lan truyền đệ quy các ảnh chụp trước đó. Phép chiếu loại trừ các nút đã bị che trước khi compaction, các tool và kết quả của chúng, phần reasoning (suy luận), ngữ cảnh được tiêm vào, tin nhắn người dùng của plugin khác, các bản ghi chỉ dùng cho log, và các mảnh assistant chưa hoàn tất. Do đó, compaction lặp lại chỉ phơi bày dòng dõi checkpoint gấp mới nhất mà bề mặt hiện tại còn giữ cùng những tin nhắn đuôi của nó; hệ thống không cung cấp công tắc raw/current, cũng không khôi phục nội dung đã bị che.
+
+Hệ thống tuần tự hoá một chuỗi ngữ cảnh tổng hợp thành JSON và đặt nó sau một cảnh báo bối cảnh không đáng tin cố định. Cảnh báo đó yêu cầu mô hình không tuân theo chỉ dẫn, tuyên bố quyền hạn hay yêu cầu tool trong session được tham chiếu, trừ khi người dùng hiện tại nêu lại những nội dung đó. Việc tuần tự hoá an toàn với thẻ sẽ escape không mất mát mọi ký tự `<` trong dữ liệu thành `\u003c` của JSON; nhờ vậy chuỗi nguồn không thể ghép thành thẻ dạng XML bao ngoài, cũng không thể thoát khỏi vùng dữ liệu. Cùng một bộ tuần tự hoá sẽ hạch toán số byte của từng nguồn một cách độc lập. AgentLoop persist ảnh chụp thành một `user/message` có thông tin nguồn, đặt ngay trước `user/message` trực tiếp. Nhờ đó, việc phát lại ở đích thoả mãn bất biến «mô hình thấy được ⟺ tái dựng được từ log» mà không cần thêm loại sự kiện, chế độ đặt vị trí hay lớp bao prompt mới.
+
+## Quyền sở hữu tin nhắn
+
+TUI chịu trách nhiệm cho giao dịch ảnh chụp/tin nhắn trực tiếp, không mở rộng bản ghi inbox dùng chung. Khi agent rảnh, nó cài một listener `agent/pre-step` vòng ngoài dùng một lần trước khi gọi `followup()`; quyết định enter sẽ nhận ảnh chụp như một tin nhắn khác, còn reject hoặc việc loại bỏ thông thường sớm hơn sẽ giải phóng listener và không ghi tin nhắn nào. Khi agent đang chạy, TUI gọi lần lượt `inject(snapshot)` rồi `steer(prompt)`, đặt cả hai vào next-step inbox, chờ cùng một lượt lấy về sau. Việc pre-step reject hoặc thất bại giữ cặp tin nhắn đã lấy ở trạng thái đã bị gỡ; các tin nhắn chèn vào sau khi lấy tiếp tục chờ. Ranh giới bàn giao chung này được quy định bởi [quyết định tách ngữ cảnh](../architecture/2026-07-24-separate-context-injection-from-turn-execution.md).
+
+Quá trình chuẩn bị tham chiếu không phải là một giao thức steering mới, và bản thân nó cũng không tạo ra lượt. Bàn giao lúc rảnh dùng `followup()` và quyết định vào ở pre-step; bàn giao trong lúc đang chạy dùng next-step inbox dùng chung và giữ nguyên thứ tự ảnh chụp.
+
+## Bộ điều hợp host
+
+TUI kết hợp ứng viên session với provider file `@` sẵn có. Truy vấn ứng viên khớp chuỗi con không phân biệt hoa thường trên session id, cwd hoặc tiêu đề mới nhất sau khi gấp, hiển thị tiêu đề đó, và lùi về session id khi không có kết quả quan sát tiêu đề hoặc quan sát tiêu đề thất bại. Truy vấn ứng viên tuân theo tín hiệu huỷ của editor; các ký tự điều khiển terminal ngoại lai trong session id, cwd và nhãn nhắc đều được escape, nhưng URI chuẩn tắc vẫn giữ id gốc. TUI chỉ chuẩn bị các lần gửi có chứa ký hiệu nhắc có cấu trúc; vô hiệu hoá việc gửi lặp khi đang chờ ảnh chụp; khôi phục nội dung nhập khi thất bại; nó kết xuất phần nội dung trực tiếp đọc được thành tin nhắn người dùng, và kết xuất metadata nguồn của tham chiếu session thành danh sách nguồn rút gọn, không phơi bày toàn bộ JSON trong terminal.
+
+[Tầng truyền tải ACP (Agent Client Protocol) chỉ dành cho tự động hoá](../simplification/2026-07-23-acp-automation-only-protocol.md) cố ý không gắn service session query hay session reference.
+
+## Ngân sách và chính sách giữ lại
+
+Mỗi tham chiếu trong tối đa ba tham chiếu mặc định bị giới hạn độc lập trong 65.536 byte UTF-8. Chính sách giữ lại ưu tiên giữ checkpoint compaction hiện tại và đơn vị hội thoại mới nhất, rồi mới loại bỏ các tin nhắn không phải checkpoint cũ hơn. Nếu văn bản được giữ lại quá lớn, hệ thống dùng `dsh-output-retention` để cắt lát đầu–cuối và ghi lại chính xác số byte bị lược bỏ; nếu các trường tuần tự hoá cố định của một nguồn nào đó không vừa với trần của nó, toàn bộ quá trình chuẩn bị sẽ thất bại và không xuất ra ngữ cảnh một phần.
+
+## Các phương án đã cân nhắc
+
+- **Chờ SQLite FTS5**: không chọn, vì tính đúng đắn của ảnh chụp phụ thuộc vào việc đọc theo id chính xác và phép gấp bề mặt chuẩn tắc, chứ không phải tìm kiếm nội dung. FTS chỉ cải thiện việc tìm ứng viên.
+- **Đưa cú pháp ký hiệu nhắc vào phương thức gửi của agent**: không chọn, vì điều đó buộc giao thức lõi phải phân tích cú pháp trình bày của một host cụ thể, và ngăn các host phi văn bản có kiểu dữ liệu tái sử dụng cùng một tầng ngữ nghĩa.
+- **Hiện thực tham chiếu riêng trong từng host**: không chọn, vì phép chiếu, cảnh báo an toàn, chính sách giữ lại và persistence sẽ dần lệch nhau giữa các host.
+- **Gắn ngữ cảnh vào `SendOptions` và bản ghi inbox của prompt trực tiếp**: không chọn, vì việc gửi dùng chung sẽ phải chịu trách nhiệm cho một giao dịch nghiệp vụ xuyên suốt việc kết nạp, steering, huỷ và quan sát. Lớp bao kết nạp chuyên biệt theo nghiệp vụ cùng next-step inbox sẵn có có thể duy trì cặp cần thiết mà không phải mở rộng mọi prompt trực tiếp.
+- **Để host ghép tiền tố trước khi gọi `followup()`**: không chọn, vì `agent/pre-step` chỉ được kiểm tra và viết lại prompt trực tiếp. Giữ ảnh chụp thành một tin nhắn riêng có thông tin nguồn duy trì được ranh giới đó, và cho phép TUI ẩn các byte bối cảnh khỏi bong bóng người dùng trực tiếp.
+- **Phát lại log nguồn thô hoặc khôi phục sự kiện đã bị che**: không chọn, vì compaction định nghĩa bề mặt mô hình hiện tại, và có thể cố ý loại bỏ nội dung lịch sử nhạy cảm hoặc tốn kém.
+- **Khôi phục hoặc fork session nguồn**: không chọn, vì tính năng này chỉ cung cấp bối cảnh chỉ đọc cho một tin nhắn đích, không cung cấp tính liên tục về danh tính hay vòng đời.
+- **Đọc lại session nguồn và tiêm vào tại thời điểm yêu cầu**: không chọn, vì điều đó khiến tham chiếu trở nên bất định, cuộc đua huỷ có thể làm đổi nội dung byte của nó, và việc phát lại ở đích cũng sẽ phụ thuộc vào trạng thái ngoài có thể thay đổi.
+
+## Kiểm chứng
+
+Kiểm thử unit và tích hợp bao phủ việc khứ hồi URI không mất mát cùng dấu câu ở biên văn bản, tham chiếu tường minh sai định dạng, việc khớp và sắp xếp ứng viên theo id/cwd/tiêu đề, việc lùi về khi quan sát tiêu đề thất bại, huỷ truy vấn ứng viên, escape ký tự điều khiển terminal, quy tắc loại trừ của phép chiếu, phép chiếu không đệ quy của ảnh chụp, checkpoint compaction độc lập với backend, lớp bao an toàn với thẻ, khử trùng lặp, tự tham chiếu, giới hạn số lượng, tính toàn-có-hoặc-không-có của thao tác đọc, việc huỷ prompt khi thao tác đọc từ kho lưu trữ không kết thúc, việc giữ byte độc lập theo từng nguồn, việc chặn prompt, việc tạm giữ trong lúc kết nạp, cách đặt vị trí send/steer, sự cô lập tiêu đề, và việc phát lại trên TUI trong tình huống thiếu capability và tình huống compaction. Một snapshot terminal không cần khoá sẽ nhập một chuỗi con chỉ khớp với tiêu đề trong khi session id là mờ, và cố định lại các ứng viên được kết xuất. Một snapshot TUI không cần khoá khác chạy agent loop (vòng lặp tác tử) thật: bề mặt nguồn thay lịch sử người dùng/assistant cũ bằng một checkpoint compaction, session đích gửi một ký hiệu nhắc, request mô hình bắt được chứa một tin nhắn ảnh chụp có thông tin nguồn, theo sau là prompt hiện tại đọc được, và không chứa bất kỳ chuỗi nào đã bị che.
+
+## Hệ quả
+
+Plugin mới tạo thành một ranh giới ngữ nghĩa ổn định, không thêm schema persistence, loại sự kiện, phụ thuộc FTS, đăng ký theo dõi session nguồn, hay quyền truy cập vào nội dung mà compaction đã che. Bundle demo TUI tiêu chuẩn gắn nó một cách tường minh, và phơi bày số lượng tham chiếu cùng trần byte theo từng nguồn trong cấu hình của chính nó; các host tuỳ biến giữ nguyên cho tới khi gắn service này và thích ứng đầu vào. Ngữ cảnh tham chiếu sẽ làm lịch sử đích lớn lên trong giới hạn đã cấu hình, sau đó có thể được compaction thông thường của session đích tóm tắt lại; sau khi compaction xong, session nguồn không còn liên quan nữa.

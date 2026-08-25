@@ -1,0 +1,33 @@
+# Agent Note: crypto.randomUUID is secure-context-only in the browser client layer
+
+Status: implemented
+
+[English](2026-08-21-insecure-origin-random-uuid.md) | Tiếng Việt
+
+## Problem
+
+Web UI tiêu chuẩn được mở từ một nguồn LAN HTTP không mã hóa (`http://192.168.60.16:3080`) cứ lặp lại vô hạn `[web-runtime] connection lost, retry #N`. Nguyên nhân gốc: `AbstractApiClient.mintRpcId` (`packages/host/apiproxy/src/fetch/client.ts`) gọi `crypto.randomUUID()`. Trình duyệt chỉ phơi bày `crypto.randomUUID` trong secure context (HTTPS hoặc `localhost`); trên nguồn không an toàn nó là `undefined`, nên lệnh gọi này ném lỗi đồng bộ ngay trong bắt tay sẵn sàng của connection generation, trước cả bất kỳ fetch nào. Catch hủy generation đó, từ đó đóng cả hai WebSocket khi chúng vẫn còn ở trạng thái `CONNECTING` ("WebSocket is closed before the connection is established"), khiến controller thử lại vô hạn. Đã xác minh trên trình duyệt thật tại nguồn đó: `isSecureContext:false`, `typeof crypto.randomUUID === 'undefined'`, `getRandomValues` khả dụng; WS thô tới cùng URL đó hoạt động bình thường (rpcId của luồng được đúc ở phía host, không bao giờ ở trình duyệt). Comment cũ — "crypto.randomUUID là Web API (trình duyệt + Node ≥19): giúp lớp base này trung lập với nền tảng" — là sai: nó không trung lập giữa các *nguồn* trình duyệt.
+
+## Decision
+
+`mintRpcId` giờ dùng hàm phụ trợ `randomUuid()` dựa trên `getRandomValues`, không đòi hỏi bất kỳ yêu cầu secure context nào, hoạt động trên mọi nguồn (và cả Node ≥19, nơi `crypto` toàn cục phơi bày cùng bề mặt Web Crypto). Nó được dùng vô điều kiện, thay vì rẽ nhánh trên `crypto.randomUUID?.()`, vì khả năng này thay đổi theo nguồn chứ không theo nền tảng, và việc rẽ nhánh sẽ khiến đường không an toàn quan trọng nhất gần như không bao giờ được test bao phủ.
+
+**Nhà quy phạm.** Cài đặt duy nhất nằm ở `packages/llm/llm/src/random-uuid.ts`, export từ subpath `@deepseek-ai/dsh-llm/random-uuid`. `dsh-llm` là từ vựng dùng chung INLINE_SAFE, `message.ts` của nó đã đúc `MessageId` ở phía trình duyệt, và mỗi bên tiêu thụ hoặc chính là `dsh-llm` hoặc có thể phụ thuộc vào nó — đây chính là ràng buộc quyết định nhà ở, vì import của bên nhập nội tuyến trong trình duyệt phải là INLINE_SAFE, trong khi `dsh-brand` (ứng viên zero-runtime duy nhất khác) theo hợp đồng chỉ chứa type. `packages/host/apiproxy/src/fetch/random-uuid.ts` giờ là một re-export mỏng từ subpath đó (apiproxy phụ thuộc `dsh-llm`, không bao giờ ngược lại), khiến bề mặt `@deepseek-ai/dsh-host-apiproxy/client` — `mintRpcId` và lớp client import từ nó — trỏ tới cài đặt duy nhất.
+
+Bản sao trùng lặp trước đây `connection/src/client/random-uuid.ts` (trong `dsh-client-connection`) đã bị xóa; các bên import nó (`client/rpc.ts`, `client/fixture.ts`) import re-export từ apiproxy `/client`, chỉ còn lại một cài đặt duy nhất. Việc rà soát khả năng tiếp cận từ trình duyệt phát hiện thêm hai chỗ dùng chỉ-secure-context khác, cả hai đều được định tuyến qua cùng hàm phụ trợ: `createMessage` trong `llm/message.ts` (nhóm `createUserMessage`, `MessageId(crypto.randomUUID())` — INLINE_SAFE, nên nguyên trạng rơi vào bundle trình duyệt; hiện đang tiềm ẩn vì chưa có luồng nào của trình duyệt đúc Message, nhưng bất kỳ luồng nào trong tương lai sẽ sập trên nguồn LAN HTTP không mã hóa), được sửa tại chỗ bằng import cục bộ; và `browserDraftAttachment` của `ui-conversation` (dùng `crypto.randomUUID()` để sinh id đính kèm bản nháp), nó thêm phụ thuộc `@deepseek-ai/dsh-host-apiproxy` để tới được re-export `/client`. `randomUUID` của `node:crypto` phía host (`api-proxy.ts`, `fetch/handler.ts`, WS downstream) cùng các cách dùng riêng của host không phải INLINE_SAFE (giá trị mặc định có thể tiêm của `anonymous-user-id`, token phiên bản của `dsh-commands`) chỉ chạy trên Node, `crypto.randomUUID` toàn cục của nó không bị giới hạn secure context, nên giữ nguyên không đổi.
+
+## Alternatives considered
+
+**Ưu tiên `crypto.randomUUID?.()` khi tồn tại, nếu không thì rơi về hàm phụ trợ.** Bị phủ quyết: lệnh gọi native trên các nguồn khả dụng không mang lại lợi ích gì, trong khi nhánh không an toàn của rẽ nhánh chính là nhánh quan trọng nhất nhưng lại khó được test liên tục nhất. Một đường duy nhất vô điều kiện thì đơn giản hơn và có thể chứng minh là độc lập với nguồn.
+
+**Gán polyfill `randomUUID` vào `globalThis.crypto`.** Bị phủ quyết: sửa đổi bề mặt Web API toàn cục chỉ để vá một điểm gọi thì rộng và kỳ quặc hơn một hàm phụ trợ cục bộ, và sẽ che giấu cùng cái bẫy đó cho bất kỳ API chỉ-secure-context nào trong tương lai.
+
+**Giữ hàm phụ trợ trong `dsh-client-connection` để apiproxy import nó.** Bị phủ quyết vì hướng phụ thuộc: `dsh-client-connection` phụ thuộc `dsh-host-apiproxy`, không phải ngược lại.
+
+**Đặt hàm phụ trợ quy phạm vào `dsh-brand` hoặc một package `packages/util/*` mới.** Bị phủ quyết: import của chính module nội tuyến trong trình duyệt phải là INLINE_SAFE (`host-apiproxy|session|llm|tools|brand`), trong khi một package util mới sẽ buộc phải nới lỏng cổng đó cho mọi bundle client. `dsh-brand` là thành viên INLINE_SAFE zero-runtime duy nhất khác, nhưng theo hợp đồng chỉ chứa type (không có code runtime). `dsh-llm` là INLINE_SAFE, đã đúc id ở phía trình duyệt, và được các bên tiêu thụ khác phụ thuộc vào (chứ không phụ thuộc ngược) — đó là nhà bền vững duy nhất.
+
+**Giữ cài đặt trong apiproxy để llm import nó.** Bị phủ quyết vì cùng quy tắc hướng: `dsh-host-apiproxy` phụ thuộc `dsh-llm`, nên llm không thể import từ apiproxy; cài đặt đặt ở llm, apiproxy re-export.
+
+## Consequences
+
+Web UI khởi động và giữ kết nối trên nguồn LAN HTTP không mã hóa, và việc đính kèm hình ảnh ở đó, cùng bất kỳ việc đúc Message phía trình duyệt nào trong tương lai, không còn ném lỗi nữa. Chỉ có một hàm phụ trợ UUID an toàn cho trình duyệt `@deepseek-ai/dsh-llm/random-uuid`, được re-export qua `@deepseek-ai/dsh-host-apiproxy/client`; `llm/random-uuid.ts` đạt độ bao phủ 100% theo từng file, unit test của nó chốt đường không an toàn (stub `crypto` chỉ chứa `getRandomValues`), và một test `mintRpcId` chứng minh lệnh gọi vẫn đúc ra rpcId hợp lệ khi thiếu `randomUUID`. Bài học rộng hơn đáng đề phòng: **Web API chỉ-secure-context** (`crypto.randomUUID`, `crypto.subtle`, v.v.) là cái bẫy ở lớp client trình duyệt — chúng vượt qua mọi test trên localhost/HTTPS, chỉ thất bại trên nguồn LAN HTTP không mã hóa, và đó chính xác là kiểu triển khai mà công việc token/LAN nhắm tới. Code mới có thể tiếp cận từ trình duyệt nên đúc id và hash bằng các primitive độc lập với nguồn (`getRandomValues`) hoặc hàm phụ trợ dùng chung, không bao giờ dùng `crypto.randomUUID`. `node:crypto` phía host không bị ảnh hưởng. Không có thay đổi nào về wire, format hay sự kiện session.

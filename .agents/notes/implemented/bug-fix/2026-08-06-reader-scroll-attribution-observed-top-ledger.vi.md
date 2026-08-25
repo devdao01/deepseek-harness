@@ -1,0 +1,37 @@
+# Agent Note: Quy kết cuộn của người đọc qua observed-top ledger
+
+Status: implemented
+
+[English](2026-08-06-reader-scroll-attribution-observed-top-ledger.md) | Tiếng Việt
+
+## Vấn đề
+
+Tính năng bám đáy (dính vào đáy) của ChatView trước đây chỉ nhận diện cử chỉ lăn chuột/trackpad như là đầu vào của người đọc: trong lúc đang ghim ở đáy (floor), một sự kiện cuộn không kèm theo độ dịch chuyển lăn chuột tương ứng sẽ bị coi là cuộn theo chương trình và bị kéo trở lại đáy. Vì vậy, thao tác vuốt cảm ứng (touch pan), kéo thanh cuộn gốc và lật trang bằng bàn phím đều không thể rời khỏi đáy của transcript (bản ghi văn bản) đang stream; trên điện thoại, phần đuôi trên thực tế bị khóa cứng. Cách xác định nguồn đầu vào chỉ nhận lăn chuột này là sự trì hoãn có chủ ý trong [ghi chú sticky-composer](2026-07-29-sticky-composer-conversation-scroll.md): ghi chú đó từ chối xây dựng một máy trạng thái đầu vào tổng quát cho "bản vá phạm vi hẹp lần này", để mọi nguồn cuộn còn lại nằm ngoài mô hình.
+
+## Quyết định
+
+Đầu vào của người đọc không còn được nhận diện dựa trên thiết bị. ChatView duy trì một observed-top ledger (`observedTopRef`): tức là `scrollTop` gần nhất do luồng chính giao xuống, hoặc do chính component ghi vào, và được đồng bộ ghi lại tại mỗi điểm ghi theo chương trình (bám đáy, khôi phục khi mở, neo phía trước, bám theo thay đổi kích thước, và chính việc giao cuộn). Khi sự kiện cuộn đến, vị trí lệch khỏi `min(ledger, floor)` quá nửa pixel được coi là đầu vào của người đọc; vị trí trùng khớp với ledger (giao chương trình đến muộn), hoặc trùng đúng vào đáy sau khi co lại (kẹp của trình duyệt sau khi nội dung co lại), thì giữ nguyên trạng thái sở hữu hiện tại. Sau đó, quyền sở hữu chỉ thay đổi thông qua đầu vào của người đọc, theo đúng quy tắc ngưỡng sẵn có: vị trí cách đáy trong phạm vi `FOLLOW_THRESHOLD` thì bám đáy lại, vượt ngoài thì nhả bám theo và hiển thị "Về đáy". Listener lăn chuột cùng với sổ sách epoch của nó đã bị xóa; component giờ chỉ lắng nghe `scroll`, nên lăn chuột, cảm ứng, thanh cuộn, bàn phím và bất kỳ nguồn đầu vào nào trong tương lai đều được cùng một quy tắc bao phủ.
+
+## Thay đổi hợp đồng: kẹp bị gộp giữa co lại và tăng trưởng trở lại
+
+Nếu bố cục của một lần kẹp co lại tăng trưởng trở lại ngay trong cùng một lượt cập nhật render, trước khi sự kiện cuộn của lần kẹp đó được giao, thì sự kiện này về mặt hình học không thể phân biệt được với đầu vào của người đọc, do đó giờ đây nó sẽ bị đọc là của người đọc và nhả bám theo (có thể khôi phục qua "Về đáy"). Trên thực tế, việc co lại và tăng trưởng trở lại do commit của React thúc đẩy vẫn được hấp thụ: việc bám theo trong layout effect sẽ bám đáy lại và ghi lại ledger sau mỗi lần commit, còn kẹp chỉ co lại thì sẽ trùng đúng vào `min(ledger, floor)`. Chỉ những lần sắp xếp lại không phải do React, co lại rồi tăng trưởng trở lại trong cùng một lượt cập nhật, mới bị quy kết sai. Mô hình lăn chuột cũ trong tình huống tranh chấp (race) này vẫn giữ bám theo; quy ước unit test đã được viết lại trong cùng thay đổi này để chỉ đảm bảo hấp thụ đối với kẹp thuần co lại.
+
+## Kiểm thử
+
+Các unit test trong `packages/client/ui-conversation/tests/chat-view.client.spec.tsx` chốt trực tiếp quy ước ledger: hàm hỗ trợ `readerScroll` giao một vị trí mà component chưa từng ghi, giao theo chương trình trùng vào ledger, và kẹp co lại ở giai đoạn kết thúc stream vẫn giữ bám theo. Hai kịch bản trong `apps/web/tests/chat-scroll-contract.e2e.ts` mở rộng [làn e2e trình duyệt](../testing/2026-07-24-web-gui-browser-e2e-lane.md): lật trang bằng bàn phím trên một transcript đã ổn định, và một lần vuốt quán tính (momentum fling) kiểu cảm ứng trên đầu ra đang stream theo nhịp; cả hai đều đỏ với triển khai chỉ nhận lăn chuột, và đều xanh với ledger.
+
+Chromium của làn này không thể tổng hợp bất kỳ cuộn thiết bị nào không phải lăn chuột, điều này giới hạn phạm vi mà e2e thực sự có thể lái: `Input.synthesizeScrollGesture` nguồn cảm ứng và chuỗi `Input.dispatchTouchEvent` dựng thủ công đều có thể giao sự kiện DOM, nhưng chưa bao giờ di chuyển container cuộn (cả ở chế độ headless lẫn chế độ có đầu dưới Xvfb); nguồn cử chỉ `default` tổng hợp ra sự kiện lăn chuột; còn thanh cuộn của bộ tổng hợp thì hoàn toàn phớt lờ đầu vào chuột được tổng hợp, và chỉ nhìn thấy rãnh thanh cuộn sau khi bỏ `--hide-scrollbars`. Bàn phím là nguyên thủy duy nhất không phải lăn chuột khả dụng, nên nó gánh vai trò chứng minh cho pipeline đầu vào thực sự; còn kịch bản vuốt nhanh thì phát lại trực tiếp vào container cuộn đặc trưng của cảm ứng (độ dịch chuyển suy giảm theo từng khung hình mà component chưa từng ghi).
+
+## Các phương án thay thế từng cân nhắc
+
+**Giữ nguyên mô hình chỉ nhận lăn chuột.** Bác bỏ: bản thân nó chính là nơi có lỗi. Người đọc dùng cảm ứng, thanh cuộn hay bàn phím không thể giành quyền sở hữu khỏi phần đuôi đang stream, và mỗi thiết bị mới được hỗ trợ đều cần mở riêng một trường hợp đặc biệt.
+
+**Liệt kê từng thiết bị đầu vào.** Gắn thêm listener `touchstart`/`pointerdown`/`keydown` bên cạnh epoch lăn chuột là hướng mở rộng hiển nhiên nhất. Bác bỏ: kéo thanh cuộn gốc không hề lộ ra bất kỳ sự kiện đầu vào nào có thể chốt lại trước khi sự kiện cuộn của nó đến; danh sách thiết bị sẽ dần mục nát khi trình duyệt bổ sung nguồn đầu vào mới; và mỗi listener lại cần cửa sổ khoan hồng giao hàng riêng của bộ tổng hợp — chính là máy trạng thái đầu vào mà ghi chú sticky-composer đã từ chối xây dựng ngay từ đầu.
+
+**Dùng heuristic để hấp thụ các kẹp bị gộp giữa co lại và tăng trưởng trở lại.** Một cửa sổ khoan hồng cho lệch đáy, hoặc kiểm tra lại trì hoãn đến rAF, lẽ ra có thể khiến kẹp trong tình huống tranh chấp này không bị đọc là của người đọc. Bác bỏ: đầu ra stream ghi lại đáy theo nhịp phân đoạn (24 ms), trong khi khoảng cách giữa các khung hình khoảng 16 ms, nên bất kỳ cửa sổ khoan hồng nào cũng sẽ hoặc nuốt mất đầu vào cảm ứng thật trong lúc đang stream (mở lại đúng lỗi mà thay đổi này sửa), hoặc quá ngắn để bao phủ tình huống tranh chấp mà nó nhắm tới. Thay vào đó, chấp nhận sự quy kết sai này, vì nó có thể khôi phục được.
+
+**Lái thiết bị cảm ứng và thanh cuộn thật trong e2e.** Bị bác bỏ do môi trường, không phải do lựa chọn ưu tiên: mỗi đường tổng hợp (cử chỉ cảm ứng CDP, chuỗi sự kiện cảm ứng, chuột tổng hợp trên thanh cuộn cổ điển, chế độ có đầu dưới Xvfb) đều đã được thử lần lượt, không cái nào cuộn được; chi tiết xem mục "Kiểm thử" ở trên.
+
+## Hệ quả
+
+Mỗi loại đầu vào của người đọc giờ đây sở hữu tính năng bám đáy theo cùng một cách, với ít mã hơn: listener lăn chuột, bộ đếm epoch của nó và sổ sách baseline trước-đầu-vào đều đã bị gỡ bỏ, quy kết được cõng trên trạng thái mà component vốn đã duy trì. Các quyết định về bố cục, xử lý chuỗi lăn chuột và neo phía trước trong ghi chú sticky-composer vẫn giữ nguyên, vẫn có hiệu lực; quy tắc nguồn đầu vào phạm vi hẹp của nó được ghi chú này thay thế. Cái giá phải trả chính là thay đổi hợp đồng ở trên: một lần kẹp bị gộp giữa co lại và tăng trưởng trở lại không phải do React giờ sẽ tạm dừng bám theo cho đến khi người đọc quay lại đáy hoặc bấm "Về đáy"; đổi lại là tính đúng đắn của cảm ứng, thanh cuộn và bàn phím trong lúc đang stream. Độ bao phủ không-lăn-chuột mà làn e2e đạt được chỉ giới hạn trong phạm vi trình duyệt của nó có thể tổng hợp; nếu việc tổng hợp cử chỉ trở nên khả dụng trong một phiên bản Chromium tương lai, có thể thay mô phỏng vuốt nhanh bằng thao tác vuốt cảm ứng thật mà không cần thay đổi quy ước đang được kiểm chứng.

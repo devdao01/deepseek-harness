@@ -1,0 +1,46 @@
+# Agent Note: Tiền tố phiên — thông điệp chỉ dành cho request đứng trước lịch sử suy diễn
+
+Status: implemented
+Archived: 2026-07-28
+
+[English](2026-07-07-session-prefix.md) | 中文
+
+Seam tiền tố chỉ dành cho request được mô tả dưới đây sau này đã bị [quyết định hợp nhất thông điệp kèm nguồn gốc](../architecture/2026-07-22-unified-send-and-coalesced-user-messages.md) loại bỏ. Bên cung cấp hiện tại tiêm ngữ cảnh `user/message` kèm nguồn gốc, bền vững, tại thời điểm `agent/step`; bản ghi này lưu lại thiết kế trước đó cùng các đánh đổi của nó.
+
+## Vấn đề
+
+Plugin thường có một đoạn nội dung mở đầu ổn định ở cấp phiên mà model phải luôn nhìn thấy: danh mục skill, tóm tắt AGENTS.md, baseline của workspace. Trước khi seam này ra đời, harness cung cấp hai vị trí để gán loại nội dung này, nhưng cả hai đều không phù hợp. System prompt là một chuỗi đơn đã được render: nội dung dạng thông điệp (envelope `<system-reminder>` ở vai user, chuỗi dẫn nhập nhiều thông điệp) không thể đưa vào đó, và các bên cung cấp xử lý trọng số của thông điệp phiên và văn bản hệ thống khác nhau. Lịch sử bền vững (`agent.inject()`, `context/message` lúc khởi động phiên) khiến nội dung mở đầu trở thành vĩnh viễn: mọi bên tiêu thụ `deriveMessages()` đều phát lại nó, việc duyệt giữ lại của compaction (nén) sở hữu nó, fork sẽ đóng băng nó ở trạng thái cũ, và resume cũng không thể làm mới nó — danh mục được ghi nhận lúc phiên ra đời sẽ tồn tại lâu hơn thế giới mà nó mô tả.
+
+Lựa chọn thứ ba hiển nhiên — để plugin chỉnh sửa `messages` trên đường đi của request — bị [Agent Note về request có thể tái tạo](../architecture/2026-07-05-reconstructable-requests.md) cấm: mỗi request do vòng lặp xây dựng là một hàm thuần túy của session log, nên dù kênh nào mang nội dung mở đầu, nó vẫn phải ghi lại chính xác những gì đã gửi. Thứ còn thiếu là một kênh thông điệp chỉ dành cho request có bản ghi bền vững.
+
+## Quyết định
+
+`agent/session-prefix` là một waterfall (sự kiện dạng thác nước) trên bản đồ sự kiện agent ([`packages/core/agent/src/types.ts`](../../../../packages/core/agent/src/types.ts)): listener nhận một seed rỗng đã đóng băng và trả về phần mở rộng (cách đóng góp chuẩn là prepend `[mine, ...await next()]`, tạo ra thứ tự đăng ký trên định dạng giao thức). Agent loop (vòng lặp tác tử) ([mã nguồn agent-loop](../../../../packages/core/agent-loop/src/)) kích hoạt việc này một lần trong mỗi instance của vòng lặp, một cách lazy trước `agent/pre-step` đầu tiên của instance đó; danh sách đã tổng hợp được deep copy, deep freeze, cache trên instance, và đặt trước toàn bộ lịch sử suy diễn trong mọi request mà instance đó phát ra — ngay sau slot system của bên cung cấp ([thứ tự envelope của request](../../../../docs/core-data-structures/core.md#the-request-envelope-llmcallconfig-and-the-logged-header)).
+
+Ba thuộc tính mang thiết kế này:
+
+- **Chỉ dành cho request, được ghi trong header.** `deriveMessages()` không bao giờ trả về tiền tố; bản ghi bền vững duy nhất của nó là `EpochHeader.messagePrefix` trên snapshot `request/header` neo theo instance — kênh mà Agent Note về request có thể tái tạo đã có sẵn cho phần không thuộc lịch sử của request, nên không cần thêm sự kiện phiên mới. [`dsh-agent-loop/invariant`](../../../../packages/core/agent-loop/src/invariant.ts) đi kèm tính lại `messagePrefix + boundary derivation` cho mỗi request do vòng lặp xây dựng; khi bật đóng góp này, một tiền tố không được ghi lại sẽ không thể tới được định dạng giao thức.
+- **Đóng băng theo instance.** Việc tái sử dụng mang tính cấu trúc, không dựa vào kỷ luật: sản phẩm đã cache là bất biến trong suốt phiên, nên cache prompt của bên cung cấp thành lập về mặt cấu trúc, và tiền tố mở rộng vùng có thể cache với chi phí biên bằng không mỗi bước. Khởi động lại tiến trình hoặc `ctx.agents.resume()` tạo ra instance mới: nó tổng hợp lại, và mọi độ lệch đều có thể truy vết trên snapshot header `'resume'`. Đây chính là quy tắc định tuyến mà seam này tạo ra: nội dung mở đầu ổn định trong suốt phiên đi qua tiền tố; nội dung thay đổi giữa phiên đi qua kênh lịch sử chỉ-thêm-vào (`agent.inject()` hoặc `additionalContexts` của tool/prompt-submit — [Agent Note về seam chặn](2026-06-30-interception-seams.md)), mỗi kênh là một `context/message` bền vững trả phí một lần, sau đó được cache tiền tố phủ lên.
+- **Chính xác trong envelope request bền vững.** Việc tổng hợp diễn ra trước `agent/pre-step` đầu tiên của instance và trước ranh giới request. Request đầu tiên được định tuyến sẽ ghi lại tiền tố hiện tại trên header của nó, nên áp lực token sau bước có thể đọc tiền tố chính xác cùng với prompt thực tế, tool và model đã định tuyến; checkpoint trước-bước dùng chung không mang theo tham số riêng của compaction. Việc tổng hợp bị gián đoạn bởi hủy/dispose sẽ bị loại bỏ, không bao giờ cache: fallback suy giảm của listener nhận biết abort không rò rỉ sang các request sau; lượt kế tiếp tổng hợp lại dưới tín hiệu còn sống.
+
+Vì việc tổng hợp chạy trước snapshot ranh giới, phần thêm vào phiên của listener tổng hợp sẽ gia nhập lịch sử suy diễn của request hiện tại. Về mặt cấu trúc, compaction không thể chạm tới tiền tố (hay system prompt): nó viết lại các node bề mặt, còn trạng thái header không bao giờ đi vào bề mặt.
+
+## Kiểm thử
+
+[Test chặn](../../../../packages/core/agent-loop/tests/interception.spec.ts) cố định các hành vi sau: tái sử dụng một lần khi tổng hợp không thay đổi header, thứ tự prepend, bỏ qua tiền tố rỗng, tính bất biến, việc tổng hợp hoàn tất trước checkpoint trước-bước, và tiền tố trên header đã định tuyến; [test hủy](../../../../packages/core/agent-loop/tests/cancel.spec.ts) cố định việc loại bỏ và tổng hợp lại. Test của Session, invariant, token-meter và compaction bao phủ việc round-trip header, tái tạo request và tính toán áp lực nhận biết tiền tố bền vững. Việc chuẩn hóa snapshot giữ nguyên số lượng tiền tố, [kịch bản cố định nội dung header của request](../../archived/testing/2026-07-06-pin-request-header-content-in-one-scenario.md) sở hữu nội dung đó, còn ví dụ mặc định vẫn giữ không có tiền tố. Seam này không phụ thuộc vào bên cung cấp nên không cần e2e riêng; [request-cache e2e](../../../../packages/core/agent-loop/tests/request-cache.e2e.ts) có key bao phủ tính kinh tế của việc cache.
+
+## Các phương án thay thế đã cân nhắc
+
+- **Slot `before`/`after` cho mỗi request, tính lại mỗi bước** (hình thái được đề xuất ban đầu: một waterfall kích hoạt mỗi request, đóng góp thông điệp `before` đã đóng băng đứng trước lịch sử và thông điệp `after` mới đứng sau lịch sử): bác bỏ. Tổng hợp lại `before` mỗi bước sẽ gây ra độ lệch, buộc phải ghi lại thành header thay đổi đầy đủ; slot `after` nằm sau lịch sử ngày càng tăng, token của nó bị trả lặp lại ở mỗi request, và mọi nội dung sau nó không thể cache. So sánh với các phương án khác, tất cả các mẫu cập nhật hiện tại đều được đáp ứng rẻ hơn bằng cách thêm vào bền vững (trả một lần, sau đó đọc từ cache), và nội dung duy nhất chưa có chỗ gán là phần mở đầu ổn định trong suốt phiên — thứ cần đóng băng, không cần tính lại.
+- **Phân đoạn system prompt** (`system-prompt/assemble`): bác bỏ cho loại nội dung này. Assembly render thành một chuỗi `system` đơn, phần mở đầu dạng thông điệp không thể đưa vào đó; và system prompt được thiết kế để tổng hợp lại mỗi bước (kèm header thay đổi đầy đủ khi có thay đổi), trong khi nội dung mở đầu cần ngữ nghĩa đóng băng theo instance.
+- **Mở đầu lịch sử bền vững** (`inject()` lúc khởi động phiên): bác bỏ. Lịch sử vĩnh viễn chính là mẫu hình thất bại nêu trong vấn đề — bị phát lại khắp nơi, có thể bị compact, và vẫn cũ sau khi resume.
+- **Tổng hợp theo lượt thay vì theo instance**: bác bỏ. Tổng hợp lại ở ranh giới lượt sẽ hoặc mất đồng bộ âm thầm với log, hoặc buộc phải có header thay đổi; và nó phá vỡ cache của bên cung cấp mỗi lần kích hoạt. Điểm làm mới hợp lý là ranh giới instance, và snapshot `'resume'` đã ghi lại độ lệch ở đó một cách có thể truy vết.
+- **Mang prompt/tiền tố qua `agent/pre-step` để ước tính áp lực tạm thời**: bác bỏ, vì nó ghép một seam vòng đời dùng chung với một bên tiêu thụ duy nhất, và vẫn bỏ sót các request và tool được định tuyến muộn hơn; việc phát lại sau bước sẽ đọc mọi trường của envelope request từ header đã định tuyến bền vững.
+- **Sự kiện phiên chuyên dụng mang tiền tố**: bác bỏ. Sự kiện header theo thiết kế chính là bản ghi không thuộc lịch sử của request; một sự kiện thứ hai sẽ tạo ra chỗ gán thứ hai cho cùng một sự thật, cộng thêm một codec nữa cần giữ cho hoàn chỉnh.
+
+## Hệ quả
+
+- `agent/pre-step` vẫn giữ checkpoint dùng chung `(agent, turn, step, signal)`. Compaction không nhận tham số prefix; `ctx.tokenMeter` gộp tiền tố từ header đã định tuyến chuẩn sau bước.
+- Nội dung của người đóng góp thay đổi giữa phiên sẽ không được đọc lại cho tới instance kế tiếp — đây là chủ đích thiết kế. Các triển khai cần cập nhật danh mục giữa phiên nên định tuyến thông báo thay đổi qua kênh lịch sử chỉ-thêm-vào, trả phí một `context/message` bền vững.
+- Slot `after` bị từ bỏ nghĩa là không có kênh chỉ-dành-cho-request nào gần cuối request; không có tính năng nào trong repo cần nó, và khôi phục nó sẽ tái tạo lại chi phí trả lặp mỗi bước mà thiết kế này nhằm tránh.
+- Tổng hợp rỗng chính là trạng thái thiếu chuẩn: các triển khai không có người đóng góp không ghi thêm byte header, request của chúng chỉ là suy diễn trần.

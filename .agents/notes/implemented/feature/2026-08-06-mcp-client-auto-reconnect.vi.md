@@ -1,0 +1,48 @@
+# Agent Note: MCP client auto-reconnect with bounded backoff
+
+Status: implemented
+
+[English](2026-08-06-mcp-client-auto-reconnect.md) | 中文
+
+## Vấn đề
+
+[MCP client](2026-07-07-mcp-client-plugin.md) chỉ kết nối một lần khi plugin được nạp. Khi server stdio sập hoặc bị kết liễu, các công cụ đã đăng ký của nó vẫn khả kiến, nhưng mỗi lời gọi đều thất bại với `Not connected`, cho đến khi có người chỉnh cấu hình thủ công để kích hoạt HMR (hot module replacement) reload, hoặc khởi động lại Host — v1 đã cố tình hoãn cơ chế reconnect. Các Host chạy dài hạn (ACP automation, Web) không thể bị khởi động lại chỉ vì một tiến trình con chết; và với truyền tải stdio, tầng tổ hợp harness là bên duy nhất có thể kéo lại tiến trình con đó. Phản hồi từ bên ngoài đã nâng đây thành một khoảng trống vận hành thật sự (issue #1746).
+
+## Quyết định
+
+`packages/mcp/mcp-client/src/connection.ts` sở hữu một bộ giám sát kết nối riêng cho từng instance; `apply()` thu gọn lại thành phân giải cấu hình cộng hai side effect (giữ chỗ `serverName` và vòng đời của bộ giám sát). Bộ giám sát chịu trách nhiệm quản lý thế hệ client/transport, các công cụ đã đăng ký đang hoạt động, và vòng lặp reconnect.
+
+**Điều kiện kích hoạt.** Bộ giám sát lắp `client.onclose` trên mỗi thế hệ. SDK kích hoạt callback này khi tiến trình con stdio thoát, do đó việc sập có thể phát hiện mà không cần polling. `StreamableHTTPClientTransport` chỉ kích hoạt `onclose` khi bị đóng chủ động — nó có cơ chế khôi phục luồng SSE (Server-Sent Events) riêng bên trong, và phơi bày lỗi request theo từng lời gọi — do đó server HTTP thực chất không nằm trong phạm vi khởi động lại của bộ giám sát; README của package ghi nhận hạn chế này.
+
+**Cách ly theo thế hệ, không đan xen.** Mỗi lần thử tạo một transport và `Client` hoàn toàn mới (SDK gắn một Protocol vào một transport dùng suốt vòng đời). Mỗi bộ giám sát có một hàng đợi nội bộ tuần tự hóa mọi lời gọi `syncTools` — đồng bộ khởi tạo ban đầu và đồng bộ lại `list_changed` trên mọi thế hệ — hàng rào `isCurrent` khiến các thế hệ đã lỗi thời trở nên vô hại (lazy), nhờ đó đảm bảo không có hai lần đồng bộ đan xen thực hiện chuyển đổi dispose-thế-hệ-trước/đăng-ký-thế-hệ-sau (nếu không sẽ dispose cùng một thế hệ hai lần và làm rò rỉ thế hệ còn lại). Hàng đợi này cũng loại bỏ một điều kiện đua từng tồn tại: hai thông báo `list_changed` liên tiếp nhanh cùng kích hoạt đồng bộ lại. Việc đăng ký khởi động nghiêm ngặt do chính lần thử kích hoạt sở hữu tường minh, chứ không phải do bên đầu tiên vào hàng đợi sở hữu; một `list_changed` đến sớm dùng ngữ nghĩa đồng bộ lại cách ly lỗi, không thể tiêu thụ `failOnStartupError`. Tín hiệu lỗi có tính idempotent theo từng thế hệ: một lần từ chối kết nối đua với chính việc đóng transport của nó chỉ lên lịch đúng một lần retry. Lần thử thất bại chỉ có thể vào backoff sau khi `Client.close()` đã hoàn tất và transport báo `onclose`; với stdio, `onclose` chứng minh tiến trình con đã thoát; nếu tín hiệu đóng không bao giờ đến, việc reconnect sẽ dừng sau khi cửa sổ kết liễu có giới hạn của SDK hết hạn, thay vì để hai tiến trình server chồng lấn nhau chạy song song. dispose dùng cùng hàng rào tín hiệu đóng có giới hạn; nếu việc đóng chưa xong thì sẽ báo cáo, và không bao giờ khởi động lại.
+
+**Backoff có giới hạn và ngân sách lỗi.** Độ trễ tăng gấp đôi từ `initialDelayMs`, giới hạn trên là `maxDelayMs`. Trong một đợt lỗi, chia sẻ ngân sách `maxAttempts` lần thử liên tiếp thất bại; hết ngân sách thì hủy đăng ký công cụ của server đó, ghi log ở mức error rồi dừng, cho đến khi dispose hoặc reload lại. Kết nối reset ngân sách sau khi tồn tại lâu hơn cửa sổ ổn định — tức `maxDelayMs`, được suy ra từ cấu hình như khoảng backoff dài nhất chứ không phải một tham số chỉnh độc lập thứ năm — do đó một server thỉnh thoảng sập có thể hồi phục vô hạn lần, còn một vòng lặp sập ngay sau khi vừa kết nối thành công trong chốc lát thì không thể rửa sạch ngân sách của mình thành cơn bão khởi động lại.
+
+**Cấu hình và phân giải.** Cả hai truyền tải đều chấp nhận cấu hình `reconnect { enabled, initialDelayMs, maxDelayMs, maxAttempts }`, với giá trị mặc định Schemastery là (bật, 500ms, 30s, 10). `resolveReconnectPolicy()` là bước phân giải tường minh: nó xác thực lại từng giá trị biên và ràng buộc liên trường, vì việc khởi tạo bằng chương trình có thể bỏ qua Schemastery; cấu hình sai sẽ khiến instance plugin thất bại ngay khi nạp.
+
+**Trạng thái có thể quan sát.** Lần thử ban đầu hoặc lần thử retry thất bại sẽ ghi log `connection failed`; khi một thế hệ đã thiết lập kết thúc sẽ ghi `connection lost`; log warn của retry gồm số lần thử và độ trễ, hồi phục ghi ở mức info, thất bại cuối cùng và ngắt kết nối khi tắt reconnect ghi ở mức error. Trong lúc lỗi, thế hệ bình thường trước đó vẫn giữ đăng ký, lời gọi tới công cụ của nó trả về thất bại — tên công khai xác định (deterministic) nghĩa là danh sách công cụ không đổi sau khi hồi phục sẽ tái tạo cùng định nghĩa, giữ tiền tố schema khả kiến với model ổn định thay vì rung lắc liên tục. Đặt `reconnect.enabled: false` giữ hành vi hồi phục thủ công của v1 khi ngắt kết nối.
+
+**Giải phóng tài nguyên.** dispose lật hàng rào, hủy các timer đang chờ, đóng client hiện tại, rồi chờ các lần thử đang diễn ra và hàng đợi đồng bộ hoàn tất trước khi hủy đăng ký công cụ — dừng hẳn hoàn toàn, chứ không chỉ phát yêu cầu dừng. Timer reconnect dùng unref, do đó backoff đang chờ không cản trở tiến trình thoát bình thường.
+
+## Phương án thay thế đã từng cân nhắc
+
+**Bộ đếm lỗi liên tiếp, reset mỗi khi kết nối thành công.** Bác bỏ: một server có vòng lặp sập ngay sau khi vừa kết nối thành công trong chốc lát sẽ reset ngân sách mỗi chu kỳ và khởi động lại mãi mãi — chính là cơn bão khởi động lại mà giới hạn lỗi nhằm ngăn chặn. Việc reset dựa trên thời gian sống phân biệt được server đã hồi phục với server sập theo vòng lặp, mà không cần thêm cấu hình mới.
+
+**Dùng lại cùng một `Client` SDK qua các lần reconnect.** Protocol xóa transport của nó khi đóng, về mặt kỹ thuật có thể kết nối lại, nhưng hướng dẫn của chính SDK là mỗi instance Protocol tương ứng một lần kết nối, và việc dùng lại sẽ mang trình xử lý thông báo cùng trạng thái năng lực đã thương lượng sang instance server mới. Cách tạo `Client` hoàn toàn mới mỗi thế hệ cộng hàng rào `isCurrent` là không mập mờ.
+
+**Hủy đăng ký công cụ ngay khi ngắt kết nối, đăng ký lại khi hồi phục.** Bác bỏ: lỗi thoáng qua sẽ khiến danh sách công cụ khả kiến với model rung lắc (mỗi lần sập kích hoạt hai lần vô hiệu tiền tố schema) mà không thu được lợi ích thông tin nào; lời gọi thất bại đã đủ để đánh dấu lỗi, và việc chuyển đổi khi hồi phục thực hiện nguyên tử theo từng thế hệ. Công cụ chỉ bị hủy đăng ký khi thất bại cuối cùng, đảm bảo server chết vĩnh viễn không làm rò rỉ công cụ vĩnh viễn mất hiệu lực.
+
+**Định tuyến lỗi request Streamable HTTP về bộ giám sát.** Chưa áp dụng: truyền tải HTTP đã dùng cơ chế backoff riêng để reconnect luồng SSE của nó, lỗi từng request không đồng nghĩa server đã chết, và harness không có tiến trình con nào để kéo lại. Việc đóng transport vẫn là điều kiện kích hoạt duy nhất.
+
+**Khởi động lại qua cơ chế Loader/HMR, thay vì dùng bộ giám sát nội tại trong plugin.** Bác bỏ: Loader chịu trách nhiệm tổ hợp lại theo cấu hình, không phải quản lý sức khỏe thời gian chạy. Plugin tự khởi động lại qua Loader sẽ làm lẫn lộn thế hệ cấu hình với thế hệ kết nối, và làm mất ngân sách theo từng đợt lỗi.
+
+## Kiểm thử
+
+Unit test (`tests/reconnect.spec.ts`, mock SDK): hồi phục chuyển thế hệ và phục vụ lời gọi sau khi hồi phục mà không tạo trùng lặp hay rò rỉ; chẩn đoán phân biệt lần thử ban đầu hoặc retry thất bại với việc mất kết nối đã thiết lập; đăng ký khởi động nghiêm ngặt vẫn có hiệu lực dù nhận thông báo `list_changed` trước khi kết nối; lỗi khởi tạo chờ tín hiệu đóng của thế hệ cũ, nếu tín hiệu đó không bao giờ đến thì dừng reconnect; dispose cũng chờ cùng tín hiệu đóng đó, và báo cáo việc đóng chưa xong khi hết hạn chờ có giới hạn; ngân sách lỗi hủy đăng ký công cụ và dừng; dispose hủy backoff đang chờ và khiến đồng bộ đang diễn ra dừng hẳn hoàn toàn; việc đóng sau dispose không lên lịch bất kỳ điều gì; chế độ vô hiệu hóa giữ hành vi v1; cửa sổ ổn định reset ngân sách trong khi vòng lặp sập làm cạn ngân sách; tín hiệu lỗi kép chỉ lên lịch một lần retry; thế hệ và trình xử lý đã lỗi thời trở nên vô hại; `resolveReconnectPolicy` từ chối từng giá trị biên không hợp lệ. E2E (`tests/mcp-client.e2e.ts`, không cần key): fixture server có thêm công cụ `crash` (trả lời rồi thoát); test tiến trình thực chứng minh việc hồi phục stdio khi sập diễn ra đầu-cuối, và việc gỡ plugin trong lúc lỗi dừng reconnect ngay lập tức. Snapshot: cố tình không làm, lý do giống Agent Note gốc — reconnect không đưa vào hình thái hiển thị mới, và trong tổ hợp snapshot việc spawn server sập sẽ khiến phát lại phụ thuộc vào thời gian.
+
+## Hệ quả
+
+- Server MCP stdio bị sập có thể hồi phục mà không cần can thiệp thủ công: backoff có giới hạn, tái phát hiện, chuyển đổi thế hệ nguyên tử. Chính sách mặc định thử lại khoảng 2.5 phút cho một đợt lỗi trước khi từ bỏ.
+- Trạng thái kết nối thực sự phức tạp hơn một kết nối một lần — cửa sổ khả dụng một phần mà v1 cố tình né tránh giờ đã tồn tại (công cụ đã đăng ký trả về thất bại trong lúc lỗi), tập trung trong một module và đặt tên cho mọi bất biến.
+- `reconnect` là bề mặt cấu hình mới trên cả hai truyền tải, cửa sổ ổn định cố tình được suy ra từ `maxDelayMs`; biến nó thành tham số chỉnh độc lập là một thay đổi tương thích trong tương lai.
+- Sau khi thất bại cuối cùng hoặc khi tắt reconnect, plugin vẫn ở trạng thái đã nạp nhưng không có (hoặc có công cụ thất bại), cho đến khi reload lại — đây là hành vi cố ý và có ghi log, đảm bảo server lỗi lâu dài không thể khởi động lại mãi mãi.

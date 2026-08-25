@@ -1,0 +1,34 @@
+# Agent Note: Subagent được ủy quyền chạy với chính sách phê duyệt bị chốt cứng thành `'never'`
+
+Status: implemented
+
+[English](2026-08-10-subagent-approval-pinned-never.md) | 中文
+
+## Vấn đề
+
+Khi agent con được ủy quyền phát ra yêu cầu phê duyệt, không có ai để hỏi. Dưới một cha tương tác (`'ask'`), yêu cầu nâng quyền của subagent nền sẽ trở thành một câu hỏi treo lơ lửng mà không giao diện sản phẩm nào hiển thị — session subagent không vào sidebar Web, `list_agents` của cha chỉ báo cáo `running`/`idle` thông thường, dòng trong cây danh mục cũng chỉ hiển thị trạng thái hoạt động — do đó agent con bị chặn bởi quyền không thể phân biệt được với agent con đang làm việc bình thường; tổ hợp headless và không có ai trả lời khiến cùng một lần ask thất bại đóng lại với `'unavailable'`. Bản ghi kiểm toán của việc từ chối chỉ nằm trong log riêng của agent con, và không có tham số công cụ hay điều khiển Web nào có thể chỉnh chế độ sandbox hay chính sách phê duyệt của một session con đang chạy (Issue #1723). Phương án khắc phục nặng về cơ chế — phép chiếu trạng thái bị chặn bền vững, thông báo cho cha, huy hiệu trên cây danh mục, và đường ghi quyền xuyên qua hàng rào sở hữu subagent — có chi phí không tương xứng khi gần tới thời điểm phát hành.
+
+## Quyết định
+
+Agent con được ủy quyền chỉ hành động trong phạm vi quyền đã chốt tại thời điểm ủy quyền, còn lời nhắc phê duyệt bị loại bỏ hoàn toàn khỏi thế giới của nó: `captureDelegatedPolicyOverrides(parent)` (`dsh-subagent/src/child-agent.ts`) vẫn chụp snapshot override sandbox tường minh của session cha, nhưng chỉ cần năng lực phê duyệt đã được tổ hợp, nó sẽ chốt cứng `approvalPolicy: 'never'` — không còn đọc chính sách phê duyệt của bản thân cha. `appendDelegatedPolicyOverrides()` ghi việc chốt cứng này thành sự kiện bền vững `approval/policy { policy: 'never', source: 'delegation' }` vào log của agent con, đi cùng đường dẫn ủy quyền dùng một lần và có thể tiếp tục y hệt như snapshot sandbox, do đó hồi phục nguội sẽ phát lại nó, và chính sách cha lỗi thời trong seed fork cũng sẽ thua nó.
+
+Việc thực thi tuân theo ngữ nghĩa `'never'` sẵn có của `ApprovalService`, rơi vào thao tác duy nhất phán quyết ask: mỗi lần ask của agent con — nâng quyền `sandbox_permissions` của bash hay fs, hỏi quyền do hook điều khiển, hay bất kỳ bên yêu cầu nào trong tương lai — đều được phân giải tất định thành `'rejected'` trước khi tham vấn bất kỳ ai trả lời, đồng thời vẫn để lại cặp `approval/asked`/`approval/decided` kiểm toán trên log con. Toàn bộ câu chuyện quyền của agent con vì vậy chỉ nằm ở phạm vi sandbox của nó: agent con được ủy quyền từ cha `danger-full-access` không cần bất kỳ phê duyệt nào, agent con được ủy quyền từ cha `read-only` không có lối thoát nào, và quyết định nới lỏng luôn thuộc về phía cha (nới lỏng session cha trước, rồi ủy quyền lại hoặc tiếp tục follow-up).
+
+Mỗi agent con trong-tiến trình đều được thông báo chứ không bị mắc kẹt: `applyChildComposition` đăng ký khai báo ngữ cảnh runtime `subagent:delegation` trong phạm vi (order 120, sau các câu `sandbox:policy` và `approval:policy`), khai báo rằng phạm vi quyền đã cố định lúc khởi động, thao tác cần phê duyệt sẽ tự động bị từ chối, và nhiệm vụ cần quyền truy cập rộng hơn nên kết thúc bằng việc báo cáo giới hạn thay vì thử lại. Khai báo này là một đóng góp ngữ cảnh runtime chứ không phải một section prompt hệ thống, do đó prompt hệ thống của triển khai vẫn thống nhất giữa cha và con (bộ test snapshot chốt sự thống nhất này), và sự thật đó cũng đi cùng snapshot bền vững như các câu chính sách.
+
+Quyết định này thay thế phần phê duyệt trong [quyết định chính sách ủy quyền trong-tiến-trình](2026-07-25-subagent-policy-inheritance.md), và đảo ngược kết luận của nó rằng "buộc cứng `'never'` sẽ loại trừ các bên trả lời agent con trong tương lai": việc kế thừa phê duyệt đã triển khai, và chính nó tạo ra trạng thái bị chặn vô hình nói trên; nếu muốn đưa vào bên trả lời agent con trong tương lai, phải đảo ngược note này trước.
+
+## Phương án thay thế đã cân nhắc
+
+- **Kế thừa override phê duyệt của cha** (hành vi trước đây): không áp dụng. Chỉ có cha đã ở `'never'` mới sinh ra agent con tất định; agent con sinh ra từ cha tương tác sẽ khiến ask của nó hoặc chờ một lời nhắc không ai nhìn thấy, hoặc thất bại đóng lại với `'unavailable'`, kết quả phụ thuộc vào những giao diện nào tình cờ đang kết nối lúc đó.
+- **Khả kiến trạng thái bị chặn và điều chỉnh quyền theo từng agent con** (tiêu chí nghiệm thu ban đầu của #1723): hoãn lại chứ không bác bỏ. Đánh dấu bị chặn trong `list_agents`, thông báo cho cha qua seam giao hàng quyết toán, huy hiệu trên cây danh mục, và kênh quyền chuyên dụng cho subagent vẫn là thiết kế đầy đủ hơn, nhưng mỗi mục đều cần công việc seam độc lập; một khi agent con không thể vào trạng thái bị chặn chờ phê duyệt, những thứ này không còn cần thiết.
+- **Định tuyến ask của agent con về bộ điều khiển cha**: tiếp tục hoãn lại theo [Agent Note seam phê duyệt](2026-07-06-approval-seam.md). Nó cần quyền sở hữu chuỗi cha và `callId` khởi tạo spawn.
+- **Chốt cứng theo nguồn gốc session bên trong `ApprovalService`**: không áp dụng. Việc này sẽ khiến gói phê duyệt gắn với từ vựng ủy quyền, và lặp lại một quyết định mà ranh giới ủy quyền đã sở hữu; sự kiện được gieo vào từ ủy quyền có thể thực thi được chính vì hiện không tồn tại bất kỳ đường ghi nào có thể chuyển đổi chính sách của session con (lệnh `/permission` yêu cầu route Host chung, mà hàng rào sở hữu subagent từ chối route đó với session con).
+
+## Hệ quả
+
+- Kế thừa sandbox của agent con chính là toàn bộ mô hình quyền ủy quyền; trường `DelegatedPolicyOverrides.approvalPolicy` thu hẹp thành `'never' | undefined` (chỉ là `undefined` khi năng lực phê duyệt chưa được tổ hợp).
+- Khả kiến với model: mỗi snapshot ngữ cảnh runtime của agent con mang khai báo `subagent:delegation` cùng câu đã cố định phê duyệt bị vô hiệu hóa; request của cha không đổi. Test biên executor chứng minh: dù ở gốc có một bên trả lời sẽ chấp thuận, việc nâng quyền của agent con vẫn bị từ chối mà không tham vấn bên đó, cặp kiểm toán vẫn được ghi log như thường lệ.
+- Ranh giới: agent con dùng một lần trong-tiến-trình, có thể tiếp tục, và phái sinh từ workflow đều thực thi qua hàm trợ giúp dùng chung; agent con `subagent-acp` giữ chính sách `permission` máy móc tường minh của provider đó; agent con `claude-code`, `codex` và `dsh-sdk` chạy trong tiến trình bên ngoài, do tổ hợp riêng của chúng quyết định.
+- Agent con đã bền vững hóa trước khi có việc chốt cứng này sẽ gộp về giá trị mặc định phê duyệt của triển khai khi hồi phục nguội; đang ở giai đoạn tiền phát hành nên không thêm migration.
+- Fixture snapshot ghi nhận việc chốt cứng này: mỗi log con trong-tiến-trình có thêm sự kiện `approval/policy` ủy quyền, `subagent-published-run-failure` giờ bền vững hóa một log con một-sự-kiện, trong khi trước đây agent con đó không để lại sự kiện bền vững nào.
