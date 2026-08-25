@@ -59,6 +59,7 @@ function renderSection(
     confirmDelete: vi.fn(),
     remove: vi.fn(() => Promise.resolve()),
     makeDefault: vi.fn(() => Promise.resolve()),
+    setDisabled: vi.fn(() => Promise.resolve()),
   }
   const props = {
     ...actions,
@@ -162,6 +163,43 @@ describe('the preset list', () => {
 
     expect(within(rowFor('mine')).getByRole('button', { name: `${en.delete}: mine` })).toBeTruthy()
     expect(within(rowFor('standard')).queryByRole('button', { name: `${en.delete}: ${en.presetStandardName}` })).toBeNull()
+  })
+
+  it('offers the disable toggle only on a user preset, and routes it to the controller', () => {
+    const actions = renderSection()
+
+    // A shipped preset is read-only on the Host, so it carries no toggle.
+    expect(within(rowFor('standard')).queryByRole('button', { name: `${en.disable}: ${en.presetStandardName}` })).toBeNull()
+    const toggle = within(rowFor('mine')).getByRole('button', { name: `${en.disable}: mine` })
+    fireEvent.click(toggle)
+
+    // An enabled preset offers Disable, and the click asks to turn it off.
+    expect(actions.setDisabled).toHaveBeenCalledWith('mine', true)
+  })
+
+  it('marks a disabled preset and offers Enable instead, kept off the default control', () => {
+    const actions = renderSection({
+      rows: [
+        { id: 'standard', trust: 'system', isDefault: true },
+        { id: 'off', trust: 'user', isDefault: false, name: 'Off', disabled: true },
+      ],
+    })
+
+    const off = rowFor('off')
+    expect(within(off).getByText(en.disabledBadge)).toBeTruthy()
+    // The card body cannot make a disabled preset the default.
+    const body = within(off).getByRole('button', { name: `${en.disabledBadge}: Off` })
+    expect(body).toHaveProperty('disabled', true)
+    // The toggle now offers Enable, and the click asks to turn it back on.
+    fireEvent.click(within(off).getByRole('button', { name: `${en.enable}: Off` }))
+    expect(actions.setDisabled).toHaveBeenCalledWith('off', false)
+  })
+
+  it('disables the toggle when nothing is writable', () => {
+    renderSection({ authorable: false })
+
+    const toggle = within(rowFor('mine')).getByRole('button', { name: `${en.disable}: mine` })
+    expect(toggle).toHaveProperty('disabled', true)
   })
 
   it('disables duplication when nothing is writable, and says why', () => {

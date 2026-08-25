@@ -12,6 +12,7 @@ export type AgentPresetSettingsKey =
   | 'displayName' | 'displayNamePlaceholder'
   | 'inUse' | 'noDescription' | 'builtInGroup' | 'customGroup'
   | 'brokenBadge' | 'brokenNoCopy'
+  | 'enable' | 'disable' | 'disabledBadge'
   | 'composition' | 'cancel' | 'close' | 'retry'
   | 'copyTitle' | 'copyIntro' | 'create' | 'creating' | 'creatorDraft'
   | 'openLocation' | 'showLocation' | 'revealedPathLabel'
@@ -59,6 +60,9 @@ export const en: Record<AgentPresetSettingsKey, string> = {
   noDescription: 'No description.',
   brokenBadge: 'Failed to load',
   brokenNoCopy: 'A preset that failed to load cannot be duplicated',
+  enable: 'Enable',
+  disable: 'Disable',
+  disabledBadge: 'Disabled',
   copyOf: 'Copied from',
   composition: 'Composition (agent.cordis.yml)',
   cancel: 'Cancel',
@@ -119,6 +123,9 @@ export const zh: Record<AgentPresetSettingsKey, string> = {
   noDescription: '暂无描述。',
   brokenBadge: '加载失败',
   brokenNoCopy: '预设加载失败，不能复制',
+  enable: 'Enable',
+  disable: 'Disable',
+  disabledBadge: 'Disabled',
   copyOf: '复制自',
   composition: '组装（agent.cordis.yml）',
   cancel: '取消',

@@ -102,6 +102,10 @@ async function bench() {
           return Promise.resolve({ rpcId: 'r', result: { ok: true as const, value: { opened: true as const } } })
         },
         remove: () => Promise.resolve({ rpcId: 'r', result: { ok: true as const, value: {} } }),
+        update: (payload: { agentPreset: string; disabled?: boolean }) => {
+          calls.push(`update:${payload.agentPreset}:${String(payload.disabled)}`)
+          return Promise.resolve({ rpcId: 'r', result: { ok: true as const, value: {} } })
+        },
         select: (payload: { agentPreset: string }) => {
           calls.push(`select:${payload.agentPreset}`)
           return Promise.resolve({ rpcId: 'r', result: { ok: true as const, value: { agentPreset: payload.agentPreset } } })
@@ -249,6 +253,20 @@ describe('ui-agent-preset apply', () => {
     expect(calls).toContain('copy:mine')
     expect(calls.filter(call => call === 'openDocument:mine').length).toBeGreaterThan(0)
     expect(section.hooks.agentPresetSection.getSnapshot().rows).toHaveLength(2)
+  })
+
+  it('routes the disable toggle through the section controller', async () => {
+    const { ctx, slots, calls } = await bench()
+    declareRoot(slots)
+    await ctx.plugin({ inject: [...inject], apply }).await()
+    const section = (slots.entries('settings.section')[0]!.inject as unknown as () => AgentPresetSectionInjected)()
+
+    await section.load()
+    await section.setDisabled('mine', true)
+
+    // The toggle writes through agentPreset.update and the page re-reads the
+    // roster afterwards, exactly as the copy and delete paths do.
+    expect(calls).toContain('update:mine:true')
   })
 
   it('refreshes a showing surface when its namespace changes, and ignores others', async () => {

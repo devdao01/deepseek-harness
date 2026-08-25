@@ -19,6 +19,7 @@ export const agentPresetEntrySchema = z.object({
   description: z.string().optional(),
   workspacePath: z.string().min(1).optional(),
   broken: z.string().min(1).optional(),
+  disabled: z.boolean().optional(),
 }) satisfies z.ZodType<Wire<AgentPresetEntry>>
 
 /** agentPreset.list request payload. */
@@ -75,12 +76,14 @@ export const agentPresetUpdateRequestSchema = z.object({
   agentPreset: z.string(),
   name: z.string().optional(),
   description: z.string().optional(),
+  disabled: z.boolean().optional(),
 }) satisfies z.ZodType<Wire<RequestPayload<'agentPreset.update'>>>
 
-/** agentPreset.update response value: the effective display text after the edit. */
+/** agentPreset.update response value: the effective display text and disabled state after the edit. */
 export const agentPresetUpdateValueSchema = z.object({
   name: z.string().optional(),
   description: z.string().optional(),
+  disabled: z.boolean().optional(),
 }) satisfies z.ZodType<Wire<ResponseValue<'agentPreset.update'>>>
 
 /** agentPreset.openDocument request payload. */

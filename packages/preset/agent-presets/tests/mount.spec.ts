@@ -376,6 +376,47 @@ describe('composing from a broken preset', () => {
   })
 })
 
+describe('composing from a disabled preset', () => {
+  /** A roster whose only user preset is VALID but carries `disabled: true`. */
+  async function rosterWithDisabled(): Promise<Context> {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-preset-disabled-'))
+    const plugin = join(FIXTURES, 'plugins', 'contribute.js')
+    await mkdir(join(root, 'off'))
+    await writeFile(
+      join(root, 'off', COMPOSITION_FILE),
+      `- id: only\n  name: ${plugin}\n  config:\n    tool: only\n`,
+    )
+    await writeFile(join(root, 'off', 'preset.yml'), 'name: Off\ndisabled: true\n')
+    return await harness({ default: 'off', roots: [{ path: root, trust: 'user' as const }], includeUserRoot: false })
+  }
+
+  it('refuses the mount up front even though the composition is loadable', async () => {
+    const scoped = await rosterWithDisabled()
+
+    // The composition would mount if enabled: the refusal is the disabled flag,
+    // not a broken row, and it rolls the agent creation back exactly as broken does.
+    await expect(agentOn(scoped, 'sess-off', 'off')).rejects.toThrow(PresetMountError)
+    await expect(agentOn(scoped, 'sess-off-2', 'off')).rejects.toThrow(/is disabled/)
+    expect(livePresetMounts().filter(mount => mount.presetId === 'off')).toHaveLength(0)
+  })
+
+  it('refuses the standing key a cold reader would mount by', async () => {
+    const scoped = await rosterWithDisabled()
+
+    await expect(scoped.agentPresets.standingKeyFor('off')).rejects.toThrow(/is disabled/)
+  })
+
+  it('still resolves the disabled row for the surfaces that manage it', async () => {
+    const scoped = await rosterWithDisabled()
+
+    // A disabled preset is on the roster and resolvable — the management page
+    // re-enables it — it just composes no new session.
+    const resolved = await scoped.agentPresets.resolve('off')
+    expect(resolved.disabled).toBe(true)
+    expect(resolved.broken).toBeUndefined()
+  })
+})
+
 describe('a roster with nothing in it', () => {
   it('says so instead of naming an empty list of candidates', async () => {
     const bare = new Context()

@@ -202,6 +202,7 @@ export function apply(ctx: ClientContext): void {
     confirmDelete: (id: string | null) => { section.confirmDelete(id) },
     remove: () => section.remove(),
     makeDefault: (id: string) => section.makeDefault(id),
+    setDisabled: (id: string, disabled: boolean) => section.setDisabled(id, disabled),
   })
 
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({

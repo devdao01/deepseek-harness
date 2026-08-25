@@ -45,6 +45,14 @@ export interface PresetMetadata {
    * then falls back to the conventional `<root>/<id>` location.
    */
   readonly workspacePath?: string
+  /**
+   * Whether the preset is intentionally turned off. Only the literal boolean
+   * `true` counts; every other value (absent, `false`, a non-boolean) reads as
+   * enabled, the same conservative degradation as the display fields. A
+   * disabled preset stays on the roster so a surface can re-enable it, but the
+   * mounting paths refuse it — see {@link AgentPreset.disabled}.
+   */
+  readonly disabled?: boolean
 }
 
 /** A non-empty trimmed string, or undefined for anything else. */
@@ -93,10 +101,15 @@ export async function readPresetMetadata(directory: string): Promise<PresetMetad
     ? record.order
     : undefined
   const workspacePath = absolutePath(record.workspacePath)
+  // Only the literal `true` disables: a hand-edited `disabled: no`, a string,
+  // or an absent key all read as enabled, the same conservative degradation as
+  // the display fields.
+  const disabled = record.disabled === true ? true : undefined
   return {
     ...name === undefined ? {} : { name },
     ...description === undefined ? {} : { description },
     ...order === undefined ? {} : { order },
+    ...disabled === undefined ? {} : { disabled },
     ...workspacePath === undefined ? {} : { workspacePath },
   }
 }
@@ -114,13 +127,21 @@ export function renderPresetMetadata(metadata: PresetMetadata): string | undefin
   const description = text(metadata.description)
   const { order } = metadata
   const workspacePath = absolutePath(metadata.workspacePath)
-  if (name === undefined && description === undefined && order === undefined && workspacePath === undefined) {
+  // Only `true` is written; `false`/absent omits the key, so a re-enabled
+  // preset that has nothing else to publish loses its file rather than storing
+  // `disabled: false`. `disabled: true` is enough on its own to keep the file.
+  const disabled = metadata.disabled === true ? true : undefined
+  if (
+    name === undefined && description === undefined && order === undefined
+    && workspacePath === undefined && disabled === undefined
+  ) {
     return undefined
   }
   return yaml.dump({
     ...name === undefined ? {} : { name },
     ...description === undefined ? {} : { description },
     ...order === undefined ? {} : { order },
+    ...disabled === undefined ? {} : { disabled },
     ...workspacePath === undefined ? {} : { workspacePath },
   }, { lineWidth: -1 })
 }

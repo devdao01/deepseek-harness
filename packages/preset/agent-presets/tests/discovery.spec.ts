@@ -32,6 +32,24 @@ beforeEach(() => {
   fsHarness.nextReadError = undefined
 })
 
+describe('disabled flag', () => {
+  it('carries a preset.yml disabled flag onto the roster row', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-disabled-'))
+    await mkdir(join(root, 'off'), { recursive: true })
+    await writeFile(join(root, 'off', COMPOSITION_FILE), '[]\n')
+    await writeFile(join(root, 'off', 'preset.yml'), 'name: Off\ndisabled: true\n')
+    await mkdir(join(root, 'on'), { recursive: true })
+    await writeFile(join(root, 'on', COMPOSITION_FILE), '[]\n')
+
+    const found = await scanRoot({ path: root, trust: 'user' })
+
+    // Metadata's `disabled` propagates through `...metadata`; an enabled preset
+    // carries no flag, the same absence rule as the display fields.
+    expect(found.find(preset => preset.id === 'off')?.disabled).toBe(true)
+    expect(found.find(preset => preset.id === 'on')?.disabled).toBeUndefined()
+  })
+})
+
 describe('display order', () => {
   it('puts declared order first, then everything else by id', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-order-'))

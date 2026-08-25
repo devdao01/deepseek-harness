@@ -13,7 +13,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  Button, IconBrowseOutline16, IconCopyOutline16, IconFolderOpenOutline16, IconPlusOutline16, IconTrashOutline16, Modal, Tooltip,
+  Button, IconBrowseOutline16, IconCopyOutline16, IconFolderOpenOutline16, IconPauseOutline16,
+  IconPlayOutline16, IconPlusOutline16, IconTrashOutline16, Modal, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -57,6 +58,8 @@ export interface AgentPresetSectionInjected {
   remove: () => Promise<void>
   /** Make one preset the default for sessions created later. */
   makeDefault: (id: string) => Promise<void>
+  /** Turn one locally authored preset off or back on. */
+  setDisabled: (id: string, disabled: boolean) => Promise<void>
 }
 
 /** Full component props. */
@@ -251,7 +254,9 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
                     key={row.id}
                     className={row.broken !== undefined
                       ? `${css.card} ${css.cardBroken}`
-                      : row.isDefault ? `${css.card} ${css.cardActive}` : css.card}
+                      : row.disabled === true
+                        ? `${css.card} ${css.cardDisabled}`
+                        : row.isDefault ? `${css.card} ${css.cardActive}` : css.card}
                   >
                     {/* The card body IS the control: picking a preset is the
                       common act, so it should not hide behind a small button.
@@ -263,17 +268,26 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
                       type="button"
                       className={css.cardMain}
                       aria-pressed={row.isDefault}
-                      disabled={row.isDefault || row.broken !== undefined}
+                      disabled={row.isDefault || row.broken !== undefined || row.disabled === true}
                       // Without this the name is the whole card read aloud —
                       // title, badge, description, id.
-                      aria-label={`${row.broken !== undefined ? t('brokenBadge') : row.isDefault ? t('inUse') : t('setDefault')}: ${text.name}`}
-                      title={row.broken ?? (row.isDefault ? t('inUse') : t('setDefault'))}
+                      aria-label={`${row.broken !== undefined
+                        ? t('brokenBadge')
+                        : row.disabled === true
+                          ? t('disabledBadge')
+                          : row.isDefault ? t('inUse') : t('setDefault')}: ${text.name}`}
+                      title={row.broken ?? (row.disabled === true
+                        ? t('disabledBadge')
+                        : row.isDefault ? t('inUse') : t('setDefault'))}
                       onClick={() => { void props.makeDefault(row.id) }}
                     >
                       <span className={css.cardHead}>
                         <span className={css.cardName}>{text.name}</span>
                         {row.broken !== undefined
                           ? <span className={css.brokenBadge}>{t('brokenBadge')}</span>
+                          : null}
+                        {row.broken === undefined && row.disabled === true
+                          ? <span className={css.disabledBadge}>{t('disabledBadge')}</span>
                           : null}
                         <span className={css.badge}>
                           {row.trust === 'user' ? t('userTrust') : t('builtIn')}
@@ -331,6 +345,24 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
                       >
                         <IconCopyOutline16 />
                       </button>
+                      {/* Only a user preset carries the toggle: a shipped one is
+                        read-only on the Host and the toggle would fail. Disabling
+                        keeps the preset on this page but stops any new session
+                        composing from it; enabling puts it back on the pickers. */}
+                      {row.trust === 'user'
+                        ? (
+                          <button
+                            type="button"
+                            className={css.iconButton}
+                            disabled={!state.authorable}
+                            data-tip={row.disabled === true ? t('enable') : t('disable')}
+                            aria-label={`${row.disabled === true ? t('enable') : t('disable')}: ${text.name}`}
+                            onClick={() => { void props.setDisabled(row.id, row.disabled !== true) }}
+                          >
+                            {row.disabled === true ? <IconPlayOutline16 /> : <IconPauseOutline16 />}
+                          </button>
+                        )
+                        : null}
                       {row.trust === 'user'
                         ? (
                           <button

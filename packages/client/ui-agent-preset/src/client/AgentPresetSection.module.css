@@ -94,6 +94,23 @@
   color: var(--dsw-alias-bg-layer-3);
 }
 
+/* A disabled preset was switched off on purpose, not damaged: the card dims
+   rather than warns, and stays on the page so it can be turned back on. */
+.cardDisabled {
+  opacity: 0.6;
+}
+
+.disabledBadge {
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  line-height: 17px;
+  white-space: nowrap;
+  font-weight: 500;
+  border: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-tertiary);
+}
+
 /* The discovery-reported reason, verbatim: it names the file and the fix. */
 .cardBrokenReason {
   font-size: 12px;

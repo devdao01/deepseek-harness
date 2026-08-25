@@ -45,6 +45,15 @@ export interface AgentPreset {
    * up front with this reason instead of failing deep inside the loader.
    */
   readonly broken?: string
+  /**
+   * Whether the preset is intentionally turned off, absent when it is enabled.
+   * A disabled preset stays on the roster — `list()` reports it with this flag
+   * so a surface can present it and re-enable it — but every mounting path
+   * refuses it up front, exactly as {@link broken} does. The two differ in
+   * cause: a broken preset cannot load, a disabled one was switched off on
+   * purpose and its `preset.yml` records `disabled: true`.
+   */
+  readonly disabled?: boolean
 }
 
 /** One directory scanned for preset subdirectories. */

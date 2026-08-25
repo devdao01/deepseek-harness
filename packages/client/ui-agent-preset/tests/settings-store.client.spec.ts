@@ -104,6 +104,19 @@ describe('the agent-preset settings controller', () => {
     expect(controller.store.getSnapshot().options.map(option => option.id)).toEqual(['standard'])
   })
 
+  it('offers no disabled preset: the Host refuses to compose from one', async () => {
+    const controller = new AgentPresetSettingsController(fakeApi([
+      { id: 'standard', trust: 'system', isDefault: true },
+      { id: 'off', trust: 'user', isDefault: false, disabled: true },
+    ] as never))
+
+    await controller.load()
+
+    // A disabled preset was switched off on purpose; the pickers drop it while
+    // the management section keeps it (with its Enable toggle).
+    expect(controller.store.getSnapshot().options.map(option => option.id)).toEqual(['standard'])
+  })
+
   it('carries the display metadata a preset published', async () => {
     const controller = new AgentPresetSettingsController(fakeApi([
       { id: 'standard', trust: 'system', isDefault: true, name: '标准模式', description: '完整的编码 agent。' },

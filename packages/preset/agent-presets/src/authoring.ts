@@ -208,8 +208,8 @@ export async function writePresetWorkspacePath(
 }
 
 /**
- * Set a locally authored preset's display name and/or description, preserving
- * its `order` and stamped `workspacePath`.
+ * Set a locally authored preset's display name, description, and/or disabled
+ * state, preserving its `order` and stamped `workspacePath`.
  *
  * This is the edit `copyComposition` cannot make: a copy keeps its source's
  * description with no later way to change it, and a copy's name is the id
@@ -217,21 +217,23 @@ export async function writePresetWorkspacePath(
  * be edited — the same ownership guard `writePresetWorkspacePath` applies — so
  * authoring can never rewrite a shipped preset's file.
  *
- * A field PRESENT in `updates` is applied — a non-empty string sets it, an
- * empty or whitespace string clears it through the same `text()` normalization
- * the file already round-trips through — while a field ABSENT from `updates`
+ * A field PRESENT in `updates` is applied — a non-empty display string sets it,
+ * an empty or whitespace one clears it through the same `text()` normalization
+ * the file already round-trips through, `disabled: true` turns the preset off
+ * and `disabled: false` re-enables it — while a field ABSENT from `updates`
  * keeps its current value. When the merge leaves the metadata with nothing to
- * publish (every field cleared), the file is removed so the preset publishes
- * nothing rather than a blank; otherwise it is written atomically.
+ * publish (every display field cleared and the preset enabled), the file is
+ * removed so the preset publishes nothing rather than a blank; otherwise it is
+ * written atomically.
  * @param roots - the configured roots; the first `user` one owns the preset.
  * @param preset - the resolved preset to edit.
- * @param updates - the display fields to set or clear; absent keys are kept.
+ * @param updates - the fields to set or clear; absent keys are kept.
  * @throws when the preset ships with the deployment or lies outside the writable root.
  */
 export async function writePresetDisplay(
   roots: readonly PresetRoot[],
   preset: AgentPreset,
-  updates: { name?: string; description?: string },
+  updates: { name?: string; description?: string; disabled?: boolean },
 ): Promise<void> {
   if (preset.trust !== 'user') {
     throw new PresetNotWritableError(preset.id, 'it ships with the deployment')
@@ -247,6 +249,10 @@ export async function writePresetDisplay(
     ...current,
     ...'name' in updates ? { name: updates.name } : {},
     ...'description' in updates ? { description: updates.description } : {},
+    // `renderPresetMetadata` writes the key only for `true`, so passing `false`
+    // here clears it — the same present-sets/absent-keeps rule as the display
+    // fields, with `false` playing the role an empty string plays for text.
+    ...'disabled' in updates ? { disabled: updates.disabled } : {},
   })
   const metadataPath = join(dir, METADATA_FILE)
   if (rendered === undefined) {

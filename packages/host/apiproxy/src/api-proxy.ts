@@ -3142,6 +3142,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             ...preset.description === undefined ? {} : { description: preset.description },
             ...preset.workspacePath === undefined ? {} : { workspacePath: preset.workspacePath },
             ...preset.broken === undefined ? {} : { broken: preset.broken },
+            ...preset.disabled === undefined ? {} : { disabled: preset.disabled },
           })),
           authorable: presets.authorable,
           hasDocument: canOpenPaths(),
@@ -3272,24 +3273,28 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       },
 
       async update(request) {
-        const { agentPreset, name, description } = request.payload
+        const { agentPreset, name, description, disabled } = request.payload
         const presets = ctx.get('agentPresets')
         if (presets === undefined) return err(request, noRoster(agentPreset))
         try {
           // Only keys the caller actually sent are passed on: an omitted field
-          // keeps its current value, while a present one (empty string included)
-          // sets or clears it — the setDisplay contract the preset package owns.
+          // keeps its current value, while a present one (empty string or
+          // `disabled: false` included) sets or clears it — the setDisplay
+          // contract the preset package owns.
           const updates = {
             ...'name' in request.payload ? { name } : {},
             ...'description' in request.payload ? { description } : {},
+            ...'disabled' in request.payload ? { disabled } : {},
           }
           await presets.setDisplay(agentPreset, updates)
-          // Re-read so the response reports the EFFECTIVE text after the edit
-          // (an empty string cleared the field, so the preset now publishes none).
+          // Re-read so the response reports the EFFECTIVE state after the edit
+          // (an empty string cleared the field, so the preset now publishes none;
+          // `disabled` is present only while the preset is turned off).
           const preset = await presets.resolve(agentPreset)
           return ok(request, {
             ...preset.name === undefined ? {} : { name: preset.name },
             ...preset.description === undefined ? {} : { description: preset.description },
+            ...preset.disabled === undefined ? {} : { disabled: preset.disabled },
           })
         } catch (error: unknown) {
           return err(request, presetError(agentPreset, error))

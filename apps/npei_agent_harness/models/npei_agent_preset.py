@@ -6,6 +6,12 @@ source of truth for the composition; :meth:`action_sync_from_harness` upserts
 the local mirror from ``agentPreset.list``, and creating a record WITHOUT a
 ``preset_id`` authors a new preset on the harness (``agentPreset.copy`` from the
 default) under a name-derived id.
+
+The record's ``active`` flag mirrors the harness ``disabled`` state, inverted:
+archiving a USER preset in Odoo pushes ``disabled: true`` so the harness refuses
+to compose new sessions from it, and the sync reads ``disabled`` back into
+``active``. Only user presets round-trip — a system preset is read-only on the
+harness, so its ``active`` flag is a local-mirror concern that never pushes.
 """
 import logging
 import re
@@ -44,7 +50,14 @@ class NpeiAgentPreset(models.Model):
         string='Trust',
         default='user',
     )
-    active = fields.Boolean(default=True)
+    active = fields.Boolean(
+        default=True,
+        help="Mirrors the harness ``disabled`` state, inverted: archiving a "
+             "USER preset pushes ``disabled: true`` to the harness so it "
+             "refuses to compose new sessions from it, and the sync reads "
+             "``disabled`` back here. System presets are read-only on the "
+             "harness, so their flag only archives the local mirror.",
+    )
     session_ids = fields.One2many(
         'npei.agent.session',
         'preset_id',
@@ -159,21 +172,26 @@ class NpeiAgentPreset(models.Model):
         vals.setdefault('trust', 'user')
 
     def _push_display(self):
-        """Push each preset's ``name``/``description`` to the harness metadata.
+        """Push each USER preset's ``name``/``description``/``disabled`` to the harness.
 
         Calls ``agentPreset.update`` (full-token authoring) so a user preset's
-        display text on the harness/SPA matches Odoo. An empty value clears that
-        field on the harness. Fail-loud: a system preset is read-only on the
-        harness and raises, and an unreachable harness rolls the Odoo write back.
+        display text and disabled state on the harness/SPA match Odoo — an empty
+        display value clears that field, and ``disabled`` is ``not active`` so
+        archiving a preset turns it off on the harness. A SYSTEM preset is
+        read-only on the harness (``agentPreset.update`` answers
+        ``agent-preset-read-only``), so it is skipped here: Odoo may archive its
+        own mirror row without pushing. Fail-loud otherwise: an unreachable
+        harness rolls the Odoo write back.
         """
         client = self.env['npei.agent.harness.client'].sudo()
         for record in self:
-            if not record.preset_id:
+            if not record.preset_id or record.trust != 'user':
                 continue
             client._rpc('agentPreset.update', {
                 'agentPreset': record.preset_id,
                 'name': record.name or '',
                 'description': record.description or '',
+                'disabled': not record.active,
             })
 
     @api.model_create_multi
@@ -206,13 +224,17 @@ class NpeiAgentPreset(models.Model):
         return records
 
     def write(self, vals):
-        """Write, then push display text when ``name``/``description`` changed.
+        """Write, then push when ``name``/``description``/``active`` changed.
 
-        The sync passes ``npei_syncing`` so mirroring harness values back does
-        not echo them straight to the harness again.
+        ``active`` rides the same push because it maps to the harness
+        ``disabled`` state (see :meth:`_push_display`), so archiving a user
+        preset turns it off on the harness in one call. ``_push_display`` skips
+        system presets, so archiving a system mirror row stays local. The sync
+        passes ``npei_syncing`` so mirroring harness values back does not echo
+        them straight to the harness again.
         """
         result = super().write(vals)
-        if not self.env.context.get('npei_syncing') and ({'name', 'description'} & set(vals)):
+        if not self.env.context.get('npei_syncing') and ({'name', 'description', 'active'} & set(vals)):
             self._push_display()
         return result
 
@@ -239,8 +261,15 @@ class NpeiAgentPreset(models.Model):
                 'description': entry.get('description') or False,
                 'workspace_path': entry.get('workspacePath') or False,
                 'trust': entry.get('trust') or 'user',
+                # Harness `disabled` mirrors to Odoo `active`, inverted. The
+                # write runs under npei_syncing, so it does not echo back.
+                'active': not entry.get('disabled'),
             }
-            existing = model.search([('preset_id', '=', preset_id)], limit=1)
+            # active_test=False so a locally archived mirror (active=False,
+            # from an earlier disabled sync) is found and updated rather than
+            # duplicated into a preset_id_uniq violation.
+            existing = model.with_context(active_test=False).search(
+                [('preset_id', '=', preset_id)], limit=1)
             if existing:
                 existing.write(vals)
             else:

@@ -235,6 +235,13 @@ export class AgentPresets extends Service {
     if (preset.broken !== undefined) {
       throw new PresetMountError(preset.id, preset.broken)
     }
+    // Refused exactly where `broken` is: a disabled preset stays resolvable for
+    // the surfaces that manage it, but composing a new session from it is
+    // turned off on purpose. A session already joined keeps running — `join`
+    // inherits the parent's live generation and never re-resolves the roster.
+    if (preset.disabled === true) {
+      throw new PresetMountError(preset.id, 'the preset is disabled')
+    }
     return preset
   }
 
@@ -407,17 +414,21 @@ export class AgentPresets extends Service {
   }
 
   /**
-   * Set a locally authored preset's display name and/or description, keeping
-   * its `order` and stamped workspace path. This is the edit `copy` cannot
-   * make: a copy keeps the source's description with no later way to change it.
-   * A field present in `updates` is applied (an empty string clears it), an
-   * absent one is kept; clearing every field removes the metadata file.
+   * Set a locally authored preset's display name, description, and/or disabled
+   * state, keeping its `order` and stamped workspace path. This is the edit
+   * `copy` cannot make: a copy keeps the source's description with no later way
+   * to change it. A field present in `updates` is applied — an empty display
+   * string clears it, `disabled: false` re-enables — and an absent one is kept;
+   * a disabled preset is refused by every mounting path but stays on the roster.
    * @param id - the preset id.
-   * @param updates - the display fields to set or clear; absent keys are kept.
+   * @param updates - the fields to set or clear; absent keys are kept.
    * @throws when the preset is unknown, ships with the deployment, or lies
    * outside the writable root.
    */
-  async setDisplay(id: string, updates: { name?: string; description?: string }): Promise<void> {
+  async setDisplay(
+    id: string,
+    updates: { name?: string; description?: string; disabled?: boolean },
+  ): Promise<void> {
     await writePresetDisplay(this.resolvedRoots, await this.resolve(id), updates)
   }
 

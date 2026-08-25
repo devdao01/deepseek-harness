@@ -92,6 +92,22 @@ describe('reading display metadata', () => {
     expect(await readPresetMetadata(await presetDir('workspacePath:\n  nested: true\n'))).toEqual({})
   })
 
+  it('reads disabled only when it is the literal true', async () => {
+    expect(await readPresetMetadata(await presetDir('name: acct\ndisabled: true\n')))
+      .toEqual({ name: 'acct', disabled: true })
+  })
+
+  it.each([
+    ['false', 'name: acct\ndisabled: false\n'],
+    ['a yes/no boolean word', 'name: acct\ndisabled: no\n'],
+    ['a string', 'name: acct\ndisabled: "true"\n'],
+    ['absent', 'name: acct\n'],
+  ])('reads no disabled flag when it is %s', async (_label, content) => {
+    // Only the boolean true turns a preset off; every other value reads as
+    // enabled, the same conservative degradation as the display fields.
+    expect(await readPresetMetadata(await presetDir(content))).toEqual({ name: 'acct' })
+  })
+
   it('cannot carry identity or trust', async () => {
     const dir = await presetDir('name: mine\nid: standard\ntrust: system\n')
 
@@ -141,5 +157,25 @@ describe('rendering display metadata', () => {
 
   it('omits a relative workspace path rather than storing it', () => {
     expect(renderPresetMetadata({ workspacePath: 'ws/accounting' })).toBeUndefined()
+  })
+
+  it('stores disabled only for true and round-trips it', async () => {
+    const rendered = renderPresetMetadata({ name: 'acct', disabled: true })
+    expect(rendered).toContain('disabled: true')
+    const dir = await presetDir(rendered)
+    expect(await readPresetMetadata(dir)).toEqual({ name: 'acct', disabled: true })
+  })
+
+  it('keeps a file that carries only the disabled flag', () => {
+    // A disabled preset with no display text still needs its state persisted,
+    // so `disabled: true` alone is enough to render the file.
+    expect(renderPresetMetadata({ disabled: true })).toBe('disabled: true\n')
+  })
+
+  it('omits disabled when false or absent', () => {
+    // `false`/absent clears the key, so a re-enabled preset with nothing else
+    // to publish renders nothing rather than storing `disabled: false`.
+    expect(renderPresetMetadata({ disabled: false })).toBeUndefined()
+    expect(renderPresetMetadata({ name: 'acct', disabled: false })).toBe('name: acct\n')
   })
 })

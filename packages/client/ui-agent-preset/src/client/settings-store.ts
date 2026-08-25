@@ -75,6 +75,13 @@ export interface RosterPreset {
   description?: string
   /** Why the preset cannot compose a session, absent when it can. */
   broken?: string
+  /**
+   * Whether the preset was turned off on purpose, absent when it is enabled. A
+   * disabled preset stays on the roster so the management section can re-enable
+   * it, but the pickers do not offer it — the Host refuses to compose a new
+   * session from it, so choosing it would only defer that refusal.
+   */
+  disabled?: boolean
 }
 
 /** The roster the host answered with. */
@@ -136,12 +143,14 @@ export async function beginRosterRead<S extends { status: string; error: string 
 }
 
 /**
- * The roster entries as the pickers render them: healthy presets only.
+ * The roster entries as the pickers render them: healthy, enabled presets only.
  *
- * The chip and the row exist to choose the NEXT session's composition, and a
- * broken preset cannot compose one — offering it would defer the discovery
- * of that fact to a failed session start. The management section renders the
- * full roster (broken rows included) from its own store instead.
+ * The chip and the row exist to choose the NEXT session's composition, and
+ * neither a broken preset (cannot compose one) nor a disabled one (the Host
+ * refuses to compose from it on purpose) is offerable — either would defer the
+ * discovery of that fact to a failed session start. The management section
+ * renders the full roster (broken and disabled rows included) from its own
+ * store instead.
  *
  * The chip, the row, and the management section all show the same facts, and
  * `exactOptionalPropertyTypes` makes "absent" and "present as undefined"
@@ -151,9 +160,16 @@ export async function beginRosterRead<S extends { status: string; error: string 
  * @returns one option per selectable preset, in roster order.
  */
 export function presetOptions(
-  presets: readonly { id: string; trust: 'system' | 'user'; name?: string; description?: string; broken?: string }[],
+  presets: readonly {
+    id: string
+    trust: 'system' | 'user'
+    name?: string
+    description?: string
+    broken?: string
+    disabled?: boolean
+  }[],
 ): AgentPresetOption[] {
-  return presets.filter(preset => preset.broken === undefined).map(preset => ({
+  return presets.filter(preset => preset.broken === undefined && preset.disabled !== true).map(preset => ({
     id: preset.id,
     trust: preset.trust,
     ...preset.name === undefined ? {} : { name: preset.name },

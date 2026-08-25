@@ -48,6 +48,14 @@ export interface AgentPresetEntry {
    * only defer this reason to a failed session start.
    */
   readonly broken?: string
+  /**
+   * Whether the preset was intentionally turned off, absent when it is
+   * enabled. A disabled preset stays listed so a surface can show it and turn
+   * it back on, but must not offer it for selection: the Host refuses to
+   * compose a new session from it exactly as it refuses a broken one. Odoo
+   * mirrors this as the record's `active` flag.
+   */
+  readonly disabled?: boolean
 }
 
 /** agent-preset-domain unary methods (the map key agentPreset.* of RpcMethodMap). */
@@ -125,14 +133,16 @@ export interface AgentPresetsApi {
    * Privileged authoring: it edits what the deployment's picker shows for a
    * `user` preset, which `copy` cannot do afterwards — a copy keeps the
    * source's description and the id fallback for its name. Composition stays
-   * copy-only; this only edits display metadata, so no plugin row crosses the
-   * wire. A provided string SETS the field, an empty or whitespace one CLEARS
-   * it, and an omitted field KEEPS the current value; the response reports the
-   * effective name/description read back after the edit. A preset that ships
-   * with the deployment is refused with `agent-preset-read-only`.
+   * copy-only; this only edits display metadata and the disabled flag, so no
+   * plugin row crosses the wire. A provided display string SETS the field, an
+   * empty or whitespace one CLEARS it, `disabled: true`/`false` turns the
+   * preset off/on, and an omitted field KEEPS the current value; the response
+   * reports the effective name/description and disabled state read back after
+   * the edit. A preset that ships with the deployment is refused with
+   * `agent-preset-read-only`.
    */
-  update(request: RpcRequest<{ agentPreset: string; name?: string; description?: string }>):
-  Promise<RpcResponse<{ name?: string; description?: string }>>
+  update(request: RpcRequest<{ agentPreset: string; name?: string; description?: string; disabled?: boolean }>):
+  Promise<RpcResponse<{ name?: string; description?: string; disabled?: boolean }>>
 
   /**
    * Hand one locally authored preset's DIRECTORY to the platform opener, for

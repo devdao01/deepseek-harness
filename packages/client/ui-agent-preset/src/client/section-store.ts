@@ -40,6 +40,13 @@ export interface PresetRow {
    * is where both of those live.
    */
   broken?: string
+  /**
+   * Whether the preset was turned off on purpose, absent when it is enabled. A
+   * disabled row stays listed and carries the Enable/Disable toggle (user
+   * presets only); it renders marked and cannot be made default, since the Host
+   * refuses to compose a new session from it.
+   */
+  disabled?: boolean
 }
 
 /** The copy dialog: a new id and optional display name over a fixed source. */
@@ -344,5 +351,31 @@ export class AgentPresetSectionController {
       return
     }
     await this.load()
+  }
+
+  /**
+   * Turn one locally authored preset off or back on, then re-read the roster
+   * and tell the other surfaces so the pickers drop or restore it. A disabled
+   * preset stays on this page but the Host refuses to compose a new session
+   * from it; running sessions keep the composition they began with. Shipped
+   * presets are read-only on the Host and carry no toggle, so this is only ever
+   * called for a `user` row.
+   * @param id - the preset to toggle.
+   * @param disabled - true to turn it off, false to re-enable it.
+   * @returns once the write settled and the page reflects it.
+   */
+  async setDisabled(id: string, disabled: boolean): Promise<void> {
+    this.set({ error: null })
+    try {
+      const response = await this.api.agentPresets.update({ agentPreset: id, disabled })
+      if (!response.result.ok) {
+        this.set({ error: response.result.error.message })
+        return
+      }
+      await this.load()
+      this.rosterChanged()
+    } catch (error) {
+      this.set({ error: messageOf(error) })
+    }
   }
 }

@@ -67,10 +67,11 @@ class TestPresetAuthoring(TransactionCase):
         self.assertEqual(preset.workspace_path, '/home/u/workspace/ho-so-x')
         self.assertEqual(preset.trust, 'user')
         self.assertEqual(preset.description, 'ghi chú')
-        # copy carries no description, so the display text is pushed after.
+        # copy carries no description, so the display text is pushed after; an
+        # authored preset is active, so it pushes `disabled: False`.
         self.assertEqual(
             self._update_calls(),
-            [{'agentPreset': 'ho-so-x', 'name': 'Hồ Sơ X', 'description': 'ghi chú'}],
+            [{'agentPreset': 'ho-so-x', 'name': 'Hồ Sơ X', 'description': 'ghi chú', 'disabled': False}],
         )
 
     def test_create_with_preset_id_mirrors_without_authoring(self):
@@ -88,8 +89,59 @@ class TestPresetAuthoring(TransactionCase):
 
         self.assertEqual(
             self._update_calls(),
-            [{'agentPreset': 'adopted', 'name': 'Old', 'description': 'new'}],
+            [{'agentPreset': 'adopted', 'name': 'Old', 'description': 'new', 'disabled': False}],
         )
+
+    def test_archive_user_preset_pushes_disabled(self):
+        # A user preset with a harness id: archiving it (active=False) pushes
+        # `disabled: true` so the harness refuses to compose new sessions from it.
+        preset = self.Preset.create({'preset_id': 'zzz-disabled-test', 'name': 'Toggle', 'trust': 'user'})
+        self._calls.clear()
+
+        preset.write({'active': False})
+
+        self.assertEqual(
+            self._update_calls(),
+            [{'agentPreset': 'zzz-disabled-test', 'name': 'Toggle', 'description': '', 'disabled': True}],
+        )
+
+    def test_unarchive_user_preset_pushes_enabled(self):
+        preset = self.Preset.create({'preset_id': 'zzz-enable-test', 'name': 'Toggle', 'trust': 'user'})
+        preset.write({'active': False})
+        self._calls.clear()
+
+        preset.write({'active': True})
+
+        self.assertEqual(
+            self._update_calls(),
+            [{'agentPreset': 'zzz-enable-test', 'name': 'Toggle', 'description': '', 'disabled': False}],
+        )
+
+    def test_archive_system_preset_does_not_push(self):
+        # A system preset is read-only on the harness; archiving its Odoo mirror
+        # stays local and pushes nothing.
+        preset = self.Preset.create({'preset_id': 'zzz-system-test', 'name': 'Shipped', 'trust': 'system'})
+        self._calls.clear()
+
+        preset.write({'active': False})
+
+        self.assertEqual(self._update_calls(), [])
+
+    def test_sync_disabled_sets_inactive(self):
+        # A harness entry reporting `disabled: true` mirrors to active=False,
+        # and does not echo the change back to the harness.
+        self.env.user.groups_id = [
+            (4, self.env.ref('npei_agent_harness.group_npei_agent_manager').id)]
+        self._extra_presets = [
+            {'id': 'zzz-off', 'trust': 'user', 'disabled': True, 'name': 'Off'}]
+
+        self.Preset.action_sync_from_harness()
+
+        preset = self.Preset.with_context(active_test=False).search(
+            [('preset_id', '=', 'zzz-off')], limit=1)
+        self.assertTrue(preset)
+        self.assertFalse(preset.active)
+        self.assertEqual(self._update_calls(), [])
 
     def test_sync_does_not_echo_update(self):
         # Sync is manager-gated (_check_manager); grant the group so the mirror

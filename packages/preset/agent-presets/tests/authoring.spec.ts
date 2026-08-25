@@ -280,6 +280,33 @@ describe('setting a preset display name and description', () => {
     expect((await ctx.agentPresets.list()).find(preset => preset.id === 'mine')?.name).toBeUndefined()
   })
 
+  it('turns a preset off and back on through the disabled flag', async () => {
+    await seedPreset(userRoot, 'mine', { metadata: 'name: mode\n' })
+
+    await ctx.agentPresets.setDisplay('mine', { disabled: true })
+
+    const metadata = await readFile(join(userRoot, 'mine', METADATA_FILE), 'utf8')
+    expect(metadata).toContain('disabled: true')
+    expect((await ctx.agentPresets.resolve('mine')).disabled).toBe(true)
+
+    await ctx.agentPresets.setDisplay('mine', { disabled: false })
+
+    // Re-enabling clears the key; the display name it kept is untouched.
+    const resolved = await ctx.agentPresets.resolve('mine')
+    expect(resolved.disabled).toBeUndefined()
+    expect(resolved.name).toBe('mode')
+  })
+
+  it('keeps the disabled flag when only the name is edited', async () => {
+    await seedPreset(userRoot, 'mine', { metadata: 'name: old\ndisabled: true\n' })
+
+    await ctx.agentPresets.setDisplay('mine', { name: 'new' })
+
+    // An absent key keeps its value: renaming a disabled preset leaves it off.
+    const resolved = await ctx.agentPresets.resolve('mine')
+    expect(resolved).toMatchObject({ name: 'new', disabled: true })
+  })
+
   it('refuses to edit a shipped preset', async () => {
     await expect(ctx.agentPresets.setDisplay('standard', { name: 'nope' }))
       .rejects.toThrow(/ships with the deployment/)

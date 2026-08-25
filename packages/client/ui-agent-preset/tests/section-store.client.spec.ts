@@ -11,7 +11,7 @@ import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
 import { AgentPresetSectionController, draftBlocker } from '../src/client/section-store.ts'
 import type { CopyDraft, PresetRow } from '../src/client/section-store.ts'
 
-interface FakePreset { trust: 'system' | 'user'; content: string; name?: string }
+interface FakePreset { trust: 'system' | 'user'; content: string; name?: string; disabled?: boolean }
 interface Recorded { method: string; payload: unknown }
 
 interface FakeOptions {
@@ -27,6 +27,8 @@ interface FakeOptions {
   failOpen?: string
   /** Reject `remove` with this message. */
   failRemove?: string
+  /** Reject `agentPreset.update` with this message. */
+  failUpdate?: string
   /** Reject `settings.update` with this message. */
   failSettings?: string
   /** Throw from `list` rather than answering, as a dead transport does. */
@@ -73,6 +75,7 @@ function fakeApi(
           presets: [...presets].map(([id, preset]) => ({
             id, trust: preset.trust, isDefault: id === defaultId.id,
             ...preset.name === undefined ? {} : { name: preset.name },
+            ...preset.disabled === undefined ? {} : { disabled: preset.disabled },
           })),
           authorable: options.authorable ?? true,
           hasDocument: options.hasDocument ?? true,
@@ -120,6 +123,26 @@ function fakeApi(
         if (options.failRemove !== undefined) return await fail(options.failRemove)
         presets.delete(payload.agentPreset)
         return await ok({})
+      },
+      update: (payload: { agentPreset: string; disabled?: boolean }) => {
+        record('update', payload)
+        if (options.failUpdate !== undefined) return fail(options.failUpdate)
+        const preset = presets.get(payload.agentPreset)
+        /* v8 ignore next -- every test updates an id the fake store holds */
+        if (preset === undefined) return fail(`unknown preset ${payload.agentPreset}`)
+        if ('disabled' in payload) {
+          // Mirror the Host: only `true` keeps the key, `false` clears it.
+          const { disabled: _cleared, ...rest } = preset
+          presets.set(payload.agentPreset, {
+            ...rest,
+            ...payload.disabled === true ? { disabled: true as const } : {},
+          })
+        }
+        const now = presets.get(payload.agentPreset)!
+        return ok({
+          ...now.name === undefined ? {} : { name: now.name },
+          ...now.disabled === undefined ? {} : { disabled: now.disabled },
+        })
       },
     },
     settings: {
@@ -576,5 +599,43 @@ describe('the default preset', () => {
     await controller.makeDefault('mine')
 
     expect(controller.store.getSnapshot().error).toContain('read-only settings')
+  })
+})
+
+describe('enabling and disabling a preset', () => {
+  it('disables a preset, re-reads the roster, and notifies the other surfaces', async () => {
+    const { controller, presets, rosterChanges } = harness()
+    await controller.load()
+
+    await controller.setDisabled('mine', true)
+
+    // The write lands on the store and the re-read marks the row disabled; the
+    // pickers reading the same roster are told to refresh, since a disabled
+    // preset must drop off them.
+    expect(presets.get('mine')?.disabled).toBe(true)
+    expect(controller.store.getSnapshot().rows.find(row => row.id === 'mine')?.disabled).toBe(true)
+    expect(rosterChanges()).toBe(1)
+  })
+
+  it('re-enables a disabled preset', async () => {
+    const { controller, presets } = harness()
+    presets.set('mine', { trust: 'user', content: '- id: tool-read\n', disabled: true })
+    await controller.load()
+
+    await controller.setDisabled('mine', false)
+
+    expect(presets.get('mine')?.disabled).toBeUndefined()
+    expect(controller.store.getSnapshot().rows.find(row => row.id === 'mine')?.disabled).toBeUndefined()
+  })
+
+  it('surfaces a refusal as the page error and leaves the roster unchanged', async () => {
+    const { controller, presets, rosterChanges } = harness({ failUpdate: 'read-only preset' })
+    await controller.load()
+
+    await controller.setDisabled('mine', true)
+
+    expect(controller.store.getSnapshot().error).toBe('read-only preset')
+    expect(presets.get('mine')?.disabled).toBeUndefined()
+    expect(rosterChanges()).toBe(0)
   })
 })
