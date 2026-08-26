@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "DeepSeek Harness — Local Backend API",
-    "description": "DeepSeek Harness local backend API (packages/host/apiproxy + fetch carrier). The GUI you run (e.g. http://127.0.0.1:3080) serves these endpoints.\n\n## Wire protocol\n- **Unary RPC**: `POST /api/<method>` with `Content-Type: application/json` (anything else → HTTP 415). Body is the ClientRequest envelope: `{ \"type\": \"client-request\", \"rpcId\": \"<uuid>\", \"method\": \"<method>\", \"payload\": {…} }`. `rpcId` is any unique string you mint (this collection uses the Postman dynamic variable `{{$guid}}`); responses echo it.\n- **Response**: ServerResponse envelope. **Business errors ride HTTP 200** with `result.ok === false` and `result.error = { code, message, details }`. HTTP status describes only the carrier: 404 unknown path, 415 non-JSON media type, 400 body not JSON, 500 handler crash.\n- **Streams**: on the standard GUI, `GET /api/events.mux` and `GET /api/events.host` are **WebSocket** downlinks (`ws://127.0.0.1:3080/api/events.mux`) — open them as Postman WebSocket requests. A plain HTTP GET against the GUI answers \"upgrade required\"; the pure fetch carrier implements the SSE GET form instead.\n- **Download**: `GET /api/session.export?sessionId=…&includeDescendants=…` streams a session-log ZIP, and `GET /api/workspace.file?sessionId=…&path=…` streams one contained workspace file as an attachment (both no envelope).\n- **Respond**: `POST /api/respond` carries the ClientResponse answering an approval/question ServerRequest received on a stream.\n\n## Variables\n- `baseUrl` — default `http://127.0.0.1:3080` (the harness Web GUI address).\n- `apiToken` — optional Bearer token; sent on every request via collection-level auth. Leave empty against a backend with no `auth` configured (the header is simply ignored).\n- `sessionId`, `workspaceId`, `parentSessionId`, `childSessionId` — fill them from the response of `session.list` / `workspace.list` / `subagent.list` (or use a Postman test script to persist values automatically).\n\n## Security fence\n- Reachability fence: every /api request must reach the server on a loopback Host or a declared `trustedHosts` authority, OR carry a valid `Authorization: Bearer <token>` matching a configured `auth.tokens` entry (a token lets a server client in from any exposed Host). Browser CSRF rules (same-origin Origin, no cross-site marker, JSON-only POST) are always enforced for browser-marked requests, token or not.\n- Pins: native-dialog, settings/credentials, `llm.discoverModels`, and agentPreset authoring methods are loopback-only, OR callable by an authenticated client when the deployment lists them in `auth.unpinned`.\n- A present-but-unknown token → HTTP 401. No `auth` configured → today's behavior (reachability + loopback pins), and the `apiToken` header is ignored.\n- The `dsh web` deployment makes auth MANDATORY: it auto-generates a persistent token on first boot at `$DSH_HOME/api-token` (default `~/.dsh/api-token`) — read it with `cat ~/.dsh/api-token` and put it in the `apiToken` variable. Override with `DSH_API_TOKEN`, or rotate by deleting that file. The loopback SPA and curl lanes keep working token-less.\n\n## Notes\n- Single-user local service. Loopback-only by default; Bearer-token auth is opt-in via the connection plugin `auth` config. `name` on a token is for logs/rotation only, never an identity the API trusts.\n- Postman is not a browser, so no CORS applies.",
+    "description": "DeepSeek Harness local backend API (packages/host/apiproxy + fetch carrier). The GUI you run (e.g. http://127.0.0.1:3080) serves these endpoints.\n\n## Wire protocol\n- **Unary RPC**: `POST /api/<method>` with `Content-Type: application/json` (anything else → HTTP 415). Body is the ClientRequest envelope: `{ \"type\": \"client-request\", \"rpcId\": \"<uuid>\", \"method\": \"<method>\", \"payload\": {…} }`. `rpcId` is any unique string you mint (this collection uses the Postman dynamic variable `{{$guid}}`); responses echo it.\n- **Response**: ServerResponse envelope. **Business errors ride HTTP 200** with `result.ok === false` and `result.error = { code, message, details }`. HTTP status describes only the carrier: 404 unknown path, 415 non-JSON media type, 400 body not JSON, 500 handler crash.\n- **Streams**: on the standard GUI, `GET /api/events.mux` and `GET /api/events.host` are **WebSocket** downlinks (`ws://127.0.0.1:3080/api/events.mux`) — open them as Postman WebSocket requests. A plain HTTP GET against the GUI answers \"upgrade required\"; the pure fetch carrier implements the SSE GET form instead.\n- **Download**: `GET /api/session.export?sessionId=…&includeDescendants=…` streams a session-log ZIP, and `GET /api/workspace.file?sessionId=…&path=…` streams one contained workspace file as an attachment (both no envelope).\n- **Respond**: `POST /api/respond` carries the ClientResponse answering an approval/question ServerRequest received on a stream.\n\n## Variables\n- `baseUrl` — default `http://127.0.0.1:3080` (the harness Web GUI address).\n- `mtilBaseUrl` — default `https://mtil.mtil.vn` (the MTIL Flask API for the **MTIL Gateway** folder: `get_config_v2` + `session_create`, cookie auth, plain MTIL envelope — a different surface from the harness `/api`).\n- `apiToken` — optional Bearer token; sent on every request via collection-level auth. Leave empty against a backend with no `auth` configured (the header is simply ignored).\n- `sessionId`, `workspaceId`, `parentSessionId`, `childSessionId` — fill them from the response of `session.list` / `workspace.list` / `subagent.list` (or use a Postman test script to persist values automatically).\n\n## Security fence\n- Reachability fence: every /api request must reach the server on a loopback Host or a declared `trustedHosts` authority, OR carry a valid `Authorization: Bearer <token>` matching a configured `auth.tokens` entry (a token lets a server client in from any exposed Host). Browser CSRF rules (same-origin Origin, no cross-site marker, JSON-only POST) are always enforced for browser-marked requests, token or not.\n- Pins: native-dialog, settings/credentials, `llm.discoverModels`, and agentPreset authoring methods are loopback-only, OR callable by an authenticated client when the deployment lists them in `auth.unpinned`.\n- A present-but-unknown token → HTTP 401. No `auth` configured → today's behavior (reachability + loopback pins), and the `apiToken` header is ignored.\n- The `dsh web` deployment makes auth MANDATORY: it auto-generates a persistent token on first boot at `$DSH_HOME/api-token` (default `~/.dsh/api-token`) — read it with `cat ~/.dsh/api-token` and put it in the `apiToken` variable. Override with `DSH_API_TOKEN`, or rotate by deleting that file. The loopback SPA and curl lanes keep working token-less.\n\n## Notes\n- Single-user local service. Loopback-only by default; Bearer-token auth is opt-in via the connection plugin `auth` config. `name` on a token is for logs/rotation only, never an identity the API trusts.\n- Postman is not a browser, so no CORS applies.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -23,6 +23,11 @@
     {
       "key": "wsBaseUrl",
       "value": "ws://127.0.0.1:3080",
+      "type": "string"
+    },
+    {
+      "key": "mtilBaseUrl",
+      "value": "https://mtil.mtil.vn",
       "type": "string"
     },
     {
@@ -4110,6 +4115,163 @@
                 }
               ],
               "body": "{\n  \"accepted\": false,\n  \"reason\": \"not-pending\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MTIL Gateway (cookie auth, /api/mtil)",
+      "item": [
+        {
+          "name": "get_config_v2 (access gate + ticket mint)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{mtilBaseUrl}}/api/mtil/get_config_v2",
+              "host": [
+                "{{mtilBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "mtil",
+                "get_config_v2"
+              ]
+            },
+            "description": "MTIL access gate. POST with the Odoo `session_id` cookie (COOKIE auth — not Bearer). Signed in → HTTP 200 `{status:true, datas:{expires_at}}` AND a `Set-Cookie: dsh_ticket=…` (HttpOnly harness ticket; body carries only expires_at). Not signed in → HTTP 401 `{status:false, error_code:\"UNAUTHORIZED\"}`. Body is plain JSON `{}` (the MTIL envelope, NOT the harness client-request envelope). In Postman: open the Cookies manager and add `session_id=<odoo-session>` for the {{mtilBaseUrl}} domain first.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Signed in",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"status\": true,\n  \"error_code\": \"\",\n  \"message\": \"\",\n  \"datas\": {\n    \"expires_at\": 1740000600\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "401 — Not signed in",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"status\": false,\n  \"error_code\": \"UNAUTHORIZED\",\n  \"message\": \"Chưa Đăng nhập\",\n  \"datas\": {}\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "session_create (create session for the user)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{mtilBaseUrl}}/api/mtil/session_create",
+              "host": [
+                "{{mtilBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "mtil",
+                "session_create"
+              ]
+            },
+            "description": "Creates a harness session on behalf of the signed-in user and grants them access (server-side `session.create` + `setAccess(creator)`). Cookie auth (`session_id`). Body — all optional: `workspaceId` | `cwd` (at most one) and `agentPreset`. Returns `{status:true, datas:{sessionId}}`. Every other call goes to the harness directly with the `dsh_ticket` cookie.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentPreset\": \"standard\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Created",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"status\": true,\n  \"message\": \"\",\n  \"datas\": {\n    \"sessionId\": \"<new-session-id>\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "401 — Not signed in",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/api/placeholder"
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"status\": false,\n  \"error_code\": \"UNAUTHORIZED\",\n  \"message\": \"Chưa Đăng nhập\",\n  \"datas\": {}\n}",
               "_postman_previewlanguage": "json"
             }
           ]

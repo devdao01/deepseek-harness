@@ -120,6 +120,15 @@ function getItem(name, url, description) {
   }
 }
 
+/** One MTIL gateway item: plain JSON body, cookie auth (session_id) — NOT the
+ * harness RPC envelope and NOT Bearer. Disables the collection-level bearer so
+ * the request rides the Odoo session cookie only. */
+function mtilItem(name, url, payload, description, responses) {
+  const r = request('POST', url, { description, body: payload })
+  r.auth = { type: 'noauth' }
+  return { name, request: r, response: responses ?? [] }
+}
+
 // ---------- method table ----------
 // Each entry: [method, folder, payload example, value example, description]
 
@@ -415,6 +424,36 @@ const RESPOND_ITEM = {
   response: [responseExample('200 — Receipt accepted', { accepted: true }), responseExample('200 — Receipt rejected', { accepted: false, reason: 'not-pending' })],
 }
 
+// ---------- MTIL gateway (cookie auth, /api/mtil on the MTIL Flask API) ----------
+// A DIFFERENT surface from the harness /api: plain MTIL envelope
+// { status, error_code, message, datas }, cookie auth (the Odoo `session_id`),
+// served at {{mtilBaseUrl}} (e.g. https://mtil.mtil.vn) — cross-origin from the SPA.
+const MTIL = [
+  ['get_config_v2 (access gate + ticket mint)', '{{mtilBaseUrl}}/api/mtil/get_config_v2',
+    {},
+    'MTIL access gate. POST with the Odoo `session_id` cookie (COOKIE auth — not Bearer). ' +
+    'Signed in → HTTP 200 `{status:true, datas:{expires_at}}` AND a `Set-Cookie: dsh_ticket=…` ' +
+    '(HttpOnly harness ticket; body carries only expires_at). Not signed in → HTTP 401 ' +
+    '`{status:false, error_code:"UNAUTHORIZED"}`. Body is plain JSON `{}` (the MTIL envelope, ' +
+    'NOT the harness client-request envelope). In Postman: open the Cookies manager and add ' +
+    '`session_id=<odoo-session>` for the {{mtilBaseUrl}} domain first.',
+    [
+      responseExample('200 — Signed in', { status: true, error_code: '', message: '', datas: { expires_at: 1740000600 } }),
+      responseExample('401 — Not signed in', { status: false, error_code: 'UNAUTHORIZED', message: 'Chưa Đăng nhập', datas: {} }, 401, 'Unauthorized'),
+    ]],
+  ['session_create (create session for the user)', '{{mtilBaseUrl}}/api/mtil/session_create',
+    { agentPreset: 'standard' },
+    'Creates a harness session on behalf of the signed-in user and grants them access ' +
+    '(server-side `session.create` + `setAccess(creator)`). Cookie auth (`session_id`). ' +
+    'Body — all optional: `workspaceId` | `cwd` (at most one) and `agentPreset`. ' +
+    'Returns `{status:true, datas:{sessionId}}`. Every other call goes to the harness ' +
+    'directly with the `dsh_ticket` cookie.',
+    [
+      responseExample('200 — Created', { status: true, message: '', datas: { sessionId: '<new-session-id>' } }),
+      responseExample('401 — Not signed in', { status: false, error_code: 'UNAUTHORIZED', message: 'Chưa Đăng nhập', datas: {} }, 401, 'Unauthorized'),
+    ]],
+]
+
 // ---------- assemble collection ----------
 const folderOrder = ['Sessions', 'Subagents', 'Host', 'Workspace', 'Skills', 'Agent Presets', 'Goals', 'Settings', 'Credentials', 'LLM']
 
@@ -431,6 +470,10 @@ folders.push({
 folders.push({
   name: 'Respond (POST /api/respond)',
   item: [RESPOND_ITEM],
+})
+folders.push({
+  name: 'MTIL Gateway (cookie auth, /api/mtil)',
+  item: MTIL.map(([name, url, payload, description, responses]) => mtilItem(name, url, payload, description, responses)),
 })
 
 const collection = {
@@ -450,6 +493,7 @@ const collection = {
       '- **Respond**: `POST /api/respond` carries the ClientResponse answering an approval/question ServerRequest received on a stream.\n\n' +
       '## Variables\n' +
       '- `baseUrl` — default `http://127.0.0.1:3080` (the harness Web GUI address).\n' +
+      '- `mtilBaseUrl` — default `https://mtil.mtil.vn` (the MTIL Flask API for the **MTIL Gateway** folder: `get_config_v2` + `session_create`, cookie auth, plain MTIL envelope — a different surface from the harness `/api`).\n' +
       '- `apiToken` — optional Bearer token; sent on every request via collection-level auth. Leave empty against a backend with no `auth` configured (the header is simply ignored).\n' +
       '- `sessionId`, `workspaceId`, `parentSessionId`, `childSessionId` — fill them from the response of `session.list` / `workspace.list` / `subagent.list` (or use a Postman test script to persist values automatically).\n\n' +
       '## Security fence\n' +
@@ -469,6 +513,7 @@ const collection = {
   variable: [
     { key: 'baseUrl', value: 'http://127.0.0.1:3080', type: 'string' },
     { key: 'wsBaseUrl', value: 'ws://127.0.0.1:3080', type: 'string' },
+    { key: 'mtilBaseUrl', value: 'https://mtil.mtil.vn', type: 'string' },
     { key: 'apiToken', value: '', type: 'string' },
     { key: 'sessionId', value: '', type: 'string' },
     { key: 'workspaceId', value: '', type: 'string' },
