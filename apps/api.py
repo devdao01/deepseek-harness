@@ -44,7 +44,10 @@ from flask import jsonify, make_response
 #: (env) so it reaches the harness subdomain (chat.mtilai.mtil.vn <-> harness).
 TICKET_COOKIE_NAME = 'dsh_ticket'
 TICKET_COOKIE_PATH = '/api'
-TICKET_COOKIE_DOMAIN = os.environ.get('DSH_TICKET_COOKIE_DOMAIN') or None
+# Env overrides, else the hardcoded default '.mtil.vn'. Set the env to '' to force
+# host-only (drop Domain). Secure defaults True; set the env to '0' for a LAN over
+# plain HTTP.
+TICKET_COOKIE_DOMAIN = os.environ.get('DSH_TICKET_COOKIE_DOMAIN', '.mtil.vn') or None
 TICKET_COOKIE_SECURE = os.environ.get('DSH_TICKET_COOKIE_SECURE', '1') not in ('0', 'false', 'False', '')
 
 
