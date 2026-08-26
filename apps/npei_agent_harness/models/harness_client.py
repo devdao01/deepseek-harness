@@ -14,8 +14,12 @@ Auth: the harness trust fence lets a request carrying a valid
 ``sec-fetch-*``) through from anywhere. Server-side ``requests`` calls have no
 browser markers, so the Bearer token alone authenticates them.
 """
+import base64
+import hashlib
+import hmac
 import json
 import logging
+import time
 import uuid
 
 import requests
@@ -28,9 +32,17 @@ _logger = logging.getLogger(__name__)
 # ir.config_parameter keys holding the harness connection material.
 CONFIG_BASE_URL = 'npei_agent_harness.base_url'
 CONFIG_API_TOKEN = 'npei_agent_harness.api_token'
+# Shared HMAC-SHA256 secret the MTIL Flask API signs SPA tickets with; the
+# harness verifies against the same value (its DSH_TICKET_SECRET).
+CONFIG_TICKET_SECRET = 'npei_agent_harness.ticket_secret'
 
 # Seconds before a management RPC to the harness is abandoned.
 HARNESS_RPC_TIMEOUT = 30
+
+# Ticket wire rules — MUST match @deepseek-ai/dsh-user-ticket and the harness.
+TICKET_VERSION = 'v1'
+MIN_TICKET_SECRET_LENGTH = 32
+DEFAULT_TICKET_TTL_SECONDS = 600
 
 
 class HarnessClient(models.AbstractModel):
@@ -65,6 +77,70 @@ class HarnessClient(models.AbstractModel):
         return {
             'Authorization': 'Bearer %s' % token,
             'Content-Type': 'application/json',
+        }
+
+    # ------------------------------------------------------------------
+    # SPA user-ticket minting (for the MTIL Flask get_config_v2 gate)
+    # ------------------------------------------------------------------
+    @api.model
+    def _b64url_nopad(self, raw):
+        """base64url-encode without ``=`` padding (matches JS ``base64url``)."""
+        return base64.urlsafe_b64encode(raw).rstrip(b'=').decode('ascii')
+
+    @api.model
+    def mint_user_ticket(self, user_id, ttl_seconds=DEFAULT_TICKET_TTL_SECONDS):
+        """Mint a ``v1`` harness user-ticket for ``user_id``.
+
+        Signs ``{"u": str(user_id), "exp": <unix>}`` with HMAC-SHA256 over the
+        shared secret in ``ir.config_parameter`` (``npei_agent_harness.ticket_secret``)
+        — the same value the harness verifies with. ``u`` MUST be the identifier
+        the session ACL is keyed by: :meth:`NpeiAgentSession._push_access` pushes
+        ``str(res.users.id)``, so pass a ``res.users`` id.
+
+        :meth:`api_get_config_v2` wraps this for the MTIL Flask gate, which
+        delivers the returned ticket to the browser as the HttpOnly ``dsh_ticket``
+        cookie. The secret never leaves Odoo/the gate.
+
+        :param user_id: the ``res.users`` id to sign into the ticket.
+        :param int ttl_seconds: lifetime; keep it under the harness max-TTL guard.
+        :returns: ``(ticket, expires_at)`` — the ``v1.<payload>.<mac>`` string and
+            the absolute Unix-second expiry.
+        :raises UserError: when the secret is unset or below the harness minimum.
+        """
+        secret = (self.env['ir.config_parameter'].sudo()
+                  .get_param(CONFIG_TICKET_SECRET) or '').strip()
+        if len(secret) < MIN_TICKET_SECRET_LENGTH:
+            raise UserError(_(
+                "The harness Ticket Secret is unset or shorter than %d characters. "
+                "Set it under Settings > MTIL Agent.", MIN_TICKET_SECRET_LENGTH))
+        expires_at = int(time.time()) + int(ttl_seconds)
+        payload = json.dumps({'u': str(user_id), 'exp': expires_at}, separators=(',', ':'))
+        body = self._b64url_nopad(payload.encode('utf-8'))
+        signing_input = '%s.%s' % (TICKET_VERSION, body)
+        mac = hmac.new(secret.encode('utf-8'), signing_input.encode('ascii'), hashlib.sha256).digest()
+        return '%s.%s' % (signing_input, self._b64url_nopad(mac)), expires_at
+
+    @api.model
+    def api_get_config_v2(self, user_id):
+        """Access-gate payload for the MTIL SPA: mint a ticket for ``user_id``.
+
+        The XML-RPC entry the MTIL Flask ``get_config_v2`` gate calls (server-side,
+        service account). Returns the MTIL envelope ``{status, message, datas}``;
+        the Flask layer moves ``datas.ticket`` into the HttpOnly ``dsh_ticket``
+        cookie and keeps only ``expires_at`` in the body. ``user_id`` is the
+        ``res.users`` id the gate resolved from the Odoo session — the id the
+        session ACL is keyed by.
+
+        :param user_id: the ``res.users`` id to sign into the ticket.
+        :returns: ``{'status': True, 'message': '', 'datas': {'ticket', 'expires_at'}}``.
+        :raises UserError: when the ticket secret is unset or too short (surfaces
+            to the gate as an XML-RPC fault it maps to a failure envelope).
+        """
+        ticket, expires_at = self.mint_user_ticket(user_id)
+        return {
+            'status': True,
+            'message': '',
+            'datas': {'ticket': ticket, 'expires_at': expires_at},
         }
 
     @api.model
