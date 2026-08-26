@@ -22,13 +22,32 @@ entry ``npei.agent.harness.client.api_get_config_v2(user_id)`` lives in
 returned ticket into an HttpOnly cookie and drops it from the JSON body, so page
 scripts never see the credential.
 
+The SPA calls this gate CROSS-ORIGIN (chat.mtilai.mtil.vn -> mtil.mtil.vn, same
+site) so the Odoo session cookie on the MTIL host is sent: the Flask app MUST
+answer CORS with the SPA origin + credentials (see the config/config.py block).
+
 Flow:
-  browser POST /api/mtil/get_config_v2   (Odoo session cookie)
+  browser POST https://mtil.mtil.vn/api/mtil/get_config_v2   (Odoo session cookie, CORS)
     -> NanoPham.validate_session          (Odoo /api/check_session) -> session_info
     -> user_id from session_info
     -> oorpc.api_get_config_v2 -> npei.agent.harness.client.api_get_config_v2 (mints v1.<...>)
     -> controller: Set-Cookie: dsh_ticket=<ticket>; body keeps only expires_at
 """
+
+# ============================================================================ #
+# config/config.py   — CORS for the cross-origin gate (REQUIRED)
+# ============================================================================ #
+# The SPA (https://chat.mtilai.mtil.vn) fetches the gate cross-origin WITH the
+# Odoo session cookie. A default `CORS(app)` answers `Access-Control-Allow-Origin: *`
+# WITHOUT credentials — the browser then refuses to send the cookie and blocks the
+# response. Pin the SPA origin and allow credentials so preflight + the POST pass:
+#
+#     from flask_cors import CORS
+#     CORS(app, supports_credentials=True, origins=['https://chat.mtilai.mtil.vn'])
+#
+# `origins` must be the exact SPA origin (never '*'); flask_cors then handles the
+# OPTIONS preflight automatically. This replaces the bare `CORS(app)`.
+
 
 # ============================================================================ #
 # controllers/mtil.py
@@ -52,12 +71,18 @@ TICKET_COOKIE_SECURE = os.environ.get('DSH_TICKET_COOKIE_SECURE', '1') not in ('
 
 
 def _set_ticket_cookie(resp, ticket, expires_at):
-    """Attach the HttpOnly ticket cookie; max_age derived from expires_at (unix s)."""
+    """Attach the HttpOnly ticket cookie; max_age derived from expires_at (unix s).
+
+    SameSite=None because the SPA fetches the gate CROSS-ORIGIN (chat.mtilai.mtil.vn
+    -> mtil.mtil.vn), so the browser must accept this Set-Cookie on a cross-origin
+    response; None REQUIRES Secure (HTTPS). Domain=.mtil.vn so the cookie set here
+    at mtil.mtil.vn also reaches the harness subdomain.
+    """
     max_age = max(0, int(expires_at) - int(time.time())) if expires_at else None
     resp.set_cookie(
         TICKET_COOKIE_NAME, ticket,
         max_age=max_age, httponly=True, secure=TICKET_COOKIE_SECURE,
-        samesite='Strict', path=TICKET_COOKIE_PATH, domain=TICKET_COOKIE_DOMAIN,
+        samesite='None', path=TICKET_COOKIE_PATH, domain=TICKET_COOKIE_DOMAIN,
     )
 
 
