@@ -30,6 +30,8 @@
                 <header>
                     <button name="action_sync_from_harness" type="object"
                             string="Sync from Harness" class="btn-primary"/>
+                    <button name="action_pull_content" type="object"
+                            string="Pull Content" invisible="not preset_id"/>
                     <button name="act_lock" string="Khóa" type="object" groups="npei_base.npei_group_lock" invisible="is_locked"/>
                     <button name="act_unlock" string="Mở Khóa" type="object" groups="npei_base.npei_group_lock" invisible="not is_locked"/>
                 </header>
@@ -39,15 +41,21 @@
                         <group>
                             <field name="skill_key" readonly="is_locked"/>
                             <field name="name" readonly="is_locked"/>
+                            <field name="preset_id" readonly="is_locked"/>
                         </group>
                         <group>
                             <field name="source" readonly="is_locked"/>
+                            <field name="when_to_use" readonly="is_locked"/>
                             <field name="active" readonly="is_locked"/>
                         </group>
                     </group>
                     <notebook>
                         <page string="Description">
                             <field name="description" nolabel="1" readonly="is_locked"/>
+                        </page>
+                        <page string="Content (SKILL.md)">
+                            <field name="content" nolabel="1" readonly="is_locked"
+                                   placeholder="Markdown body of the skill (no frontmatter). Set a Preset to push it to the harness."/>
                         </page>
                         <page string="Quản lý Hệ thống*">
                             <notebook>

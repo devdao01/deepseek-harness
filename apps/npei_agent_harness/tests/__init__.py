@@ -2,3 +2,4 @@
 from . import test_session_access_sync
 from . import test_preset_authoring
 from . import test_config_management
+from . import test_skill_authoring
