@@ -186,24 +186,49 @@ class NpeiAgentPreset(models.Model):
             vals['workspace_id'] = workspace['workspaceId']
         vals.setdefault('trust', 'user')
 
+    def _resolve_workspace_id_by_path(self, path):
+        """Return the harness workspace id registered at ``path``, or ``None``.
+
+        Presets authored before ``workspace_id`` was stored keep it blank; the
+        harness workspace still exists at the preset's ``workspace_path``, so we
+        recover its id from the roster by matching the path.
+        """
+        value = self.env['npei.agent.harness.client'].sudo()._rpc('workspace.list', {})
+        for item in (value.get('items') or []):
+            if item.get('path') == path:
+                return item.get('workspaceId')
+        return None
+
     def _push_workspace_title(self):
         """Best-effort: set each USER preset's harness workspace title from ``name``.
 
         The provisioned workspace's title defaults to its directory basename
         (e.g. ``ho-so-1``); this renames it to the preset's display name via
         ``workspace.rename`` (full-token) so the SPA sidebar groups sessions under
-        the Odoo name (``Hồ Sơ 1``). Cosmetic, so a failure — an unreachable
+        the Odoo name (``Hồ Sơ 1``). A preset authored before ``workspace_id`` was
+        stored has it blank, so the id is recovered from ``workspace.list`` by
+        ``workspace_path`` and backfilled. Cosmetic, so a failure — an unreachable
         harness, or a duplicate title (``workspace-name-conflict``) — is logged and
-        swallowed rather than rolling the Odoo write back. Skips presets with no
-        provisioned workspace (system presets, sync/adopt rows) or a blank name.
+        swallowed rather than rolling the Odoo write back. Skips system/adopted
+        presets with no workspace, or a blank name.
         """
         client = self.env['npei.agent.harness.client'].sudo()
         for record in self:
-            if record.trust != 'user' or not record.workspace_id or not (record.name or '').strip():
+            if record.trust != 'user' or not (record.name or '').strip():
                 continue
             try:
+                workspace_id = record.workspace_id
+                if not workspace_id and record.workspace_path:
+                    workspace_id = record._resolve_workspace_id_by_path(record.workspace_path)
+                    if workspace_id:
+                        # Backfill so later pushes skip the roster lookup. Writing
+                        # only this field re-enters write() but matches neither push
+                        # trigger, so it does not recurse.
+                        record.workspace_id = workspace_id
+                if not workspace_id:
+                    continue
                 client._rpc('workspace.rename', {
-                    'workspaceId': record.workspace_id,
+                    'workspaceId': workspace_id,
                     'title': record.name,
                 })
             except UserError as exc:

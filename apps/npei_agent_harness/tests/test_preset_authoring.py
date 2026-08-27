@@ -20,6 +20,8 @@ class TestPresetAuthoring(TransactionCase):
         self._extra_presets = []
         # When set, agentPreset.update raises to exercise the best-effort path.
         self._fail_update = False
+        # Harness workspace roster a test can pre-seed for the resolve-by-path path.
+        self._workspaces = []
 
         client_cls = type(self.env['npei.agent.harness.client'])
 
@@ -27,6 +29,8 @@ class TestPresetAuthoring(TransactionCase):
             self._calls.append((method, payload))
             if method == 'agentPreset.list':
                 return {'presets': [{'id': 'base', 'isDefault': True, 'trust': 'system'}] + self._extra_presets}
+            if method == 'workspace.list':
+                return {'items': self._workspaces, 'archivedSessionIds': []}
             if method == 'agentPreset.copy':
                 agent_preset = (payload or {})['agentPreset']
                 return {
@@ -90,6 +94,24 @@ class TestPresetAuthoring(TransactionCase):
         rename_calls = [payload for method, payload in self._calls if method == 'workspace.rename']
         # Authoring pushed once; the name write pushed the new title again.
         self.assertEqual(rename_calls[-1], {'workspaceId': 'ws-ho-so-x', 'title': 'Hồ Sơ Y'})
+
+    def test_name_write_resolves_missing_workspace_id_by_path(self):
+        # A preset authored before workspace_id was stored: mirrored (preset_id
+        # given, so no authoring) with a path but no workspace_id.
+        self._workspaces = [{'workspaceId': 'ws-1', 'path': '/home/u/workspace/ho-so-x'}]
+        preset = self.Preset.create({
+            'preset_id': 'ho-so-x',
+            'name': 'Hồ Sơ X',
+            'trust': 'user',
+            'workspace_path': '/home/u/workspace/ho-so-x',
+        })
+
+        preset.write({'name': 'Hồ Sơ Y'})
+
+        # The id is recovered from workspace.list by path, backfilled, and used.
+        self.assertEqual(preset.workspace_id, 'ws-1')
+        rename_calls = [payload for method, payload in self._calls if method == 'workspace.rename']
+        self.assertEqual(rename_calls[-1], {'workspaceId': 'ws-1', 'title': 'Hồ Sơ Y'})
         # copy carries no description, so the display text is pushed after; an
         # authored preset is active, so it pushes `disabled: False`.
         self.assertEqual(
