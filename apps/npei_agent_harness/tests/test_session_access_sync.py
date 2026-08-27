@@ -57,7 +57,7 @@ class TestSessionAccessSync(TransactionCase):
         self.assertEqual(set_calls[-1]['sessionId'], 'session-generated')
         self.assertEqual(set_calls[-1]['userIds'], [str(self.user_a.id)])
 
-    def test_workspace_defaults_from_preset_and_drives_cwd(self):
+    def test_preset_session_omits_cwd_so_harness_attaches_workspace(self):
         preset = self.env['npei.agent.preset'].create({
             'preset_id': 'ho-so-x',
             'name': 'Hồ Sơ X',
@@ -69,11 +69,32 @@ class TestSessionAccessSync(TransactionCase):
             'user_ids': [(6, 0, [self.user_a.id])],
         })
 
-        # The blank workspace is filled from the preset mirror, and that path
-        # plus the preset key drive session.create.
+        # The blank workspace is filled from the preset mirror for the Odoo record,
+        # but session.create carries ONLY the preset (no cwd) so the harness
+        # attaches the session under that preset's registered workspace (grouping
+        # it there) rather than treating an explicit cwd as an override.
         self.assertEqual(record.workspace_path, '/home/u/workspace/ho-so-x')
         create_calls = [payload for method, payload in self._calls if method == 'session.create']
-        self.assertEqual(create_calls[0].get('cwd'), '/home/u/workspace/ho-so-x')
+        self.assertNotIn('cwd', create_calls[0])
+        self.assertEqual(create_calls[0].get('agentPreset'), 'ho-so-x')
+
+    def test_preset_session_with_overriding_cwd_still_sends_cwd(self):
+        preset = self.env['npei.agent.preset'].create({
+            'preset_id': 'ho-so-x',
+            'name': 'Hồ Sơ X',
+            'workspace_path': '/home/u/workspace/ho-so-x',
+        })
+
+        # A workspace_path DIFFERENT from the preset's own is a deliberate
+        # override: it must ride as cwd (the harness will not attach it, by design).
+        self.Session.create({
+            'preset_id': preset.id,
+            'workspace_path': '/home/u/other',
+            'user_ids': [(6, 0, [self.user_a.id])],
+        })
+
+        create_calls = [payload for method, payload in self._calls if method == 'session.create']
+        self.assertEqual(create_calls[0].get('cwd'), '/home/u/other')
         self.assertEqual(create_calls[0].get('agentPreset'), 'ho-so-x')
 
     def test_create_with_session_id_adopts_without_harness_create(self):

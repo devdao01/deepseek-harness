@@ -216,8 +216,17 @@ class NpeiAgentSession(models.Model):
         """Create a session on the harness and return its id.
 
         The auto-create path for a mapping saved without a ``session_id``: calls
-        ``session.create`` with the record's workspace as ``cwd`` and its preset
-        key as ``agentPreset``, and returns the harness-generated id.
+        ``session.create`` and returns the harness-generated id.
+
+        Workspace grouping: the harness attaches a session to a preset's
+        registered workspace ONLY when the ``session.create`` carries NO ``cwd``
+        (a present ``cwd`` is treated as a deliberate override, so the harness
+        skips the attach and the session lands ungrouped under "Other sessions").
+        A mapping's ``workspace_path`` is defaulted FROM its preset's workspace
+        (see :meth:`_default_workspace_from_preset`), so for the common case we
+        pass the preset ALONE and let the harness attach the session under that
+        preset's workspace. A ``cwd`` is sent only when it differs from the
+        preset's own workspace (a real override) or when there is no preset.
 
         :param dict vals: the create values (``workspace_path``, ``preset_id``).
         :rtype: str
@@ -225,13 +234,20 @@ class NpeiAgentSession(models.Model):
         """
         payload = {}
         cwd = vals.get('workspace_path')
-        if cwd:
-            payload['cwd'] = cwd
+        preset_key = None
+        preset_workspace = None
         preset_ref = vals.get('preset_id')
         if preset_ref:
             preset = self.env['npei.agent.preset'].browse(preset_ref)
-            if preset.preset_id:
-                payload['agentPreset'] = preset.preset_id
+            preset_key = preset.preset_id or None
+            preset_workspace = preset.workspace_path or None
+        if preset_key:
+            payload['agentPreset'] = preset_key
+        # Omit cwd when it IS the preset's own workspace, so the harness attaches
+        # the session there (grouping it under that workspace) instead of leaving
+        # it ungrouped. Send cwd only for a real override or a preset-less session.
+        if cwd and cwd != preset_workspace:
+            payload['cwd'] = cwd
         value = self.env['npei.agent.harness.client'].sudo()._rpc('session.create', payload)
         session_id = value.get('sessionId')
         if not session_id:
