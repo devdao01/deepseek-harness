@@ -99,6 +99,12 @@ export interface RpcErrorDetailsMap {
   'subagent-not-resumable': { childSessionId: SessionId }
   'subagent-unauthorized': { childSessionId: SessionId }
   'subagent-delivery-unavailable': { childSessionId: SessionId }
+  /** A skill authoring name was not a single, non-traversing skill segment. */
+  'skill-invalid-name': { name: string }
+  /** A skill authoring read/target file does not exist. */
+  'skill-not-found': { name: string }
+  /** A skill authoring body exceeded the fixed size bound. */
+  'skill-too-large': { name: string }
   'internal': {}
 }
 

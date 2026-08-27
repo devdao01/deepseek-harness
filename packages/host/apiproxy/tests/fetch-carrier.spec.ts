@@ -232,6 +232,15 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
       async list(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { skills: [{ name: 'commit-helper', description: 'Git commits', modelInvocable: true }] } } }
       },
+      async read(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { description: 'stub', content: '' } } }
+      },
+      async write(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { name: request.payload.name } } }
+      },
+      async remove(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { removed: true } } }
+      },
     },
     goals: {
       async create(request) {

@@ -2843,6 +2843,20 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           ],
         })
       },
+      // Skill authoring is a full-token server surface, not part of this
+      // in-memory UI fixture's contract (mirrors per-session access above).
+      read: request => Promise.resolve({
+        rpcId: request.rpcId,
+        result: { ok: false, error: { code: 'internal', message: 'fixture does not implement skill authoring', details: {} } },
+      }),
+      write: request => Promise.resolve({
+        rpcId: request.rpcId,
+        result: { ok: false, error: { code: 'internal', message: 'fixture does not implement skill authoring', details: {} } },
+      }),
+      remove: request => Promise.resolve({
+        rpcId: request.rpcId,
+        result: { ok: false, error: { code: 'internal', message: 'fixture does not implement skill authoring', details: {} } },
+      }),
     },
     goals: {
       // Compatibility face only: old API Proxy payloads and acknowledgements
@@ -3170,6 +3184,9 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'workspace.insertSessionBefore': return this.api.workspace.insertSessionBefore(request)
       case 'workspace.archiveSession': return this.api.workspace.archiveSession(request)
       case 'skill.list': return this.api.skills.list(request)
+      case 'skill.read': return this.api.skills.read(request)
+      case 'skill.write': return this.api.skills.write(request)
+      case 'skill.remove': return this.api.skills.remove(request)
       case 'agentPreset.list': return this.api.agentPresets.list(request)
       case 'agentPreset.select': return this.api.agentPresets.select(request)
       case 'agentPreset.read': return this.api.agentPresets.read(request)

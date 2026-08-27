@@ -52,6 +52,7 @@ import {
   type SessionLogCompressionLevel,
 } from './session-export.ts'
 import { streamWorkspaceFile } from './workspace-file.ts'
+import { SkillAuthoringError, readSkill, removeSkill, writeSkill } from './skill-authoring.ts'
 import {
   isPresetWorkspaceIdSafe,
   presetWorkspacePath,
@@ -1074,6 +1075,25 @@ function workspaceNotFound<T>(request: RpcRequest<unknown>, workspaceId: string)
     message: `workspace "${workspaceId}" not found`,
     details: { workspaceId },
   })
+}
+
+/** Map a skill authoring failure onto the wire error vocabulary (unknown throws stay internal). */
+function skillAuthoringErrorResponse<T>(request: RpcRequest<unknown>, name: string, error: unknown): RpcResponse<T> {
+  if (error instanceof SkillAuthoringError) {
+    switch (error.code) {
+      // A containment escape carries no session scope: the method-level
+      // forbidden shape (no sessionId) is the right wire face.
+      case 'forbidden':
+        return err(request, { code: 'forbidden', message: error.message, details: {} })
+      case 'skill-invalid-name':
+        return err(request, { code: 'skill-invalid-name', message: error.message, details: { name } })
+      case 'skill-not-found':
+        return err(request, { code: 'skill-not-found', message: error.message, details: { name } })
+      case 'skill-too-large':
+        return err(request, { code: 'skill-too-large', message: error.message, details: { name } })
+    }
+  }
+  return err(request, { code: 'internal', message: `skill authoring failed: ${String(error)}`, details: {} })
 }
 
 /** Wire projection of one workspace entity (the workspace.* value row). */
@@ -3388,6 +3408,49 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           })
         } catch (error: unknown) {
           return err(request, { code: 'internal', message: `skill listing failed: ${String(error)}`, details: {} })
+        }
+      },
+
+      // Authoring is workspace-addressed, not session-addressed: the operator
+      // holds a workspace id (Odoo/MTIL front) and edits the on-disk skill
+      // directory directly, so no Agent is created or resumed. Containment and
+      // name safety live in `skill-authoring`; this handler resolves the
+      // workspace path and maps the typed failures onto wire codes.
+      async read(request) {
+        const { workspaceId, name } = request.payload
+        const workspace = ctx.workspaceRegistry.get(brandWorkspaceId(workspaceId))
+        if (workspace === undefined) return workspaceNotFound(request, workspaceId)
+        try {
+          return ok(request, await readSkill(workspace.path, name))
+        } catch (error: unknown) {
+          return skillAuthoringErrorResponse(request, name, error)
+        }
+      },
+
+      async write(request) {
+        const { workspaceId, name, description, whenToUse, content } = request.payload
+        const workspace = ctx.workspaceRegistry.get(brandWorkspaceId(workspaceId))
+        if (workspace === undefined) return workspaceNotFound(request, workspaceId)
+        try {
+          return ok(request, await writeSkill(workspace.path, {
+            name,
+            description,
+            ...whenToUse === undefined ? {} : { whenToUse },
+            content,
+          }))
+        } catch (error: unknown) {
+          return skillAuthoringErrorResponse(request, name, error)
+        }
+      },
+
+      async remove(request) {
+        const { workspaceId, name } = request.payload
+        const workspace = ctx.workspaceRegistry.get(brandWorkspaceId(workspaceId))
+        if (workspace === undefined) return workspaceNotFound(request, workspaceId)
+        try {
+          return ok(request, await removeSkill(workspace.path, name))
+        } catch (error: unknown) {
+          return skillAuthoringErrorResponse(request, name, error)
         }
       },
     },

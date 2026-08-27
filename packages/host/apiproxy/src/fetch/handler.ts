@@ -46,7 +46,9 @@ import {
   workspaceListRequestSchema,
   workspaceRenameRequestSchema,
 } from '../api/workspace.schema.ts'
-import { skillListRequestSchema } from '../api/skills.schema.ts'
+import {
+  skillListRequestSchema, skillReadRequestSchema, skillRemoveRequestSchema, skillWriteRequestSchema,
+} from '../api/skills.schema.ts'
 import {
   agentPresetCopyRequestSchema, agentPresetListRequestSchema, agentPresetOpenDocumentRequestSchema,
   agentPresetReadRequestSchema, agentPresetRemoveRequestSchema, agentPresetSelectRequestSchema,
@@ -123,6 +125,9 @@ const UNARY_ROUTES: UnaryRoutes = {
   'workspace.insertSessionBefore': { schema: workspaceInsertSessionBeforeRequestSchema, invoke: (api, r) => api.workspace.insertSessionBefore(r) },
   'workspace.archiveSession': { schema: workspaceArchiveSessionRequestSchema, invoke: (api, r) => api.workspace.archiveSession(r) },
   'skill.list': { schema: skillListRequestSchema, invoke: (api, r) => api.skills.list(r) },
+  'skill.read': { schema: skillReadRequestSchema, invoke: (api, r) => api.skills.read(r) },
+  'skill.write': { schema: skillWriteRequestSchema, invoke: (api, r) => api.skills.write(r) },
+  'skill.remove': { schema: skillRemoveRequestSchema, invoke: (api, r) => api.skills.remove(r) },
   'agentPreset.list': { schema: agentPresetListRequestSchema, invoke: (api, r) => api.agentPresets.list(r) },
   'agentPreset.select': { schema: agentPresetSelectRequestSchema, invoke: (api, r) => api.agentPresets.select(r) },
   'agentPreset.read': { schema: agentPresetReadRequestSchema, invoke: (api, r) => api.agentPresets.read(r) },
@@ -163,12 +168,15 @@ const INVALID_REQUEST_RPC_ID = RpcId('invalid-request')
 
 /**
  * Methods only a full token may call; a per-user ticket is refused at dispatch.
- * Two classes: per-session access management (a user cannot edit its own
- * access), and workspace mutation (registering a host directory, or renaming,
+ * Three classes: per-session access management (a user cannot edit its own
+ * access); workspace mutation (registering a host directory, or renaming,
  * deleting, reordering, and archiving within the shared workspace roster is
  * deployment management the Odoo/MTIL front owns — a ticket only READS the
- * roster via `workspace.list`). The `workspace.file` download stays reachable,
- * gated by its session id like any session-scoped read.
+ * roster via `workspace.list`); and skill authoring (`skill.read`/`write`/
+ * `remove` edit a workspace's on-disk skill files — administration the
+ * Odoo/MTIL front owns, while a ticket only lists a session's catalog via
+ * `skill.list`). The `workspace.file` download stays reachable, gated by its
+ * session id like any session-scoped read.
  */
 const FULL_TOKEN_ONLY: ReadonlySet<string> = new Set([
   'session.setAccess',
@@ -179,6 +187,9 @@ const FULL_TOKEN_ONLY: ReadonlySet<string> = new Set([
   'workspace.insertBefore',
   'workspace.insertSessionBefore',
   'workspace.archiveSession',
+  'skill.read',
+  'skill.write',
+  'skill.remove',
 ])
 
 /**
