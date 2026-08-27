@@ -60,11 +60,12 @@ from flask import jsonify, make_response
 # --- ticket cookie config + helpers (put after `ns = api.namespace(...)`) ---- #
 #: Cookie carrying the harness ticket. HttpOnly so page scripts cannot read it.
 TICKET_COOKIE_NAME = 'dsh_ticket'
-# Path must cover BOTH the gate (/api/mtil/*) AND wherever the browser reaches the
-# harness. Default '/api' covers a harness under /api/*; set DSH_TICKET_COOKIE_PATH=/
-# when the harness lives at a SIBLING prefix like /api-harness (RFC 6265: '/api' is
-# NOT a path-prefix of '/api-harness' — the char after '/api' is '-', not '/').
-TICKET_COOKIE_PATH = os.environ.get('DSH_TICKET_COOKIE_PATH', '/api')
+# Scoped to the harness prefix only: the gate (/api/mtil/*) merely SETS this
+# cookie (it authenticates from session_id, never reads dsh_ticket), so the ticket
+# needs to reach the harness alone. '/api-harness' keeps it off Odoo (/) and the
+# Flask API (/api) entirely. Override via DSH_TICKET_COOKIE_PATH when the harness
+# prefix differs (must match VITE_HARNESS_API_PATH on the SPA).
+TICKET_COOKIE_PATH = os.environ.get('DSH_TICKET_COOKIE_PATH', '/api-harness')
 # Env overrides, else the hardcoded default '.mtil.vn'. Set the env to '' to force
 # host-only (drop Domain). Secure defaults True; set the env to '0' for a LAN over
 # plain HTTP.
