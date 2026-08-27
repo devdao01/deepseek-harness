@@ -87,6 +87,28 @@ class TestSkillAuthoring(TransactionCase):
         self.assertEqual(removes, [{'workspaceId': 'ws-1', 'name': 'old-name'}])
         self.assertEqual(self._writes()[-1]['name'], 'new-name')
 
+    def test_duplicate_mints_fresh_key_and_authors_copy(self):
+        skill = self.Skill.create({
+            'skill_key': 'tao-bao-cao', 'name': 'Tạo báo cáo', 'content': 'A',
+            'preset_id': self.preset.id})
+        self._calls.clear()  # isolate the duplicate from the create push
+
+        copy = skill.copy()
+
+        self.assertNotEqual(copy.id, skill.id)
+        self.assertEqual(copy.skill_key, 'tao-bao-cao-copy')
+        self.assertEqual(self._writes()[-1]['name'], 'tao-bao-cao-copy')
+
+    def test_duplicate_deduplicates_when_copy_key_taken(self):
+        skill = self.Skill.create({
+            'skill_key': 'tao-bao-cao', 'name': 'X', 'content': 'A',
+            'preset_id': self.preset.id})
+        skill.copy()  # takes tao-bao-cao-copy
+
+        second = skill.copy()
+
+        self.assertEqual(second.skill_key, 'tao-bao-cao-copy-2')
+
     def test_unlink_removes_skill_file(self):
         skill = self.Skill.create({
             'skill_key': 'tao-bao-cao', 'name': 'X', 'content': 'A',

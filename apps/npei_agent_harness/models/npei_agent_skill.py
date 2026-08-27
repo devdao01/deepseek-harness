@@ -201,6 +201,30 @@ class NpeiAgentSkill(models.Model):
                 _logger.warning(
                     "Failed to remove skill %s: %s", record.skill_key, exc)
 
+    def _unique_skill_key(self, base):
+        """Return ``base`` — or ``base-2``, ``base-3``, … — not yet used as a key."""
+        candidate = base
+        index = 1
+        while self.with_context(active_test=False).search_count(
+                [('skill_key', '=', candidate)]):
+            index += 1
+            candidate = '%s-%d' % (base, index)
+        return candidate
+
+    def copy(self, default=None):
+        """Duplicate with a fresh key: ``skill_key`` is ``copy=False`` (a unique
+        file identity), so a bare duplicate would leave the required key blank and
+        fail. Mint ``<key>-copy`` (kebab-case, deduplicated); the copy authors its
+        own SKILL.md on create.
+        """
+        self.ensure_one()
+        default = dict(default or {})
+        if not default.get('skill_key') and self.skill_key:
+            default['skill_key'] = self._unique_skill_key('%s-copy' % self.skill_key)
+        if not default.get('name') and self.name:
+            default['name'] = _('%s (copy)', self.name)
+        return super().copy(default)
+
     @api.model_create_multi
     def create(self, vals_list):
         """Create the rows, then push any AUTHORED ones to the harness."""
