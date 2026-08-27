@@ -209,9 +209,35 @@ class NpeiAgentSkill(models.Model):
         return records
 
     def write(self, vals):
-        """Write, then re-push when a SKILL.md-defining field changed."""
+        """Write, then re-push when a SKILL.md-defining field changed.
+
+        A ``skill_key`` rename (or a ``preset_id`` re-target) moves the file, so
+        the OLD ``(workspace, skill_key)`` is snapshotted before the write and its
+        SKILL.md removed after — otherwise the write would author the new file and
+        orphan the old one, leaving a duplicate skill on the harness.
+        """
+        syncing = self.env.context.get('npei_syncing')
+        touches_target = bool({'skill_key', 'preset_id'} & set(vals))
+        before = {}
+        if not syncing and touches_target:
+            for record in self:
+                workspace_id = record._target_workspace_id() if record.preset_id else None
+                if workspace_id and record.skill_key:
+                    before[record.id] = (workspace_id, record.skill_key)
         result = super().write(vals)
-        if not self.env.context.get('npei_syncing') and (set(_SKILL_FILE_FIELDS) & set(vals)):
+        if not syncing and (set(_SKILL_FILE_FIELDS) & set(vals)):
+            if touches_target:
+                client = self.env['npei.agent.harness.client'].sudo()
+                for record in self:
+                    old = before.get(record.id)
+                    new_ws = record._target_workspace_id() if record.preset_id else None
+                    new = (new_ws, record.skill_key) if new_ws and record.skill_key else None
+                    if old and old != new:
+                        try:
+                            client._rpc('skill.remove', {'workspaceId': old[0], 'name': old[1]})
+                        except UserError as exc:
+                            _logger.warning(
+                                "Failed to remove renamed skill %s: %s", old[1], exc)
             self._push_skill()
         return result
 

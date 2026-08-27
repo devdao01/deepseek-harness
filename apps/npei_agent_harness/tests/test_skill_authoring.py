@@ -75,6 +75,18 @@ class TestSkillAuthoring(TransactionCase):
 
         self.assertEqual(self._writes()[-1]['content'], 'B')
 
+    def test_rename_skill_key_removes_old_then_writes_new(self):
+        skill = self.Skill.create({
+            'skill_key': 'old-name', 'name': 'X', 'content': 'A',
+            'preset_id': self.preset.id})
+        self._calls.clear()  # isolate the rename from the create push
+
+        skill.write({'skill_key': 'new-name'})
+
+        removes = [payload for method, payload in self._calls if method == 'skill.remove']
+        self.assertEqual(removes, [{'workspaceId': 'ws-1', 'name': 'old-name'}])
+        self.assertEqual(self._writes()[-1]['name'], 'new-name')
+
     def test_unlink_removes_skill_file(self):
         skill = self.Skill.create({
             'skill_key': 'tao-bao-cao', 'name': 'X', 'content': 'A',
