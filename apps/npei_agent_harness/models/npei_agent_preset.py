@@ -40,7 +40,7 @@ class NpeiAgentPreset(models.Model):
              "blank on create, Odoo derives it from the name and authors the "
              "preset on the harness; set only by the sync/adopt path.",
     )
-    name = fields.Char(string='Name', tracking=True)
+    name = fields.Char(string='Name', required=True, tracking=True)
     description = fields.Text(string='Description', tracking=True)
     workspace_path = fields.Char(
         string='Default Workspace Path',
