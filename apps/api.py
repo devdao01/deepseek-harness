@@ -71,21 +71,20 @@ TICKET_COOKIE_PATH = os.environ.get('DSH_TICKET_COOKIE_PATH', '/api-harness')
 # plain HTTP.
 TICKET_COOKIE_DOMAIN = os.environ.get('DSH_TICKET_COOKIE_DOMAIN', '.mtil.vn') or None
 TICKET_COOKIE_SECURE = os.environ.get('DSH_TICKET_COOKIE_SECURE', '1') not in ('0', 'false', 'False', '')
+# 'Lax' is enough for a SAME-ORIGIN deploy (SPA, gate, harness all on one host).
+# Only a CROSS-ORIGIN deploy needs 'None' — and 'None' requires a Werkzeug new
+# enough to accept the string (old versions raise "invalid SameSite value"); set
+# DSH_TICKET_COOKIE_SAMESITE=None and upgrade Werkzeug in that case.
+TICKET_COOKIE_SAMESITE = os.environ.get('DSH_TICKET_COOKIE_SAMESITE', 'Lax')
 
 
 def _set_ticket_cookie(resp, ticket, expires_at):
-    """Attach the HttpOnly ticket cookie; max_age derived from expires_at (unix s).
-
-    SameSite=None because the SPA fetches the gate CROSS-ORIGIN (chat.mtilai.mtil.vn
-    -> mtil.mtil.vn), so the browser must accept this Set-Cookie on a cross-origin
-    response; None REQUIRES Secure (HTTPS). Domain=.mtil.vn so the cookie set here
-    at mtil.mtil.vn also reaches the harness subdomain.
-    """
+    """Attach the HttpOnly ticket cookie; max_age derived from expires_at (unix s)."""
     max_age = max(0, int(expires_at) - int(time.time())) if expires_at else None
     resp.set_cookie(
         TICKET_COOKIE_NAME, ticket,
         max_age=max_age, httponly=True, secure=TICKET_COOKIE_SECURE,
-        samesite='None', path=TICKET_COOKIE_PATH, domain=TICKET_COOKIE_DOMAIN,
+        samesite=TICKET_COOKIE_SAMESITE, path=TICKET_COOKIE_PATH, domain=TICKET_COOKIE_DOMAIN,
     )
 
 
