@@ -112,11 +112,11 @@ class TestPresetAuthoring(TransactionCase):
         self.assertEqual(preset.workspace_id, 'ws-1')
         rename_calls = [payload for method, payload in self._calls if method == 'workspace.rename']
         self.assertEqual(rename_calls[-1], {'workspaceId': 'ws-1', 'title': 'Hồ Sơ Y'})
-        # copy carries no description, so the display text is pushed after; an
-        # authored preset is active, so it pushes `disabled: False`.
+        # The name write re-pushes the display: the new name, no description (none
+        # was set), and `disabled: False` (the mirror row is active).
         self.assertEqual(
             self._update_calls(),
-            [{'agentPreset': 'ho-so-x', 'name': 'Hồ Sơ X', 'description': 'ghi chú', 'disabled': False}],
+            [{'agentPreset': 'ho-so-x', 'name': 'Hồ Sơ Y', 'description': '', 'disabled': False}],
         )
 
     def test_create_with_preset_id_mirrors_without_authoring(self):
