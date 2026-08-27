@@ -13,6 +13,8 @@ Odoo-side catalog of harness skills. Two roles:
   from ``npei.agent.preset.workspace_id``.
 """
 import logging
+import re
+import unicodedata
 import uuid
 
 from odoo import _, api, fields, models
@@ -33,11 +35,12 @@ class NpeiAgentSkill(models.Model):
 
     skill_key = fields.Char(
         string='Skill Key',
-        required=True,
         index=True,
         copy=False, tracking=True,
-        help="Skill identity. The harness ``SkillEntry`` exposes only a "
-             "``name``, used here as the key.",
+        help="Skill identity (kebab-case). Auto-derived from Name when left "
+             "blank on create; editable afterwards (a rename moves the harness "
+             "file). The harness ``SkillEntry`` exposes only a ``name``, used "
+             "here as the key.",
     )
     name = fields.Char(string='Name', tracking=True)
     description = fields.Text(string='Description', tracking=True)
@@ -201,6 +204,18 @@ class NpeiAgentSkill(models.Model):
                 _logger.warning(
                     "Failed to remove skill %s: %s", record.skill_key, exc)
 
+    def _slugify_skill_key(self, text):
+        """Turn free text into a kebab-case skill key (``[a-z0-9]+(-[a-z0-9]+)*``).
+
+        Vietnamese diacritics are stripped and ``đ``/``Đ`` mapped to ``d`` (they
+        do not NFKD-decompose); any other run of non-alphanumerics collapses to a
+        single ``-``. Returns ``''`` when nothing usable remains.
+        """
+        text = (text or '').replace('đ', 'd').replace('Đ', 'D')
+        text = unicodedata.normalize('NFKD', text)
+        text = ''.join(ch for ch in text if not unicodedata.combining(ch))
+        return re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')
+
     def _unique_skill_key(self, base):
         """Return ``base`` — or ``base-2``, ``base-3``, … — not yet used as a key."""
         candidate = base
@@ -211,14 +226,27 @@ class NpeiAgentSkill(models.Model):
             candidate = '%s-%d' % (base, index)
         return candidate
 
+    @api.onchange('name')
+    def _onchange_name_fill_skill_key(self):
+        """Preview the auto key: fill a blank ``skill_key`` from ``name`` once.
+
+        Only fills while the key is empty, so a hand-typed or already-derived key
+        keeps following its own edits, not the name.
+        """
+        if not self.skill_key and self.name:
+            base = self._slugify_skill_key(self.name)
+            if base:
+                self.skill_key = self._unique_skill_key(base)
+
     def copy(self, default=None):
-        """Duplicate with a fresh key: ``skill_key`` is ``copy=False`` (a unique
-        file identity), so a bare duplicate would leave the required key blank and
-        fail. Mint ``<key>-copy`` (kebab-case, deduplicated); the copy authors its
-        own SKILL.md on create.
+        """Duplicate as a mirror row: drop ``preset_id`` so the copy authors no
+        harness file (attach a preset later to publish it). ``skill_key`` is
+        ``copy=False``, so mint a fresh ``<key>-copy`` (deduplicated) to satisfy
+        the unique key.
         """
         self.ensure_one()
         default = dict(default or {})
+        default.setdefault('preset_id', False)
         if not default.get('skill_key') and self.skill_key:
             default['skill_key'] = self._unique_skill_key('%s-copy' % self.skill_key)
         if not default.get('name') and self.name:
@@ -227,7 +255,18 @@ class NpeiAgentSkill(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Create the rows, then push any AUTHORED ones to the harness."""
+        """Fill a blank ``skill_key`` from ``name`` (deduplicated), then push any
+        AUTHORED rows to the harness. A row with neither a key nor a usable name is
+        rejected — the key is the file identity.
+        """
+        for vals in vals_list:
+            if not vals.get('skill_key'):
+                base = self._slugify_skill_key(vals.get('name'))
+                if not base:
+                    raise UserError(_(
+                        "A skill needs a Name (or an explicit Skill Key) to "
+                        "derive its key from."))
+                vals['skill_key'] = self._unique_skill_key(base)
         records = super().create(vals_list)
         records._push_skill()
         return records

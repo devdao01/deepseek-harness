@@ -87,7 +87,7 @@ class TestSkillAuthoring(TransactionCase):
         self.assertEqual(removes, [{'workspaceId': 'ws-1', 'name': 'old-name'}])
         self.assertEqual(self._writes()[-1]['name'], 'new-name')
 
-    def test_duplicate_mints_fresh_key_and_authors_copy(self):
+    def test_duplicate_drops_preset_and_mints_fresh_key(self):
         skill = self.Skill.create({
             'skill_key': 'tao-bao-cao', 'name': 'Tạo báo cáo', 'content': 'A',
             'preset_id': self.preset.id})
@@ -96,8 +96,9 @@ class TestSkillAuthoring(TransactionCase):
         copy = skill.copy()
 
         self.assertNotEqual(copy.id, skill.id)
+        self.assertFalse(copy.preset_id)          # a duplicate is a mirror row
         self.assertEqual(copy.skill_key, 'tao-bao-cao-copy')
-        self.assertEqual(self._writes()[-1]['name'], 'tao-bao-cao-copy')
+        self.assertEqual(self._writes(), [])      # no preset ⇒ no harness push
 
     def test_duplicate_deduplicates_when_copy_key_taken(self):
         skill = self.Skill.create({
@@ -108,6 +109,31 @@ class TestSkillAuthoring(TransactionCase):
         second = skill.copy()
 
         self.assertEqual(second.skill_key, 'tao-bao-cao-copy-2')
+
+    def test_create_derives_skill_key_from_name(self):
+        skill = self.Skill.create({'name': 'Tạo Báo Cáo Đầu Kỳ', 'content': 'x'})
+        self.assertEqual(skill.skill_key, 'tao-bao-cao-dau-ky')
+
+    def test_create_derived_key_is_deduplicated(self):
+        self.Skill.create({'skill_key': 'bao-cao', 'name': 'A'})
+        skill = self.Skill.create({'name': 'Báo Cáo'})
+        self.assertEqual(skill.skill_key, 'bao-cao-2')
+
+    def test_create_without_key_or_name_raises(self):
+        with self.assertRaises(UserError):
+            self.Skill.create({'content': 'x'})
+
+    def test_removing_preset_removes_harness_file(self):
+        skill = self.Skill.create({
+            'skill_key': 'tao-bao-cao', 'name': 'X', 'content': 'A',
+            'preset_id': self.preset.id})
+        self._calls.clear()  # isolate the un-assign from the create push
+
+        skill.write({'preset_id': False})
+
+        removes = [payload for method, payload in self._calls if method == 'skill.remove']
+        self.assertEqual(removes, [{'workspaceId': 'ws-1', 'name': 'tao-bao-cao'}])
+        self.assertEqual(self._writes(), [])      # dropped preset ⇒ nothing re-pushed
 
     def test_unlink_removes_skill_file(self):
         skill = self.Skill.create({
