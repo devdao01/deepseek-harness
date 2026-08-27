@@ -47,6 +47,13 @@ class NpeiAgentPreset(models.Model):
         help="Canonical path of the preset's provisioned default workspace "
              "(user presets only).", tracking=True
     )
+    workspace_id = fields.Char(
+        string='Harness Workspace ID',
+        copy=False, tracking=True,
+        help="Workspace id the harness provisioned for this preset's default "
+             "workspace (from agentPreset.copy). Used to push the preset name as "
+             "the workspace title so the SPA sidebar shows the Odoo name.",
+    )
     trust = fields.Selection(
         [('system', 'System'), ('user', 'User')],
         string='Trust',
@@ -175,7 +182,33 @@ class NpeiAgentPreset(models.Model):
         workspace = value.get('workspace') or {}
         if workspace.get('path'):
             vals['workspace_path'] = workspace['path']
+        if workspace.get('workspaceId'):
+            vals['workspace_id'] = workspace['workspaceId']
         vals.setdefault('trust', 'user')
+
+    def _push_workspace_title(self):
+        """Best-effort: set each USER preset's harness workspace title from ``name``.
+
+        The provisioned workspace's title defaults to its directory basename
+        (e.g. ``ho-so-1``); this renames it to the preset's display name via
+        ``workspace.rename`` (full-token) so the SPA sidebar groups sessions under
+        the Odoo name (``Hồ Sơ 1``). Cosmetic, so a failure — an unreachable
+        harness, or a duplicate title (``workspace-name-conflict``) — is logged and
+        swallowed rather than rolling the Odoo write back. Skips presets with no
+        provisioned workspace (system presets, sync/adopt rows) or a blank name.
+        """
+        client = self.env['npei.agent.harness.client'].sudo()
+        for record in self:
+            if record.trust != 'user' or not record.workspace_id or not (record.name or '').strip():
+                continue
+            try:
+                client._rpc('workspace.rename', {
+                    'workspaceId': record.workspace_id,
+                    'title': record.name,
+                })
+            except UserError as exc:
+                _logger.warning(
+                    "Failed to push workspace title for preset %s: %s", record.preset_id, exc)
 
     def _push_display(self):
         """Push each USER preset's ``name``/``description``/``disabled`` to the harness.
@@ -227,6 +260,8 @@ class NpeiAgentPreset(models.Model):
                 except UserError as exc:
                     _logger.warning(
                         "Failed to push display for preset %s: %s", record.preset_id, exc)
+                # Cosmetic; best-effort internally, so it never rolls the record back.
+                record._push_workspace_title()
         return records
 
     def write(self, vals):
@@ -242,6 +277,9 @@ class NpeiAgentPreset(models.Model):
         result = super().write(vals)
         if not self.env.context.get('npei_syncing') and ({'name', 'description', 'active'} & set(vals)):
             self._push_display()
+        if not self.env.context.get('npei_syncing') and 'name' in vals:
+            # Keep the harness workspace title in step with the preset name.
+            self._push_workspace_title()
         return result
 
     @api.model

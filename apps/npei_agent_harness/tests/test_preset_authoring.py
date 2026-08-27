@@ -31,7 +31,10 @@ class TestPresetAuthoring(TransactionCase):
                 agent_preset = (payload or {})['agentPreset']
                 return {
                     'agentPreset': agent_preset,
-                    'workspace': {'path': '/home/u/workspace/%s' % agent_preset},
+                    'workspace': {
+                        'workspaceId': 'ws-%s' % agent_preset,
+                        'path': '/home/u/workspace/%s' % agent_preset,
+                    },
                 }
             if method == 'agentPreset.update':
                 if self._fail_update:
@@ -65,8 +68,28 @@ class TestPresetAuthoring(TransactionCase):
         self.assertEqual(copy_calls[0], {'from': 'base', 'agentPreset': 'ho-so-x', 'name': 'Hồ Sơ X'})
         self.assertEqual(preset.preset_id, 'ho-so-x')
         self.assertEqual(preset.workspace_path, '/home/u/workspace/ho-so-x')
+        self.assertEqual(preset.workspace_id, 'ws-ho-so-x')
         self.assertEqual(preset.trust, 'user')
         self.assertEqual(preset.description, 'ghi chú')
+
+    def test_authoring_pushes_workspace_title_from_name(self):
+        preset = self.Preset.create({'name': 'Hồ Sơ X'})
+
+        # The provisioned workspace is renamed to the preset's display name so the
+        # SPA sidebar groups sessions under the Odoo name, not the bare slug.
+        rename_calls = [payload for method, payload in self._calls if method == 'workspace.rename']
+        self.assertEqual(len(rename_calls), 1)
+        self.assertEqual(rename_calls[0], {'workspaceId': 'ws-ho-so-x', 'title': 'Hồ Sơ X'})
+        self.assertEqual(preset.workspace_id, 'ws-ho-so-x')
+
+    def test_write_name_republishes_workspace_title(self):
+        preset = self.Preset.create({'name': 'Hồ Sơ X'})
+
+        preset.write({'name': 'Hồ Sơ Y'})
+
+        rename_calls = [payload for method, payload in self._calls if method == 'workspace.rename']
+        # Authoring pushed once; the name write pushed the new title again.
+        self.assertEqual(rename_calls[-1], {'workspaceId': 'ws-ho-so-x', 'title': 'Hồ Sơ Y'})
         # copy carries no description, so the display text is pushed after; an
         # authored preset is active, so it pushes `disabled: False`.
         self.assertEqual(
