@@ -41,15 +41,11 @@ class NpeiAgentSkill(models.Model):
     )
     name = fields.Char(string='Name', tracking=True)
     description = fields.Text(string='Description', tracking=True)
-    source = fields.Char(
-        string='Source', tracking=True,
-        help="Provenance of the skill. Not carried on the harness wire; "
-             "populated from ``whenToUse`` when available.",
-    )
     when_to_use = fields.Char(
         string='When To Use', tracking=True,
-        help="Pushed to the SKILL.md ``whenToUse`` frontmatter for authored "
-             "skills (rows with a preset).",
+        help="The skill's ``whenToUse`` — a one-line hint telling the model when "
+             "to invoke it. Synced from ``skill.list`` for mirror rows; pushed to "
+             "the SKILL.md frontmatter for authored rows (with a preset).",
     )
     content = fields.Text(
         string='Content', tracking=True,
@@ -115,7 +111,6 @@ class NpeiAgentSkill(models.Model):
             vals = {
                 'name': name,
                 'description': entry.get('description') or False,
-                'source': entry.get('whenToUse') or False,
                 'when_to_use': entry.get('whenToUse') or False,
             }
             existing = model.search([('skill_key', '=', name)], limit=1)
