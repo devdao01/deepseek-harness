@@ -58,11 +58,13 @@ import time
 from flask import jsonify, make_response
 
 # --- ticket cookie config + helpers (put after `ns = api.namespace(...)`) ---- #
-#: Cookie carrying the harness ticket. HttpOnly so page scripts cannot read it;
-#: Path=/api so it rides both /api/mtil/* and the harness /api; Domain=.mtil.vn
-#: (env) so it reaches the harness subdomain (chat.mtilai.mtil.vn <-> harness).
+#: Cookie carrying the harness ticket. HttpOnly so page scripts cannot read it.
 TICKET_COOKIE_NAME = 'dsh_ticket'
-TICKET_COOKIE_PATH = '/api'
+# Path must cover BOTH the gate (/api/mtil/*) AND wherever the browser reaches the
+# harness. Default '/api' covers a harness under /api/*; set DSH_TICKET_COOKIE_PATH=/
+# when the harness lives at a SIBLING prefix like /api-harness (RFC 6265: '/api' is
+# NOT a path-prefix of '/api-harness' — the char after '/api' is '-', not '/').
+TICKET_COOKIE_PATH = os.environ.get('DSH_TICKET_COOKIE_PATH', '/api')
 # Env overrides, else the hardcoded default '.mtil.vn'. Set the env to '' to force
 # host-only (drop Domain). Secure defaults True; set the env to '0' for a LAN over
 # plain HTTP.
