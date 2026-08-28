@@ -1,0 +1,46 @@
+# Opt-in MTIL multi-tenant overlay over the shipped Web composition. Turns the
+# harness into the Odoo-fronted, per-user backend: an Odoo/MTIL service mints a
+# short-lived HMAC ticket, the browser calls this harness on the same origin
+# carrying it as the `dsh_ticket` cookie, and every /api request is scoped to
+# that user. It also mounts the workspace-addressed skill authoring Remote the
+# Odoo module drives.
+#
+# Apply it over the Web profile:
+#
+#   DSH_TICKET_SECRET=<shared secret, >=32 chars, matching the Odoo minter> \
+#     dsh --profile web --patch apps/cli/config/examples/mtil/cordis.yml \
+#         --trusted-host mtil.mtil.vn
+#
+# Bind loopback (the default) and put nginx same-origin in front; declare the
+# proxied authority with --trusted-host. With DSH_TICKET_SECRET unset the ticket
+# resolver mounts nothing and the surface stays single-tenant (unchanged), so the
+# overlay is safe to leave in a deployment that has not turned tickets on yet.
+
+- insert:
+    # Per-user identity: verify the dsh_ticket cookie (HMAC-SHA256) and resolve
+    # each admitted /api request to its { userId } principal. Empty secret ⇒ not
+    # mounted (single-tenant).
+    - id: user-ticket-resolver
+      name: '@deepseek-ai/dsh-user-ticket/resolver'
+      config:
+        secret: !!js process.env.DSH_TICKET_SECRET ?? ''
+
+    # Durable per-session access list (which users may see a session).
+    - id: session-access
+      name: '@deepseek-ai/dsh-session-access'
+
+    # Bind the request principal to the access list: session.list/search hide,
+    # and every session-addressed method refuses, a session the user is not a
+    # member of. The operator (principal-less) sees all.
+    - id: session-access-visibility
+      name: '@deepseek-ai/dsh-session-access/visibility'
+
+    # Operator Remote (ctx.remote.sessionAccess.set/get) so Odoo grants a session
+    # to a user; operator-gated (a ticket caller is refused).
+    - id: session-access-controller
+      name: '@deepseek-ai/dsh-session-access/controller'
+
+    # Workspace-addressed skill authoring Remote (ctx.remote.skillAuthoring.*)
+    # the Odoo module drives to enumerate, read, write, and remove skill files.
+    - id: skill-controller
+      name: '@deepseek-ai/dsh-api-skill-controller'

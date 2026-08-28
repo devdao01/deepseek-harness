@@ -150,6 +150,9 @@ importers:
       '@deepseek-ai/dsh-agent-tool-presentation':
         specifier: workspace:^
         version: link:../../packages/core/agent-tool-presentation
+      '@deepseek-ai/dsh-api-skill-controller':
+        specifier: workspace:^
+        version: link:../../packages/api/skill-controller
       '@deepseek-ai/dsh-app-boot':
         specifier: workspace:^
         version: link:../../packages/boot/app-boot
@@ -231,6 +234,9 @@ importers:
       '@deepseek-ai/dsh-sdk-minimal':
         specifier: workspace:^
         version: link:../../packages/bundle/sdk-minimal
+      '@deepseek-ai/dsh-session-access':
+        specifier: workspace:^
+        version: link:../../packages/session/session-access
       '@deepseek-ai/dsh-session-projection':
         specifier: workspace:^
         version: link:../../packages/session/session-projection
@@ -312,6 +318,9 @@ importers:
       '@deepseek-ai/dsh-tool-workflow':
         specifier: workspace:^
         version: link:../../packages/workflow/tool-workflow
+      '@deepseek-ai/dsh-user-ticket':
+        specifier: workspace:^
+        version: link:../../packages/identity/user-ticket
       '@deepseek-ai/dsh-web-app':
         specifier: workspace:^
         version: link:../../packages/bundle/web-app
