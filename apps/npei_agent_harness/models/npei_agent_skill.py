@@ -173,7 +173,16 @@ class NpeiAgentSkill(models.Model):
                 if preset.workspace_path else False)
             if not workspace_id:
                 continue
-            listed = client._rpc('skill.listWorkspace', {'workspaceId': workspace_id})
+            try:
+                listed = client._rpc('skill.listWorkspace', {'workspaceId': workspace_id})
+            except UserError as exc:
+                # A workspace the harness has not registered (e.g. it was never
+                # provisioned, or is gone after a reset): skip this preset rather
+                # than failing the whole sync.
+                _logger.info(
+                    "skill.listWorkspace skipped for preset %s (%s): %s",
+                    preset.display_name, workspace_id, exc)
+                continue
             for entry in listed.get('skills') or []:
                 name = entry.get('name')
                 if not name:
@@ -200,13 +209,22 @@ class NpeiAgentSkill(models.Model):
         """Upsert preset-less mirror rows for skills no preset owns.
 
         Borrows the most recently updated session for its merged catalog; returns
-        the row count. Does nothing (no error) when no session is mapped.
+        the row count. Best-effort: does nothing when no session is mapped, or
+        when the borrowed session is not attached on the harness (``skill.list``
+        needs a live session — e.g. none is attached right after a restart). The
+        per-preset pass has already run, so a missing mirror never fails the sync.
         """
         session = self.env['npei.agent.session'].search(
             [], order='write_date desc', limit=1)
         if not session:
             return 0
-        value = client._rpc('skill.list', {'sessionId': session.session_id})
+        try:
+            value = client._rpc('skill.list', {'sessionId': session.session_id})
+        except UserError as exc:
+            _logger.info(
+                "skill.list mirror pass skipped (session %s not usable): %s",
+                session.session_id, exc)
+            return 0
         count = 0
         for entry in value.get('skills') or []:
             name = entry.get('name')

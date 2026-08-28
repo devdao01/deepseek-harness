@@ -258,6 +258,49 @@ class TestSkillAuthoring(TransactionCase):
         self.assertEqual(rows.preset_id, self.preset)    # one row, attributed
         self.assertEqual(len(rows), 1)
 
+    def test_sync_survives_unattached_session_in_mirror_pass(self):
+        # skill.list needs an attached session; right after a harness restart the
+        # borrowed session is not attached. The per-preset pass must still run and
+        # the whole sync must not fail.
+        self.env['npei.agent.session'].create({'session_id': 'sess-1'})
+        self._workspace_skills = {'ws-1': [{
+            'name': 'zztest-attr2', 'description': 'a', 'modelInvocable': True}]}
+        original = type(self.env['npei.agent.harness.client'])._rpc
+
+        def rpc_list_fails(model, method, payload=None):
+            if method == 'skill.list':
+                self._calls.append((method, payload))
+                raise UserError('session "sess-1" not found (not attached)')
+            return original(model, method, payload)
+
+        with patch.object(type(self.env['npei.agent.harness.client']), '_rpc', rpc_list_fails):
+            self.Skill.action_sync_from_harness()   # must not raise
+
+        skill = self.Skill.search([('skill_key', '=', 'zztest-attr2')])
+        self.assertEqual(skill.preset_id, self.preset)
+
+    def test_sync_skips_preset_with_unregistered_workspace(self):
+        # One preset's workspace is unknown to the harness; the healthy preset
+        # still syncs and the sync does not fail.
+        self.Preset.create({
+            'preset_id': 'ho-so-z', 'name': 'Hồ Sơ Z', 'trust': 'user',
+            'workspace_id': 'ws-missing', 'workspace_path': '/w/ho-so-z'})
+        self._workspace_skills = {'ws-1': [{
+            'name': 'zztest-ok', 'description': 'a', 'modelInvocable': True}]}
+        original = type(self.env['npei.agent.harness.client'])._rpc
+
+        def rpc_ws_fails(model, method, payload=None):
+            if method == 'skill.listWorkspace' and (payload or {}).get('workspaceId') == 'ws-missing':
+                self._calls.append((method, payload))
+                raise UserError('workspace "ws-missing" not found')
+            return original(model, method, payload)
+
+        with patch.object(type(self.env['npei.agent.harness.client']), '_rpc', rpc_ws_fails):
+            self.Skill.action_sync_from_harness()   # must not raise
+
+        self.assertTrue(self.Skill.search(
+            [('skill_key', '=', 'zztest-ok'), ('preset_id', '=', self.preset.id)]))
+
     def test_same_key_allowed_across_presets_but_blocked_within(self):
         preset2 = self.Preset.create({
             'preset_id': 'ho-so-y', 'name': 'Hồ Sơ Y', 'trust': 'user',
