@@ -869,6 +869,24 @@ importers:
         specifier: workspace:^
         version: link:../../typert/protocol
 
+  packages/api/skill-controller:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@deepseek-ai/dsh-skill':
+        specifier: workspace:^
+        version: link:../../skill/skill
+      '@deepseek-ai/dsh-typert-protocol':
+        specifier: workspace:^
+        version: link:../../typert/protocol
+      '@deepseek-ai/dsh-workspace':
+        specifier: workspace:^
+        version: link:../../workspace/workspace
+
   packages/api/workspace-controller:
     dependencies:
       zod:
