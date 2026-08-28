@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_npei_agent_root"
+              name="MTIL Agent"
+              sequence="90"
+              groups="npei_agent_harness.group_npei_agent_user"/>
+
+    <menuitem id="menu_npei_agent_session"
+              name="Sessions"
+              parent="menu_npei_agent_root"
+              action="action_npei_agent_session"
+              sequence="10"/>
+
+    <menuitem id="menu_npei_agent_preset"
+              name="Presets"
+              parent="menu_npei_agent_root"
+              action="action_npei_agent_preset"
+              sequence="20"/>
+
+    <menuitem id="menu_npei_agent_skill"
+              name="Skills"
+              parent="menu_npei_agent_root"
+              action="action_npei_agent_skill"
+              sequence="30"/>
+
+    <menuitem id="menu_npei_agent_provider"
+              name="Providers"
+              parent="menu_npei_agent_root"
+              action="action_npei_agent_provider"
+              sequence="40"/>
+
+    <menuitem id="menu_npei_agent_model"
+              name="Models"
+              parent="menu_npei_agent_root"
+              action="action_npei_agent_model"
+              sequence="50"/>
+
+    <menuitem id="menu_npei_agent_credential"
+              name="Credentials"
+              parent="menu_npei_agent_root"
+              action="action_npei_agent_credential"
+              sequence="60"
+              groups="npei_agent_harness.group_npei_agent_manager"/>
+
+    <menuitem id="menu_npei_agent_setting"
+              name="Settings"
+              parent="menu_npei_agent_root"
+              action="action_npei_agent_setting"
+              sequence="70"
+              groups="npei_agent_harness.group_npei_agent_manager"/>
+
+    <menuitem id="menu_npei_agent_config"
+              name="Configuration"
+              parent="menu_npei_agent_root"
+              sequence="90"
+              groups="npei_agent_harness.group_npei_agent_manager"/>
+
+    <menuitem id="menu_npei_agent_settings"
+              name="Connection Settings"
+              parent="menu_npei_agent_config"
+              action="action_npei_agent_config_settings"
+              sequence="10"/>
+
+    <menuitem id="menu_npei_host_status"
+              name="Harness Host Status"
+              parent="menu_npei_agent_config"
+              action="action_npei_host_status"
+              sequence="12"/>
+
+    <menuitem id="menu_npei_provider_route"
+              name="Add Provider Route"
+              parent="menu_npei_agent_config"
+              action="action_npei_provider_route"
+              sequence="14"/>
+
+    <menuitem id="menu_npei_route_template"
+              name="Provider Route Templates"
+              parent="menu_npei_agent_config"
+              action="action_npei_route_template"
+              sequence="16"/>
+
+    <menuitem id="menu_npei_discover_models"
+              name="Discover Models"
+              parent="menu_npei_agent_config"
+              action="action_npei_discover_models"
+              sequence="15"/>
+
+    <menuitem id="menu_npei_sync_presets"
+              name="Sync Presets from Harness"
+              parent="menu_npei_agent_config"
+              action="action_npei_sync_presets"
+              sequence="20"/>
+
+    <menuitem id="menu_npei_sync_skills"
+              name="Sync Skills from Harness"
+              parent="menu_npei_agent_config"
+              action="action_npei_sync_skills"
+              sequence="30"/>
+
+    <menuitem id="menu_npei_sync_providers"
+              name="Sync Providers from Harness"
+              parent="menu_npei_agent_config"
+              action="action_npei_sync_providers"
+              sequence="40"/>
+
+    <menuitem id="menu_npei_sync_models"
+              name="Sync Models from Harness"
+              parent="menu_npei_agent_config"
+              action="action_npei_sync_models"
+              sequence="50"/>
+
+    <menuitem id="menu_npei_sync_provider_models"
+              name="Sync Provider Models from Harness"
+              parent="menu_npei_agent_config"
+              action="action_npei_sync_provider_models"
+              sequence="55"/>
+
+    <menuitem id="menu_npei_sync_credentials"
+              name="Sync Credentials from Harness"
+              parent="menu_npei_agent_config"
+              action="action_npei_sync_credentials"
+              sequence="60"/>
+
+    <menuitem id="menu_npei_sync_settings"
+              name="Sync Settings from Harness"
+              parent="menu_npei_agent_config"
+              action="action_npei_sync_settings"
+              sequence="70"/>
+</odoo>

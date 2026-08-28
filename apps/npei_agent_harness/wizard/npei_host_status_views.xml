@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_npei_host_status_form" model="ir.ui.view">
+        <field name="name">npei.agent.host.status.form</field>
+        <field name="model">npei.agent.host.status</field>
+        <field name="arch" type="xml">
+            <form string="Harness Host Status">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="version"/>
+                            <field name="provider"/>
+                            <field name="model"/>
+                        </group>
+                        <group>
+                            <field name="attached_sessions"/>
+                            <field name="can_open_path"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="cwd"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_refresh" type="object"
+                            string="Refresh" class="btn-primary"/>
+                    <button string="Close" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_npei_host_status" model="ir.actions.act_window">
+        <field name="name">Harness Host Status</field>
+        <field name="res_model">npei.agent.host.status</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>
