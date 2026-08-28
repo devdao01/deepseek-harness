@@ -131,15 +131,17 @@ class TestSkillAuthoring(TransactionCase):
             self.Skill.create({'content': 'x'})
 
     def test_removing_preset_removes_harness_file(self):
+        # A synthetic key: dropping the preset moves the row into the shared
+        # mirror scope, whose uniqueness spans the whole DB (incl. real data).
         skill = self.Skill.create({
-            'skill_key': 'tao-bao-cao', 'name': 'X', 'content': 'A',
+            'skill_key': 'zztest-drop', 'name': 'X', 'content': 'A',
             'preset_id': self.preset.id})
         self._calls.clear()  # isolate the un-assign from the create push
 
         skill.write({'preset_id': False})
 
         removes = [payload for method, payload in self._calls if method == 'skill.remove']
-        self.assertEqual(removes, [{'workspaceId': 'ws-1', 'name': 'tao-bao-cao'}])
+        self.assertEqual(removes, [{'workspaceId': 'ws-1', 'name': 'zztest-drop'}])
         self.assertEqual(self._writes(), [])      # dropped preset ⇒ nothing re-pushed
 
     def test_unlink_removes_skill_file(self):
@@ -173,12 +175,12 @@ class TestSkillAuthoring(TransactionCase):
     def test_sync_pulls_content_from_harness(self):
         self.env['npei.agent.session'].create({'session_id': 'sess-1'})
         self._skill_list = [{
-            'name': 'repo-skill', 'description': 'meta-d',
+            'name': 'zztest-repo', 'description': 'meta-d',
             'whenToUse': 'meta-w', 'modelInvocable': True}]
 
         self.Skill.action_sync_from_harness()
 
-        skill = self.Skill.search([('skill_key', '=', 'repo-skill')])
+        skill = self.Skill.search([('skill_key', '=', 'zztest-repo')])
         self.assertTrue(skill)
         self.assertFalse(skill.preset_id)             # a synced row is a mirror
         # skill.read (session-addressed) fills the body and wins for frontmatter.
@@ -186,12 +188,12 @@ class TestSkillAuthoring(TransactionCase):
         self.assertEqual(skill.description, 'D')
         self.assertEqual(skill.when_to_use, 'W')
         reads = [p for m, p in self._calls if m == 'skill.read']
-        self.assertEqual(reads, [{'sessionId': 'sess-1', 'name': 'repo-skill'}])
+        self.assertEqual(reads, [{'sessionId': 'sess-1', 'name': 'zztest-repo'}])
 
     def test_sync_keeps_list_metadata_when_read_unavailable(self):
         self.env['npei.agent.session'].create({'session_id': 'sess-1'})
         self._skill_list = [{
-            'name': 'home-skill', 'description': 'meta-d',
+            'name': 'zztest-home', 'description': 'meta-d',
             'whenToUse': 'meta-w', 'modelInvocable': True}]
         # A skill the catalog lists but read cannot resolve (e.g. outside the
         # session's project) keeps its list metadata and an empty content.
@@ -200,43 +202,44 @@ class TestSkillAuthoring(TransactionCase):
         def rpc_read_fails(model, method, payload=None):
             if method == 'skill.read':
                 self._calls.append((method, payload))
-                raise UserError("skill \"home-skill\" is not in session catalog")
+                raise UserError("skill \"zztest-home\" is not in session catalog")
             return original(model, method, payload)
 
         with patch.object(type(self.env['npei.agent.harness.client']), '_rpc', rpc_read_fails):
             self.Skill.action_sync_from_harness()
 
-        skill = self.Skill.search([('skill_key', '=', 'home-skill')])
+        skill = self.Skill.search([('skill_key', '=', 'zztest-home')])
         self.assertTrue(skill)
         self.assertEqual(skill.description, 'meta-d')  # falls back to list metadata
         self.assertEqual(skill.when_to_use, 'meta-w')
         self.assertFalse(skill.content)
 
     def test_sync_attributes_skill_to_its_preset(self):
+        # Synthetic key so the whole-DB searches below see only this row.
         # No session ⇒ no global mirror pass; only the per-preset attribution runs.
         self._workspace_skills = {'ws-1': [{
-            'name': 'tao-bao-cao', 'description': 'meta', 'modelInvocable': True}]}
+            'name': 'zztest-attr', 'description': 'meta', 'modelInvocable': True}]}
 
         self.Skill.action_sync_from_harness()
 
-        skill = self.Skill.search([('skill_key', '=', 'tao-bao-cao')])
+        skill = self.Skill.search([('skill_key', '=', 'zztest-attr')])
         self.assertEqual(skill.preset_id, self.preset)   # attributed to its preset
         self.assertEqual(skill.content, 'BODY')          # body via workspace read
         reads = [p for m, p in self._calls if m == 'skill.read']
-        self.assertIn({'workspaceId': 'ws-1', 'name': 'tao-bao-cao'}, reads)
+        self.assertIn({'workspaceId': 'ws-1', 'name': 'zztest-attr'}, reads)
 
     def test_sync_same_key_under_two_presets_makes_two_rows(self):
         preset2 = self.Preset.create({
             'preset_id': 'ho-so-y', 'name': 'Hồ Sơ Y', 'trust': 'user',
             'workspace_id': 'ws-2', 'workspace_path': '/w/ho-so-y'})
         self._workspace_skills = {
-            'ws-1': [{'name': 'tao-bao-cao', 'description': 'a', 'modelInvocable': True}],
-            'ws-2': [{'name': 'tao-bao-cao', 'description': 'b', 'modelInvocable': True}],
+            'ws-1': [{'name': 'zztest-shared', 'description': 'a', 'modelInvocable': True}],
+            'ws-2': [{'name': 'zztest-shared', 'description': 'b', 'modelInvocable': True}],
         }
 
         self.Skill.action_sync_from_harness()
 
-        rows = self.Skill.search([('skill_key', '=', 'tao-bao-cao')])
+        rows = self.Skill.search([('skill_key', '=', 'zztest-shared')])
         self.assertEqual(len(rows), 2)
         self.assertEqual(set(rows.mapped('preset_id')), {self.preset, preset2})
 
@@ -245,13 +248,13 @@ class TestSkillAuthoring(TransactionCase):
         # The same name is authored in a preset workspace AND visible in the
         # session catalog; the mirror pass must not also create a preset-less row.
         self._workspace_skills = {'ws-1': [{
-            'name': 'tao-bao-cao', 'description': 'a', 'modelInvocable': True}]}
+            'name': 'zztest-skip', 'description': 'a', 'modelInvocable': True}]}
         self._skill_list = [{
-            'name': 'tao-bao-cao', 'description': 'x', 'modelInvocable': True}]
+            'name': 'zztest-skip', 'description': 'x', 'modelInvocable': True}]
 
         self.Skill.action_sync_from_harness()
 
-        rows = self.Skill.search([('skill_key', '=', 'tao-bao-cao')])
+        rows = self.Skill.search([('skill_key', '=', 'zztest-skip')])
         self.assertEqual(rows.preset_id, self.preset)    # one row, attributed
         self.assertEqual(len(rows), 1)
 
