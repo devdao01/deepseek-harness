@@ -1,11 +1,13 @@
 /**
- * skills domain contract. Two addressing modes coexist: `list` is a read-only,
- * session-addressed catalog lookup (the session's header cwd resolves to the
- * canonical project root host-side, and lookup never creates or resumes an
- * Agent); `read`/`write`/`remove` are workspace-addressed authoring of one
- * skill file's content, so an operator (Odoo/MTIL front) holding a workspace id
- * can manage skills without a live session. Authoring never resolves an Agent
- * either — it reads and writes the workspace's on-disk skill directory.
+ * skills domain contract. `list` is a read-only, session-addressed catalog
+ * lookup (the session's header cwd resolves to the canonical project root
+ * host-side, and lookup never creates or resumes an Agent). `read` reads one
+ * skill's content either session-addressed (the resolved catalog body, matching
+ * `list`) or workspace-addressed (the authored on-disk file). `write`/`remove`
+ * are workspace-addressed authoring, so an operator (Odoo/MTIL front) holding a
+ * workspace id can manage skills without a live session. None of these resolve
+ * an Agent: authoring reads and writes the workspace's on-disk skill directory,
+ * and the session-addressed reads use the host-resident session header only.
  */
 
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -46,14 +48,23 @@ export interface SkillsApi {
   list(request: RpcRequest<{ sessionId: SessionId }>): Promise<RpcResponse<{ skills: readonly SkillEntry[] }>>
 
   /**
-   * Reads one skill file's authored content from a workspace's
-   * `.agents/skills/<name>/SKILL.md`. An unknown workspace fails with
-   * `workspace-not-found`; an invalid name with `skill-invalid-name`; a
-   * missing file with `skill-not-found`; a path escaping the workspace skills
-   * directory with `forbidden`.
+   * Reads one skill's frontmatter fields and body, addressed one of two ways:
+   *
+   * - `workspaceId` — the authored file at that workspace's
+   *   `.agents/skills/<name>/SKILL.md`. An unknown workspace fails with
+   *   `workspace-not-found`; an invalid name with `skill-invalid-name`; a
+   *   missing file with `skill-not-found`; a path escaping the workspace skills
+   *   directory with `forbidden`.
+   * - `sessionId` — the resolved catalog skill the session sees (the body the
+   *   model would load), so a skill discovered from any root, not only an
+   *   authored workspace file, returns content. Mirrors `list`'s addressing: an
+   *   unattached session fails with `session-not-found`; a name absent from the
+   *   catalog with `skill-not-found`.
    */
-  read(request: RpcRequest<{ workspaceId: WorkspaceId; name: string }>):
-  Promise<RpcResponse<SkillContent>>
+  read(request: RpcRequest<
+    | { workspaceId: WorkspaceId; name: string }
+    | { sessionId: SessionId; name: string }
+  >): Promise<RpcResponse<SkillContent>>
 
   /**
    * Writes one skill file into a workspace's `.agents/skills/<name>/SKILL.md`,

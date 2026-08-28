@@ -12,7 +12,7 @@ English
 
 Three unary RPCs extend the skills domain, each operating on `<workspace.path>/.agents/skills/<name>/SKILL.md`:
 
-- `skill.read({ workspaceId, name }) → { description, whenToUse?, content }` — reads and splits the file: frontmatter → `description`/`whenToUse`, body → `content`. Missing file → `skill-not-found`.
+- `skill.read({ workspaceId, name } | { sessionId, name }) → { description, whenToUse?, content }` — workspace-addressed, reads and splits the authored file: frontmatter → `description`/`whenToUse`, body → `content` (missing file → `skill-not-found`). Session-addressed, resolves the same catalog `skill.list` serves and returns the resolved skill's body (see below).
 - `skill.write({ workspaceId, name, description, whenToUse?, content }) → { name }` — assembles a YAML frontmatter block (`name`, `description`, and `whenToUse` when present) + `\n\n` + body, creates the directory when absent, overwrites.
 - `skill.remove({ workspaceId, name }) → { removed }` — removes the skill directory; idempotent (`removed: false` when absent).
 
@@ -25,6 +25,12 @@ Each resolves the workspace from `ctx.workspaceRegistry.get(workspaceId)` (absen
 - **Containment.** The `realpath` of the skill directory must sit beneath the `realpath` of `<workspace.path>/.agents/skills/`, the same pattern `workspace.file` uses, so a symlink planted inside the workspace cannot redirect a write or read outside it. An escape → `forbidden`.
 - **Size bound.** The body is capped at a fixed 64 KiB (`SKILL_CONTENT_MAX_BYTES`), a security invariant like `EXECUTABLE_EXTENSIONS` — never deployment config — so authoring cannot become an unbounded host-write channel. Oversize → `skill-too-large`.
 - **Only `SKILL.md`.** The write target is always the fixed `SKILL.md` basename under the validated skill directory; no caller-supplied path segment reaches the filesystem.
+
+## Session-addressed read (catalog content sync)
+
+`skill.list` deliberately carries no body (the composer menu stays cheap), so the Odoo/MTIL "Sync from Harness" mirrored only metadata — the `content` field stayed empty. Authored skills are managed workspace-addressed, but most skills the sync mirrors are *discovered* under a project's `.agents/skills` (or `~/.agents/skills`), not authored into a preset workspace, so a workspace-addressed read of them fails `skill-not-found`. The fix is to read them the same way `skill.list` lists them: session-addressed.
+
+`skill.read({ sessionId, name })` shares `list`'s resolution — extracted into `sessionSkillCatalog(sessionId)`, which yields the layered registry (the live agent's scoped `skills` service, else the host registry), the project `cwd` from the session header, and the presenter scope — then calls `registry.get(name, { cwd, scope })` and projects `{ description, whenToUse?, content }` from the returned `SkillDefinition`. An unattached session → `session-not-found`; a name absent from the catalog → `skill-not-found`. Like `list`, it never creates or resumes an Agent (the host-resident session header only). The Odoo sync now issues one session-addressed `skill.read` per listed skill, best-effort: a read failure keeps the list metadata and leaves `content` empty.
 
 ## File format
 
@@ -39,3 +45,5 @@ These are administrative RPCs invisible to any model request, so no session even
 - `skill.write` then `skill.read` round-trips `description`, `whenToUse`, and `content`; the on-disk file carries the assembled frontmatter.
 - `workspace-not-found`, `skill-invalid-name` (including traversal attempts), `skill-not-found`, `skill-too-large`, and containment-escape `forbidden` each map to their wire code.
 - A ticket or anonymous principal is refused with `forbidden` through the fetch carrier for all three methods.
+- A session-addressed `skill.read` returns the resolved catalog skill's `{ description, whenToUse?, content }`; an unattached session → `session-not-found`, an absent name → `skill-not-found`.
+- The Odoo sync fills each mirror row's `content` from the session-addressed read and keeps list metadata when the read is unavailable.

@@ -341,6 +341,47 @@ describe('a capability the session\'s preset mounts', () => {
     services.delete('k1')
   })
 
+  it('reads a skill body from the session catalog (session-addressed read)', async () => {
+    const { api } = await harness(['standard'])
+    await api.sessions.create(request({ sessionId: SessionId('kr'), agentPreset: 'standard' }))
+    services.set('kr', {
+      skills: {
+        list: () => Promise.resolve([]),
+        get: (name: string) => Promise.resolve(name === 'preset-owned'
+          ? { name, description: 'd', whenToUse: 'w', invocation: { modelInvocable: true, userInvocable: true }, content: '# Body\n' }
+          : undefined),
+      },
+    })
+
+    // skill.list carries no body; the session-addressed read resolves the same
+    // catalog and returns the resolved skill's frontmatter plus content.
+    const response = await api.skills.read(request({ sessionId: SessionId('kr'), name: 'preset-owned' }))
+
+    expect(response.result).toMatchObject({ ok: true, value: { description: 'd', whenToUse: 'w', content: '# Body\n' } })
+    services.delete('kr')
+  })
+
+  it('fails a session-addressed read of an absent skill with skill-not-found', async () => {
+    const { api } = await harness(['standard'])
+    await api.sessions.create(request({ sessionId: SessionId('kr2'), agentPreset: 'standard' }))
+    services.set('kr2', { skills: { list: () => Promise.resolve([]), get: () => Promise.resolve(undefined) } })
+
+    const response = await api.skills.read(request({ sessionId: SessionId('kr2'), name: 'ghost' }))
+
+    expect(response.result.ok).toBe(false)
+    expect((response.result as { ok: false; error: { code: string } }).error.code).toBe('skill-not-found')
+    services.delete('kr2')
+  })
+
+  it('fails a session-addressed read of an unattached session with session-not-found', async () => {
+    const { api } = await harness(['standard'])
+
+    const response = await api.skills.read(request({ sessionId: SessionId('nope'), name: 'x' }))
+
+    expect(response.result.ok).toBe(false)
+    expect((response.result as { ok: false; error: { code: string } }).error.code).toBe('session-not-found')
+  })
+
   it('says so when no composition mounts the capability at all', async () => {
     const { api } = await harness(['standard'])
     await api.sessions.create(request({ sessionId: SessionId('n1'), agentPreset: 'standard' }))

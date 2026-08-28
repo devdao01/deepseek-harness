@@ -19,6 +19,8 @@ class TestSkillAuthoring(TransactionCase):
         self.Preset = self.env['npei.agent.preset']
         self._calls = []
         self._skill_read = {'description': 'D', 'whenToUse': 'W', 'content': 'BODY'}
+        # skill.list roster a sync test can pre-seed; default empty.
+        self._skill_list = []
         # Pull Content is manager-gated.
         self.env.user.groups_id = [
             (4, self.env.ref('npei_agent_harness.group_npei_agent_manager').id)]
@@ -30,7 +32,7 @@ class TestSkillAuthoring(TransactionCase):
             if method == 'skill.read':
                 return dict(self._skill_read)
             if method == 'skill.list':
-                return {'skills': []}
+                return {'skills': list(self._skill_list)}
             if method == 'workspace.list':
                 return {'items': [], 'archivedSessionIds': []}
             return {}
@@ -162,3 +164,45 @@ class TestSkillAuthoring(TransactionCase):
         with self.assertRaises(UserError):
             self.Skill.create({
                 'skill_key': 's', 'name': 'S', 'content': 'x', 'preset_id': preset2.id})
+
+    def test_sync_pulls_content_from_harness(self):
+        self.env['npei.agent.session'].create({'session_id': 'sess-1'})
+        self._skill_list = [{
+            'name': 'repo-skill', 'description': 'meta-d',
+            'whenToUse': 'meta-w', 'modelInvocable': True}]
+
+        self.Skill.action_sync_from_harness()
+
+        skill = self.Skill.search([('skill_key', '=', 'repo-skill')])
+        self.assertTrue(skill)
+        self.assertFalse(skill.preset_id)             # a synced row is a mirror
+        # skill.read (session-addressed) fills the body and wins for frontmatter.
+        self.assertEqual(skill.content, 'BODY')
+        self.assertEqual(skill.description, 'D')
+        self.assertEqual(skill.when_to_use, 'W')
+        reads = [p for m, p in self._calls if m == 'skill.read']
+        self.assertEqual(reads, [{'sessionId': 'sess-1', 'name': 'repo-skill'}])
+
+    def test_sync_keeps_list_metadata_when_read_unavailable(self):
+        self.env['npei.agent.session'].create({'session_id': 'sess-1'})
+        self._skill_list = [{
+            'name': 'home-skill', 'description': 'meta-d',
+            'whenToUse': 'meta-w', 'modelInvocable': True}]
+        # A skill the catalog lists but read cannot resolve (e.g. outside the
+        # session's project) keeps its list metadata and an empty content.
+        original = type(self.env['npei.agent.harness.client'])._rpc
+
+        def rpc_read_fails(model, method, payload=None):
+            if method == 'skill.read':
+                self._calls.append((method, payload))
+                raise UserError("skill \"home-skill\" is not in session catalog")
+            return original(model, method, payload)
+
+        with patch.object(type(self.env['npei.agent.harness.client']), '_rpc', rpc_read_fails):
+            self.Skill.action_sync_from_harness()
+
+        skill = self.Skill.search([('skill_key', '=', 'home-skill')])
+        self.assertTrue(skill)
+        self.assertEqual(skill.description, 'meta-d')  # falls back to list metadata
+        self.assertEqual(skill.when_to_use, 'meta-w')
+        self.assertFalse(skill.content)

@@ -34,11 +34,11 @@ export const skillContentSchema = z.object({
   content: z.string(),
 }) satisfies z.ZodType<Wire<SkillContent>>
 
-/** skill.read request payload. */
-export const skillReadRequestSchema = z.object({
-  workspaceId: workspaceIdSchema,
-  name: z.string().min(1),
-}) satisfies z.ZodType<Wire<RequestPayload<'skill.read'>>>
+/** skill.read request payload: workspace-addressed (authored file) or session-addressed (catalog body). */
+export const skillReadRequestSchema = z.union([
+  z.object({ workspaceId: workspaceIdSchema, name: z.string().min(1) }),
+  z.object({ sessionId: sessionIdSchema, name: z.string().min(1) }),
+]) satisfies z.ZodType<Wire<RequestPayload<'skill.read'>>>
 
 /** skill.read response value. */
 export const skillReadValueSchema = skillContentSchema satisfies z.ZodType<Wire<ResponseValue<'skill.read'>>>

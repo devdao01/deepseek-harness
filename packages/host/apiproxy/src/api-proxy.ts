@@ -1688,6 +1688,45 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     }
   }
 
+  /**
+   * Resolve the skill catalog view for an attached session: the layered
+   * registry (the live agent's scoped service, else the host registry), the
+   * canonical project cwd from the session header, and the presenter scope. The
+   * skills domain's `list` and session-addressed `read` share this so both see
+   * the same catalog. Returns a ready-to-send error for an unattached session,
+   * a cwd-less header, or an absent registry.
+   */
+  async function sessionSkillCatalog(sessionId: SessionId) {
+    const session = ctx.sessions.get(sessionId)
+    if (session === undefined) {
+      return { error: { code: 'session-not-found' as const, message: `session "${sessionId}" not found (not attached)`, details: { sessionId } } }
+    }
+    if (session.header.cwd === undefined) {
+      // Every served session records its project at create time; a cwd-less
+      // header is a pre-project legacy log (not served).
+      return { error: { code: 'internal' as const, message: `session "${sessionId}" has no project cwd`, details: {} } }
+    }
+    // The host registry is layered per scope and serves every session. A
+    // composition may realm-mount its own registry instead; that instance is
+    // invisible to host contexts, so address it through the live agent
+    // (`agents.get` keeps the no-side-effect stance).
+    const live = ctx.agents.get(sessionId)
+    const presets = ctx.get('agentPresets')
+    const scoped = live === undefined ? undefined : presets?.serviceFor(live, 'skills')
+    // A missing service means no composition mounts dsh-skill, not an empty
+    // catalog. `ctx.get` keeps this independent of the gateway inject list (an
+    // undeclared `ctx.skills` property read fails the reflect proxy).
+    const registry = scoped ?? ctx.get('skills')
+    if (registry === undefined) {
+      return { error: { code: 'internal' as const, message: 'skill registry is absent: neither this session\'s agent preset nor the host composition mounts @deepseek-ai/dsh-skill', details: {} } }
+    }
+    // The scope presenters resolve in — the live agent, else the recorded
+    // preset's standing key, else the global layer — so a cold session sees the
+    // catalog its composition actually serves.
+    const scope = await presenterScopeFor(sessionId, session)
+    return { registry, cwd: session.header.cwd, scope }
+  }
+
   /** Resolve one requested identity to a live agent, creating or resuming it once. */
   async function ensureSession(
     sessionId: SessionId,
@@ -3362,42 +3401,10 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       // resolves to a canonical cwd from the host-resident session header, and
       // the view scope is the live agent or the preset's standing key.
       async list(request) {
-        const { sessionId } = request.payload
-        const session = ctx.sessions.get(sessionId)
-        if (session === undefined) {
-          return err(request, {
-            code: 'session-not-found',
-            message: `session "${sessionId}" not found (not attached)`,
-            details: { sessionId },
-          })
-        }
-        if (session.header.cwd === undefined) {
-          // Every served session records its project at create time; a
-          // cwd-less header is a pre-project legacy log (not served).
-          return err(request, { code: 'internal', message: `session "${sessionId}" has no project cwd`, details: {} })
-        }
-        const cwd = session.header.cwd
-        // The host registry is layered per scope and serves every session. A
-        // composition may still realm-mount its own registry instead; that
-        // instance is invisible to host contexts, so address it through the
-        // live agent (`agents.get` keeps the no-side-effect stance above).
-        const live = ctx.agents.get(sessionId)
-        const presets = ctx.get('agentPresets')
-        const scoped = live === undefined ? undefined : presets?.serviceFor(live, 'skills')
-        // Same stance as the commands domain: a missing service means no
-        // composition mounts dsh-skill, not an empty catalog. `ctx.get` also
-        // keeps this handler independent of the gateway plugin's inject list
-        // (an undeclared `ctx.skills` property read fails the reflect proxy).
-        const skillRegistry = scoped ?? ctx.get('skills')
-        if (skillRegistry === undefined) {
-          return err(request, { code: 'internal', message: 'skill registry is absent: neither this session\'s agent preset nor the host composition mounts @deepseek-ai/dsh-skill', details: {} })
-        }
-        // The scope presenters resolve in — the live agent, else the recorded
-        // preset's standing key, else the global layer — so a cold session's
-        // '/' popup lists the catalog its composition actually serves.
-        const scope = await presenterScopeFor(sessionId, session)
+        const catalog = await sessionSkillCatalog(request.payload.sessionId)
+        if ('error' in catalog) return err(request, catalog.error)
         try {
-          const skills = (await skillRegistry.list({ cwd, scope })).filter(isUserInvocable)
+          const skills = (await catalog.registry.list({ cwd: catalog.cwd, scope: catalog.scope })).filter(isUserInvocable)
           return ok(request, {
             skills: skills.map(skill => ({
               name: skill.name,
@@ -3411,13 +3418,33 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         }
       },
 
-      // Authoring is workspace-addressed, not session-addressed: the operator
-      // holds a workspace id (Odoo/MTIL front) and edits the on-disk skill
-      // directory directly, so no Agent is created or resumed. Containment and
-      // name safety live in `skill-authoring`; this handler resolves the
-      // workspace path and maps the typed failures onto wire codes.
+      // `read` is addressed two ways. Session-addressed reads the resolved
+      // catalog body (matching `list`), so a skill discovered from any root —
+      // not only an authored workspace file — returns content; the Odoo/MTIL
+      // sync uses it to pull each listed skill's SKILL.md. Workspace-addressed
+      // reads the authored on-disk file directly (no Agent), mapping the typed
+      // authoring failures onto wire codes.
       async read(request) {
-        const { workspaceId, name } = request.payload
+        const { name } = request.payload
+        if ('sessionId' in request.payload) {
+          const { sessionId } = request.payload
+          const catalog = await sessionSkillCatalog(sessionId)
+          if ('error' in catalog) return err(request, catalog.error)
+          try {
+            const skill = await catalog.registry.get(name, { cwd: catalog.cwd, scope: catalog.scope })
+            if (skill === undefined) {
+              return err(request, { code: 'skill-not-found', message: `skill "${name}" is not in session "${sessionId}" catalog`, details: { name } })
+            }
+            return ok(request, {
+              description: skill.description,
+              ...skill.whenToUse === undefined ? {} : { whenToUse: skill.whenToUse },
+              content: skill.content,
+            })
+          } catch (error: unknown) {
+            return err(request, { code: 'internal', message: `skill read failed: ${String(error)}`, details: {} })
+          }
+        }
+        const { workspaceId } = request.payload
         const workspace = ctx.workspaceRegistry.get(brandWorkspaceId(workspaceId))
         if (workspace === undefined) return workspaceNotFound(request, workspaceId)
         try {

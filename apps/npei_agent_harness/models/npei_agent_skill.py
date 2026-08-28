@@ -5,7 +5,8 @@ Odoo-side catalog of harness skills. Two roles:
 
 * **Mirror** — :meth:`action_sync_from_harness` upserts metadata from
   ``skill.list`` (which needs a ``sessionId``; the most recently updated mapped
-  session is borrowed). Mirror rows carry no ``preset_id`` and never push.
+  session is borrowed) and pulls each skill's body with a session-addressed
+  ``skill.read``. Mirror rows carry no ``preset_id`` and never push.
 * **Authoring** — a row given a ``preset_id`` owns a skill FILE in that preset's
   workspace: create/write pushes the ``SKILL.md`` via ``skill.write`` (the
   harness writes ``<workspace>/.agents/skills/<skill_key>/SKILL.md``), and unlink
@@ -53,8 +54,9 @@ class NpeiAgentSkill(models.Model):
     content = fields.Text(
         string='Content', tracking=True,
         help="The SKILL.md instruction body (Markdown, no frontmatter). Pushed "
-             "to the harness for authored skills; ``skill.list`` does not carry "
-             "it, so a mirror row shows it only after Pull Content.",
+             "to the harness for authored skills; filled for mirror rows by "
+             "Sync from Harness (or per-row Pull Content), which reads it back "
+             "from the harness.",
     )
     preset_id = fields.Many2one(
         'npei.agent.preset',
@@ -86,10 +88,14 @@ class NpeiAgentSkill(models.Model):
 
     @api.model
     def action_sync_from_harness(self):
-        """Upsert local skills from the harness ``skill.list``.
+        """Upsert local skills from the harness catalog, including their content.
 
         Manager-gated. ``skill.list`` needs a ``sessionId``; the most recently
-        updated mapped session is reused. Raises a
+        updated mapped session is reused. ``skill.list`` carries no body, so each
+        listed skill's ``SKILL.md`` content (and its authoritative frontmatter)
+        is pulled with a session-addressed ``skill.read`` — best-effort, so a
+        skill the catalog lists but ``read`` cannot resolve keeps its list
+        metadata and an empty content. Raises a
         :class:`~odoo.exceptions.UserError` when no session mapping exists.
         Returns a client notification action.
         """
@@ -100,8 +106,8 @@ class NpeiAgentSkill(models.Model):
             raise UserError(_(
                 "skill.list requires a harness session. Create at least one "
                 "session mapping before syncing skills."))
-        value = self.env['npei.agent.harness.client']._rpc(
-            'skill.list', {'sessionId': session.session_id})
+        client = self.env['npei.agent.harness.client']
+        value = client._rpc('skill.list', {'sessionId': session.session_id})
         entries = value.get('skills') or []
         # Mirroring writes harness values in; the flag stops write()/create()
         # from echoing them back out as skill.write.
@@ -116,6 +122,16 @@ class NpeiAgentSkill(models.Model):
                 'description': entry.get('description') or False,
                 'when_to_use': entry.get('whenToUse') or False,
             }
+            try:
+                body = client._rpc(
+                    'skill.read', {'sessionId': session.session_id, 'name': name})
+            except UserError as exc:
+                body = None
+                _logger.info("skill.read content skipped for %s: %s", name, exc)
+            if body:
+                vals['description'] = body.get('description') or False
+                vals['when_to_use'] = body.get('whenToUse') or False
+                vals['content'] = body.get('content') or False
             existing = model.search([('skill_key', '=', name)], limit=1)
             if existing:
                 existing.write(vals)
