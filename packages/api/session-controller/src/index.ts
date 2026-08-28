@@ -24,6 +24,7 @@ import type {
   ModelCatalog,
   SessionAttachmentRequest,
   SessionAttachmentValue,
+  SessionAddress,
   SessionCancelRequest,
   SessionCancelValue,
   SessionControlFrame,
@@ -201,6 +202,29 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
+   * Refuse a per-session operation on a session the caller may not see. When a
+   * deployment mounts `sessionVisibility` (multi-tenant), this rejects `forbidden`
+   * for a session the caller is not a member of — the list filter already hides
+   * such sessions from discovery, and this closes access by a known or guessed
+   * id. Absent a filter, every session is accessible (single-tenant).
+   */
+  private assertVisible(sessionId: SessionId): void {
+    const visibility = this.ctx.get('sessionVisibility')
+    if (visibility !== undefined && !visibility.canSee(sessionId)) {
+      throw new TypertRemoteFailure({
+        code: 'forbidden',
+        message: `session "${sessionId}" is not accessible`,
+        details: { sessionId },
+      })
+    }
+  }
+
+  /** The session whose access governs one address: the session itself, or a subagent's parent. */
+  private addressVisibilityId(address: SessionAddress): SessionId {
+    return address.kind === 'session' ? address.sessionId : address.parentSessionId
+  }
+
+  /**
    * Read all visible Session rows without resuming an Agent.
    * @param _request - reserved empty list request.
    * @param signal - cancellation for persistence reads.
@@ -239,6 +263,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('selectModel')
   selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue> {
+    this.assertVisible(request.sessionId)
     return this.commands.selectModel(request)
   }
 
@@ -304,6 +329,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('rename')
   rename(request: SessionRenameRequest): Promise<SessionRenameValue> {
+    this.assertVisible(request.sessionId)
     return this.commands.rename(request)
   }
 
@@ -314,6 +340,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('fork')
   fork(request: SessionForkRequest): Promise<SessionForkValue> {
+    this.assertVisible(request.sessionId)
     return this.commands.fork(request)
   }
 
@@ -325,6 +352,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('prompt')
   prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue> {
+    this.assertVisible(request.sessionId)
     signal.throwIfAborted()
     return this.commands.prompt(request)
   }
@@ -336,6 +364,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('attachment')
   attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue> {
+    this.assertVisible(request.sessionId)
     return this.commands.attachment(request)
   }
 
@@ -346,6 +375,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('updateQueue')
   updateQueue(request: SessionUpdateQueueRequest): SessionUpdateQueueValue {
+    this.assertVisible(request.sessionId)
     return this.commands.updateQueue(request)
   }
 
@@ -356,6 +386,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('cancel')
   cancel(request: SessionCancelRequest): SessionCancelValue {
+    this.assertVisible(request.sessionId)
     return this.commands.cancel(request)
   }
 
@@ -367,6 +398,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('page')
   page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage> {
+    this.assertVisible(this.addressVisibilityId(request.address))
     return this.history.page(request, signal)
   }
 
@@ -378,6 +410,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote({ mode: 'stream' })
   follow(request: SessionFollowRequest, signal: AbortSignal): AsyncIterable<SessionFollowFrame> {
+    this.assertVisible(this.addressVisibilityId(request.address))
     return this.history.follow(request, signal)
   }
 
