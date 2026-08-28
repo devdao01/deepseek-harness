@@ -43,7 +43,7 @@ import {
   workspaceRenameValueSchema,
 } from '../api/workspace.schema.ts'
 import {
-  skillListValueSchema, skillReadValueSchema, skillRemoveValueSchema, skillWriteValueSchema,
+  skillListValueSchema, skillListWorkspaceValueSchema, skillReadValueSchema, skillRemoveValueSchema, skillWriteValueSchema,
 } from '../api/skills.schema.ts'
 import {
   agentPresetCopyValueSchema, agentPresetListValueSchema, agentPresetOpenDocumentValueSchema,
@@ -212,6 +212,7 @@ const UNARY_VALUE_SCHEMAS: { [K in keyof RpcMethodMap]: z.ZodType<Wire<ResponseV
   'workspace.insertSessionBefore': workspaceInsertSessionBeforeValueSchema,
   'workspace.archiveSession': workspaceArchiveSessionValueSchema,
   'skill.list': skillListValueSchema,
+  'skill.listWorkspace': skillListWorkspaceValueSchema,
   'skill.read': skillReadValueSchema,
   'skill.write': skillWriteValueSchema,
   'skill.remove': skillRemoveValueSchema,

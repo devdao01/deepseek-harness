@@ -27,6 +27,16 @@ export const skillListValueSchema = z.object({
   skills: z.array(skillEntrySchema),
 }) satisfies z.ZodType<Wire<ResponseValue<'skill.list'>>>
 
+/** skill.listWorkspace request payload. */
+export const skillListWorkspaceRequestSchema = z.object({
+  workspaceId: workspaceIdSchema,
+}) satisfies z.ZodType<Wire<RequestPayload<'skill.listWorkspace'>>>
+
+/** skill.listWorkspace response value (same rows as skill.list). */
+export const skillListWorkspaceValueSchema = z.object({
+  skills: z.array(skillEntrySchema),
+}) satisfies z.ZodType<Wire<ResponseValue<'skill.listWorkspace'>>>
+
 /** SkillContent value of skill.read. */
 export const skillContentSchema = z.object({
   description: z.string(),

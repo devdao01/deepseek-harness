@@ -20,7 +20,7 @@
  * @module
  */
 
-import { mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { join, sep } from 'node:path'
 import { isSkillName } from '@deepseek-ai/dsh-skill'
 
@@ -259,6 +259,44 @@ export async function readSkill(workspacePath: string, name: string): Promise<Sk
     throw new SkillAuthoringError('skill-not-found', `skill "${name}" not found`)
   }
   return parseSkillFile(raw)
+}
+
+/**
+ * List the authored skills in a workspace: one entry per
+ * `<workspacePath>/.agents/skills/<name>/SKILL.md`, with the directory name and
+ * its parsed frontmatter. A directory with no readable `SKILL.md`, or one a
+ * symlink redirects outside the skills root, is skipped rather than failing the
+ * listing. Entries are sorted by name; an absent skills directory yields `[]`.
+ * @param workspacePath - the containing workspace's canonical directory.
+ * @returns each authored skill's name, description, and optional whenToUse.
+ */
+export async function listWorkspaceSkills(
+  workspacePath: string,
+): Promise<{ name: string; description: string; whenToUse?: string }[]> {
+  const canonicalRoot = await canonicalSkillsRoot(workspacePath)
+  if (canonicalRoot === undefined) return []
+  let entries
+  try {
+    entries = await readdir(canonicalRoot, { withFileTypes: true })
+  } catch {
+    // The skills root vanished between realpath and readdir: nothing to list.
+    return []
+  }
+  const skills: { name: string; description: string; whenToUse?: string }[] = []
+  for (const entry of entries) {
+    // A skills root holds one directory per skill; ignore stray files and any
+    // name that is not a safe single segment.
+    if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
+    if (!isSafeSkillName(entry.name)) continue
+    try {
+      const doc = await readSkill(workspacePath, entry.name)
+      skills.push({ name: entry.name, description: doc.description, ...doc.whenToUse === undefined ? {} : { whenToUse: doc.whenToUse } })
+    } catch {
+      // Missing SKILL.md, unreadable, or a containment escape: skip this entry.
+    }
+  }
+  skills.sort((a, b) => a.name.localeCompare(b.name))
+  return skills
 }
 
 /**

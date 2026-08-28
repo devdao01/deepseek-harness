@@ -2843,8 +2843,13 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           ],
         })
       },
-      // Skill authoring is a full-token server surface, not part of this
-      // in-memory UI fixture's contract (mirrors per-session access above).
+      // Skill authoring — including the workspace-addressed listing — is a
+      // full-token server surface, not part of this in-memory UI fixture's
+      // contract (mirrors per-session access above).
+      listWorkspace: request => Promise.resolve({
+        rpcId: request.rpcId,
+        result: { ok: false, error: { code: 'internal', message: 'fixture does not implement skill authoring', details: {} } },
+      }),
       read: request => Promise.resolve({
         rpcId: request.rpcId,
         result: { ok: false, error: { code: 'internal', message: 'fixture does not implement skill authoring', details: {} } },
@@ -3184,6 +3189,7 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'workspace.insertSessionBefore': return this.api.workspace.insertSessionBefore(request)
       case 'workspace.archiveSession': return this.api.workspace.archiveSession(request)
       case 'skill.list': return this.api.skills.list(request)
+      case 'skill.listWorkspace': return this.api.skills.listWorkspace(request)
       case 'skill.read': return this.api.skills.read(request)
       case 'skill.write': return this.api.skills.write(request)
       case 'skill.remove': return this.api.skills.remove(request)

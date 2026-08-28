@@ -8,7 +8,7 @@ Pull Content reads back via skill.read.
 """
 from unittest.mock import patch
 
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests.common import TransactionCase
 
 
@@ -21,6 +21,8 @@ class TestSkillAuthoring(TransactionCase):
         self._skill_read = {'description': 'D', 'whenToUse': 'W', 'content': 'BODY'}
         # skill.list roster a sync test can pre-seed; default empty.
         self._skill_list = []
+        # skill.listWorkspace roster per workspaceId a sync test can pre-seed.
+        self._workspace_skills = {}
         # Pull Content is manager-gated.
         self.env.user.groups_id = [
             (4, self.env.ref('npei_agent_harness.group_npei_agent_manager').id)]
@@ -33,6 +35,9 @@ class TestSkillAuthoring(TransactionCase):
                 return dict(self._skill_read)
             if method == 'skill.list':
                 return {'skills': list(self._skill_list)}
+            if method == 'skill.listWorkspace':
+                ws = (payload or {}).get('workspaceId')
+                return {'skills': list(self._workspace_skills.get(ws, []))}
             if method == 'workspace.list':
                 return {'items': [], 'archivedSessionIds': []}
             return {}
@@ -206,3 +211,60 @@ class TestSkillAuthoring(TransactionCase):
         self.assertEqual(skill.description, 'meta-d')  # falls back to list metadata
         self.assertEqual(skill.when_to_use, 'meta-w')
         self.assertFalse(skill.content)
+
+    def test_sync_attributes_skill_to_its_preset(self):
+        # No session ⇒ no global mirror pass; only the per-preset attribution runs.
+        self._workspace_skills = {'ws-1': [{
+            'name': 'tao-bao-cao', 'description': 'meta', 'modelInvocable': True}]}
+
+        self.Skill.action_sync_from_harness()
+
+        skill = self.Skill.search([('skill_key', '=', 'tao-bao-cao')])
+        self.assertEqual(skill.preset_id, self.preset)   # attributed to its preset
+        self.assertEqual(skill.content, 'BODY')          # body via workspace read
+        reads = [p for m, p in self._calls if m == 'skill.read']
+        self.assertIn({'workspaceId': 'ws-1', 'name': 'tao-bao-cao'}, reads)
+
+    def test_sync_same_key_under_two_presets_makes_two_rows(self):
+        preset2 = self.Preset.create({
+            'preset_id': 'ho-so-y', 'name': 'Hồ Sơ Y', 'trust': 'user',
+            'workspace_id': 'ws-2', 'workspace_path': '/w/ho-so-y'})
+        self._workspace_skills = {
+            'ws-1': [{'name': 'tao-bao-cao', 'description': 'a', 'modelInvocable': True}],
+            'ws-2': [{'name': 'tao-bao-cao', 'description': 'b', 'modelInvocable': True}],
+        }
+
+        self.Skill.action_sync_from_harness()
+
+        rows = self.Skill.search([('skill_key', '=', 'tao-bao-cao')])
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(set(rows.mapped('preset_id')), {self.preset, preset2})
+
+    def test_sync_global_mirror_skips_preset_attributed_names(self):
+        self.env['npei.agent.session'].create({'session_id': 'sess-1'})
+        # The same name is authored in a preset workspace AND visible in the
+        # session catalog; the mirror pass must not also create a preset-less row.
+        self._workspace_skills = {'ws-1': [{
+            'name': 'tao-bao-cao', 'description': 'a', 'modelInvocable': True}]}
+        self._skill_list = [{
+            'name': 'tao-bao-cao', 'description': 'x', 'modelInvocable': True}]
+
+        self.Skill.action_sync_from_harness()
+
+        rows = self.Skill.search([('skill_key', '=', 'tao-bao-cao')])
+        self.assertEqual(rows.preset_id, self.preset)    # one row, attributed
+        self.assertEqual(len(rows), 1)
+
+    def test_same_key_allowed_across_presets_but_blocked_within(self):
+        preset2 = self.Preset.create({
+            'preset_id': 'ho-so-y', 'name': 'Hồ Sơ Y', 'trust': 'user',
+            'workspace_id': 'ws-2', 'workspace_path': '/w/ho-so-y'})
+        self.Skill.create({
+            'skill_key': 'k', 'name': 'A', 'content': 'a', 'preset_id': self.preset.id})
+        # A different preset may reuse the key.
+        self.Skill.create({
+            'skill_key': 'k', 'name': 'B', 'content': 'b', 'preset_id': preset2.id})
+        # The same preset may not.
+        with self.assertRaises(ValidationError):
+            self.Skill.create({
+                'skill_key': 'k', 'name': 'C', 'content': 'c', 'preset_id': self.preset.id})

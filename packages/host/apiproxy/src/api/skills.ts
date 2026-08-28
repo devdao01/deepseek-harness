@@ -1,7 +1,10 @@
 /**
  * skills domain contract. `list` is a read-only, session-addressed catalog
  * lookup (the session's header cwd resolves to the canonical project root
- * host-side, and lookup never creates or resumes an Agent). `read` reads one
+ * host-side, and lookup never creates or resumes an Agent); `listWorkspace` is
+ * its workspace-addressed counterpart — the skills authored in one workspace's
+ * `.agents/skills`, so an operator can attribute skills to the preset that owns
+ * the workspace. `read` reads one
  * skill's content either session-addressed (the resolved catalog body, matching
  * `list`) or workspace-addressed (the authored on-disk file). `write`/`remove`
  * are workspace-addressed authoring, so an operator (Odoo/MTIL front) holding a
@@ -46,6 +49,17 @@ export interface SkillContent {
 export interface SkillsApi {
   /** Lists the user-invocable skill catalog for the session's project. */
   list(request: RpcRequest<{ sessionId: SessionId }>): Promise<RpcResponse<{ skills: readonly SkillEntry[] }>>
+
+  /**
+   * Lists the skills authored in one workspace's `.agents/skills` directory —
+   * the operator's per-workspace view, not the session's merged catalog, so the
+   * Odoo/MTIL sync can attribute each skill to the preset that owns the
+   * workspace. Reads directory frontmatter only (no Agent, no session); `read`
+   * fetches a body. Every entry's `modelInvocable` is `true` (authored files
+   * carry no invocation policy). An unknown workspace fails with
+   * `workspace-not-found`; an absent skills directory returns an empty list.
+   */
+  listWorkspace(request: RpcRequest<{ workspaceId: WorkspaceId }>): Promise<RpcResponse<{ skills: readonly SkillEntry[] }>>
 
   /**
    * Reads one skill's frontmatter fields and body, addressed one of two ways:

@@ -91,6 +91,7 @@ function scriptedApi(overrides: {
     },
     skills: {
       list: r => ok(r, { skills: [] }),
+      listWorkspace: r => ok(r, { skills: [] }),
       read: r => ok(r, { description: '', content: '' }),
       write: r => ok(r, { name: r.payload.name }),
       remove: r => ok(r, { removed: true }),

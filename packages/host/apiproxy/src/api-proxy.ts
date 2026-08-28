@@ -52,7 +52,7 @@ import {
   type SessionLogCompressionLevel,
 } from './session-export.ts'
 import { streamWorkspaceFile } from './workspace-file.ts'
-import { SkillAuthoringError, readSkill, removeSkill, writeSkill } from './skill-authoring.ts'
+import { SkillAuthoringError, listWorkspaceSkills, readSkill, removeSkill, writeSkill } from './skill-authoring.ts'
 import {
   isPresetWorkspaceIdSafe,
   presetWorkspacePath,
@@ -3415,6 +3415,30 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           })
         } catch (error: unknown) {
           return err(request, { code: 'internal', message: `skill listing failed: ${String(error)}`, details: {} })
+        }
+      },
+
+      // Workspace-addressed counterpart to `list`: the skills authored in the
+      // workspace's `.agents/skills` directory (frontmatter only), so the
+      // operator sync attributes each to the preset owning the workspace. No
+      // Agent or session; authored files carry no invocation policy, so every
+      // row is model-invocable.
+      async listWorkspace(request) {
+        const { workspaceId } = request.payload
+        const workspace = ctx.workspaceRegistry.get(brandWorkspaceId(workspaceId))
+        if (workspace === undefined) return workspaceNotFound(request, workspaceId)
+        try {
+          const skills = await listWorkspaceSkills(workspace.path)
+          return ok(request, {
+            skills: skills.map(skill => ({
+              name: skill.name,
+              description: skill.description,
+              ...skill.whenToUse === undefined ? {} : { whenToUse: skill.whenToUse },
+              modelInvocable: true,
+            })),
+          })
+        } catch (error: unknown) {
+          return err(request, { code: 'internal', message: `skill workspace listing failed: ${String(error)}`, details: {} })
         }
       },
 

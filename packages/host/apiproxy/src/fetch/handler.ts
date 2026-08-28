@@ -47,7 +47,7 @@ import {
   workspaceRenameRequestSchema,
 } from '../api/workspace.schema.ts'
 import {
-  skillListRequestSchema, skillReadRequestSchema, skillRemoveRequestSchema, skillWriteRequestSchema,
+  skillListRequestSchema, skillListWorkspaceRequestSchema, skillReadRequestSchema, skillRemoveRequestSchema, skillWriteRequestSchema,
 } from '../api/skills.schema.ts'
 import {
   agentPresetCopyRequestSchema, agentPresetListRequestSchema, agentPresetOpenDocumentRequestSchema,
@@ -125,6 +125,7 @@ const UNARY_ROUTES: UnaryRoutes = {
   'workspace.insertSessionBefore': { schema: workspaceInsertSessionBeforeRequestSchema, invoke: (api, r) => api.workspace.insertSessionBefore(r) },
   'workspace.archiveSession': { schema: workspaceArchiveSessionRequestSchema, invoke: (api, r) => api.workspace.archiveSession(r) },
   'skill.list': { schema: skillListRequestSchema, invoke: (api, r) => api.skills.list(r) },
+  'skill.listWorkspace': { schema: skillListWorkspaceRequestSchema, invoke: (api, r) => api.skills.listWorkspace(r) },
   'skill.read': { schema: skillReadRequestSchema, invoke: (api, r) => api.skills.read(r) },
   'skill.write': { schema: skillWriteRequestSchema, invoke: (api, r) => api.skills.write(r) },
   'skill.remove': { schema: skillRemoveRequestSchema, invoke: (api, r) => api.skills.remove(r) },
@@ -187,6 +188,7 @@ const FULL_TOKEN_ONLY: ReadonlySet<string> = new Set([
   'workspace.insertBefore',
   'workspace.insertSessionBefore',
   'workspace.archiveSession',
+  'skill.listWorkspace',
   'skill.read',
   'skill.write',
   'skill.remove',

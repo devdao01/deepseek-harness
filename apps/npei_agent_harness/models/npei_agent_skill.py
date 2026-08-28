@@ -19,7 +19,7 @@ import unicodedata
 import uuid
 
 from odoo import _, api, fields, models
-from odoo.exceptions import AccessError, UserError
+from odoo.exceptions import AccessError, UserError, ValidationError
 
 _logger = logging.getLogger(__name__)
 
@@ -72,13 +72,29 @@ class NpeiAgentSkill(models.Model):
     uuid = fields.Char('Mã Chuỗi Ngẫu nhiên*:', copy=False, tracking=True,
                        default=lambda self: str(uuid.uuid4()))
 
-    _sql_constraints = [
-        (
-            'skill_key_uniq',
-            'unique(skill_key)',
-            'A skill with this key already exists.',
-        ),
-    ]
+    @api.constrains('preset_id', 'skill_key')
+    def _check_skill_key_unique_per_preset(self):
+        """A ``skill_key`` is unique WITHIN its scope: one preset, or the
+        preset-less mirror scope. This lets the same key live under different
+        presets (each authoring its own SKILL.md) plus one global mirror row,
+        while still blocking a duplicate inside one scope. NULL ``preset_id`` is
+        treated as a value, which a bare ``unique(preset_id, skill_key)`` SQL
+        constraint would not do.
+        """
+        for record in self:
+            if not record.skill_key:
+                continue
+            domain = [
+                ('id', '!=', record.id),
+                ('skill_key', '=', record.skill_key),
+                ('preset_id', '=', record.preset_id.id if record.preset_id else False),
+            ]
+            if self.with_context(active_test=False).search_count(domain):
+                raise ValidationError(_(
+                    "A skill with key '%s' already exists in this scope "
+                    "(preset: %s).",
+                    record.skill_key,
+                    record.preset_id.display_name if record.preset_id else _("none")))
 
     def _check_manager(self):
         """Raise unless the current user is an NPEI Agent Manager."""
@@ -88,56 +104,30 @@ class NpeiAgentSkill(models.Model):
 
     @api.model
     def action_sync_from_harness(self):
-        """Upsert local skills from the harness catalog, including their content.
+        """Mirror harness skills into Odoo, attributed to their owning preset.
 
-        Manager-gated. ``skill.list`` needs a ``sessionId``; the most recently
-        updated mapped session is reused. ``skill.list`` carries no body, so each
-        listed skill's ``SKILL.md`` content (and its authoritative frontmatter)
-        is pulled with a session-addressed ``skill.read`` — best-effort, so a
-        skill the catalog lists but ``read`` cannot resolve keeps its list
-        metadata and an empty content. Raises a
-        :class:`~odoo.exceptions.UserError` when no session mapping exists.
+        Manager-gated. Two passes run under ``npei_syncing`` so the writes never
+        echo back out as ``skill.write``:
+
+        * **Per preset** — for each preset with a resolvable workspace,
+          ``skill.listWorkspace`` enumerates the skills authored in that
+          workspace and each is upserted WITH ``preset_id`` set, its body pulled
+          by a workspace-addressed ``skill.read``. This is what lets the same
+          ``skill_key`` exist under different presets, each as its own row.
+        * **Global mirror** — the most recently updated session's catalog
+          (``skill.list``) fills preset-less mirror rows for skills no preset
+          owns; names already attributed above are skipped. Skipped entirely
+          (no error) when no session is mapped.
+
         Returns a client notification action.
         """
         self._check_manager()
-        session = self.env['npei.agent.session'].search(
-            [], order='write_date desc', limit=1)
-        if not session:
-            raise UserError(_(
-                "skill.list requires a harness session. Create at least one "
-                "session mapping before syncing skills."))
         client = self.env['npei.agent.harness.client']
-        value = client._rpc('skill.list', {'sessionId': session.session_id})
-        entries = value.get('skills') or []
         # Mirroring writes harness values in; the flag stops write()/create()
         # from echoing them back out as skill.write.
         model = self.with_context(npei_syncing=True)
-        synced = 0
-        for entry in entries:
-            name = entry.get('name')
-            if not name:
-                continue
-            vals = {
-                'name': name,
-                'description': entry.get('description') or False,
-                'when_to_use': entry.get('whenToUse') or False,
-            }
-            try:
-                body = client._rpc(
-                    'skill.read', {'sessionId': session.session_id, 'name': name})
-            except UserError as exc:
-                body = None
-                _logger.info("skill.read content skipped for %s: %s", name, exc)
-            if body:
-                vals['description'] = body.get('description') or False
-                vals['when_to_use'] = body.get('whenToUse') or False
-                vals['content'] = body.get('content') or False
-            existing = model.search([('skill_key', '=', name)], limit=1)
-            if existing:
-                existing.write(vals)
-            else:
-                model.create(dict(vals, skill_key=name))
-            synced += 1
+        attributed, synced = self._sync_preset_skills(client, model)
+        synced += self._sync_global_mirror(client, model, attributed)
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
@@ -148,6 +138,95 @@ class NpeiAgentSkill(models.Model):
                 'sticky': False,
             },
         }
+
+    def _read_skill_body(self, client, payload):
+        """Best-effort ``skill.read``: the Odoo body fields, or ``{}`` on failure.
+
+        A skill the catalog lists but ``read`` cannot resolve keeps its list
+        metadata and an empty content instead of failing the whole sync.
+        """
+        try:
+            body = client._rpc('skill.read', payload)
+        except UserError as exc:
+            _logger.info(
+                "skill.read content skipped for %s: %s", payload.get('name'), exc)
+            return {}
+        if not body:
+            return {}
+        return {
+            'description': body.get('description') or False,
+            'when_to_use': body.get('whenToUse') or False,
+            'content': body.get('content') or False,
+        }
+
+    def _sync_preset_skills(self, client, model):
+        """Upsert one attributed row per skill authored in each preset's workspace.
+
+        Returns ``(attributed_keys, count)``; ``attributed_keys`` are the keys
+        some preset owns, so the mirror pass can skip them.
+        """
+        attributed = set()
+        count = 0
+        for preset in self.env['npei.agent.preset'].search([]):
+            workspace_id = preset.workspace_id or (
+                preset._resolve_workspace_id_by_path(preset.workspace_path)
+                if preset.workspace_path else False)
+            if not workspace_id:
+                continue
+            listed = client._rpc('skill.listWorkspace', {'workspaceId': workspace_id})
+            for entry in listed.get('skills') or []:
+                name = entry.get('name')
+                if not name:
+                    continue
+                vals = {
+                    'name': name,
+                    'description': entry.get('description') or False,
+                    'when_to_use': entry.get('whenToUse') or False,
+                    'preset_id': preset.id,
+                }
+                vals.update(self._read_skill_body(
+                    client, {'workspaceId': workspace_id, 'name': name}))
+                existing = model.search(
+                    [('preset_id', '=', preset.id), ('skill_key', '=', name)], limit=1)
+                if existing:
+                    existing.write(vals)
+                else:
+                    model.create(dict(vals, skill_key=name))
+                attributed.add(name)
+                count += 1
+        return attributed, count
+
+    def _sync_global_mirror(self, client, model, skip_keys):
+        """Upsert preset-less mirror rows for skills no preset owns.
+
+        Borrows the most recently updated session for its merged catalog; returns
+        the row count. Does nothing (no error) when no session is mapped.
+        """
+        session = self.env['npei.agent.session'].search(
+            [], order='write_date desc', limit=1)
+        if not session:
+            return 0
+        value = client._rpc('skill.list', {'sessionId': session.session_id})
+        count = 0
+        for entry in value.get('skills') or []:
+            name = entry.get('name')
+            if not name or name in skip_keys:
+                continue
+            vals = {
+                'name': name,
+                'description': entry.get('description') or False,
+                'when_to_use': entry.get('whenToUse') or False,
+            }
+            vals.update(self._read_skill_body(
+                client, {'sessionId': session.session_id, 'name': name}))
+            existing = model.search(
+                [('preset_id', '=', False), ('skill_key', '=', name)], limit=1)
+            if existing:
+                existing.write(vals)
+            else:
+                model.create(dict(vals, skill_key=name))
+            count += 1
+        return count
 
     # ------------------------------------------------------------------
     # Authoring: push/read/remove the SKILL.md file in the preset's workspace
@@ -232,12 +311,17 @@ class NpeiAgentSkill(models.Model):
         text = ''.join(ch for ch in text if not unicodedata.combining(ch))
         return re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')
 
-    def _unique_skill_key(self, base):
-        """Return ``base`` — or ``base-2``, ``base-3``, … — not yet used as a key."""
+    def _unique_skill_key(self, base, preset_id=False):
+        """Return ``base`` — or ``base-2``, ``base-3``, … — free in one scope.
+
+        Uniqueness is per scope (a preset, or the preset-less mirror scope), so
+        the search is bounded by ``preset_id``; the same base can therefore mint
+        the same key under two different presets.
+        """
         candidate = base
         index = 1
         while self.with_context(active_test=False).search_count(
-                [('skill_key', '=', candidate)]):
+                [('skill_key', '=', candidate), ('preset_id', '=', preset_id)]):
             index += 1
             candidate = '%s-%d' % (base, index)
         return candidate
@@ -252,7 +336,8 @@ class NpeiAgentSkill(models.Model):
         if not self.skill_key and self.name:
             base = self._slugify_skill_key(self.name)
             if base:
-                self.skill_key = self._unique_skill_key(base)
+                self.skill_key = self._unique_skill_key(
+                    base, self.preset_id.id if self.preset_id else False)
 
     def copy(self, default=None):
         """Duplicate as a mirror row: drop ``preset_id`` so the copy authors no
@@ -264,7 +349,9 @@ class NpeiAgentSkill(models.Model):
         default = dict(default or {})
         default.setdefault('preset_id', False)
         if not default.get('skill_key') and self.skill_key:
-            default['skill_key'] = self._unique_skill_key('%s-copy' % self.skill_key)
+            # The copy is a mirror row (preset dropped), so dedupe in that scope.
+            default['skill_key'] = self._unique_skill_key(
+                '%s-copy' % self.skill_key, default.get('preset_id') or False)
         if not default.get('name') and self.name:
             default['name'] = _('%s (copy)', self.name)
         return super().copy(default)
@@ -282,7 +369,8 @@ class NpeiAgentSkill(models.Model):
                     raise UserError(_(
                         "A skill needs a Name (or an explicit Skill Key) to "
                         "derive its key from."))
-                vals['skill_key'] = self._unique_skill_key(base)
+                vals['skill_key'] = self._unique_skill_key(
+                    base, vals.get('preset_id') or False)
         records = super().create(vals_list)
         records._push_skill()
         return records

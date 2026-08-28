@@ -196,6 +196,34 @@ describe('skill.write / skill.read', () => {
   })
 })
 
+describe('skill.listWorkspace', () => {
+  it('lists authored skills with their frontmatter, sorted by name', async () => {
+    const { api, root } = await harness()
+    const workspace = await workspaceOver(api, root)
+    await api.skills.write(request({ workspaceId: workspace.workspaceId, name: 'zebra', description: 'last', content: 'z' }))
+    await api.skills.write(request({ workspaceId: workspace.workspaceId, name: 'alpha', description: 'first', whenToUse: 'sometimes', content: 'a' }))
+
+    const listed = expectOk(await api.skills.listWorkspace(request({ workspaceId: workspace.workspaceId })))
+
+    expect(listed.skills).toEqual([
+      { name: 'alpha', description: 'first', whenToUse: 'sometimes', modelInvocable: true },
+      { name: 'zebra', description: 'last', modelInvocable: true },
+    ])
+  })
+
+  it('returns an empty list for a workspace that authored no skills', async () => {
+    const { api, root } = await harness()
+    const workspace = await workspaceOver(api, root)
+    expect(expectOk(await api.skills.listWorkspace(request({ workspaceId: workspace.workspaceId }))).skills).toEqual([])
+  })
+
+  it('rejects an unknown workspace with workspace-not-found', async () => {
+    const { api } = await harness()
+    expect(expectErr(await api.skills.listWorkspace(request({ workspaceId: 'missing' as WorkspaceId }))).code)
+      .toBe('workspace-not-found')
+  })
+})
+
 describe('skill.remove', () => {
   it('removes a written skill and is idempotent', async () => {
     const { api, root } = await harness()
@@ -221,7 +249,7 @@ describe('skill authoring is full-token-only (fetch carrier)', () => {
   const TOKEN: ApiPrincipal = { kind: 'token' }
   const TICKET: ApiPrincipal = { kind: 'ticket', userId: UserId('alice') }
   const ANON: ApiPrincipal = { kind: 'anonymous' }
-  const METHODS = ['skill.read', 'skill.write', 'skill.remove'] as const
+  const METHODS = ['skill.listWorkspace', 'skill.read', 'skill.write', 'skill.remove'] as const
 
   async function call(
     api: Awaited<ReturnType<typeof harness>>['api'],

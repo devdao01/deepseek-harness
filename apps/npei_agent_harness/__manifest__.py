@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'NPEI Agent Harness',
-    'version': '17.0.1.1.0',
+    'version': '17.0.1.2.0',
     'summary': 'Odoo gateway and session ACL for the DeepSeek Harness backend',
     'description': """
 NPEI Agent Harness
