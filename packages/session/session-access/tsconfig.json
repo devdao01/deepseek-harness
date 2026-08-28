@@ -22,6 +22,12 @@
     },
     {
       "path": "../../storage/storage-domain"
+    },
+    {
+      "path": "../../api/session-controller/tsconfig.host.json"
+    },
+    {
+      "path": "../../client/connection/tsconfig.host.json"
     }
   ]
 }

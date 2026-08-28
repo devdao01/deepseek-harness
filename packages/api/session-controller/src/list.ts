@@ -19,6 +19,25 @@ import type {
   SessionSearchValue, SessionSummary,
 } from './types.ts'
 
+/**
+ * Optional per-caller session-visibility filter. A multi-tenant deployment
+ * provides `sessionVisibility` to hide sessions the current caller may not see;
+ * absent, every session is visible (single-tenant). The list and search consult
+ * it per session id, evaluated against the caller identity the deployment
+ * derives (a request principal).
+ */
+export interface SessionVisibility {
+  /** Whether the current caller may see one session. */
+  canSee(sessionId: SessionId): boolean
+}
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** Optional deployment session-visibility filter, read via `ctx.get('sessionVisibility')`. */
+    sessionVisibility: SessionVisibility
+  }
+}
+
 /** Default maximum artifact size eligible for one cold projection observation. */
 export const DEFAULT_COLD_BLANK_PROBE_MAX_BYTES = 1024
 
@@ -139,9 +158,12 @@ export class ApiSessionList {
     signal?.throwIfAborted()
     const records = await this.ctx.sessionQuery.listSessions(signal)
     signal?.throwIfAborted()
+    const visibility = this.ctx.get('sessionVisibility')
     const items: SessionSummary[] = []
     const cold: SessionHeader[] = []
     for (const record of records) {
+      // A deployment filter hides sessions the caller may not see; absent, all pass.
+      if (visibility !== undefined && !visibility.canSee(record.header.id)) continue
       const live = this.ctx.sessions.get(record.header.id)
       if (live !== undefined) {
         items.push(this.summaryFor(live))
@@ -237,8 +259,10 @@ export class ApiSessionList {
     try {
       const visible = await provider.listSessions(signal)
       signal.throwIfAborted()
+      const visibility = this.ctx.get('sessionVisibility')
       const visibleIds = new Set(visible
         .filter(record => record.header.cwd !== undefined)
+        .filter(record => visibility?.canSee(record.header.id) ?? true)
         .map(record => record.header.id))
       if (visibleIds.size === 0) return { items: [], hasMore: false }
       const authorized: SessionSearchItem[] = []
