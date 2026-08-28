@@ -97,20 +97,34 @@ function header(headers: ConnectionTrustRequest['headers'], name: string): strin
 
 const AUTHORITY = '127.0.0.1:3080'
 
-/** POST an admitted request to the `/api` route and return the parsed result envelope. */
-async function callApi(
+/** POST to the `/api` route with the given headers; return the gate status and result envelope. */
+async function postApi(
   seam: Awaited<ReturnType<typeof mount>>,
-  extraHeaders: Record<string, string>,
-): Promise<unknown> {
+  headers: Record<string, string>,
+): Promise<{ status: number | undefined; result: unknown }> {
   seam.connection.rpc.intercept('/api', () => true, () =>
     Promise.resolve({ ok: true as const, value: { seen: seam.ctx.requestPrincipal.current() ?? null } }))
-  const cookie = browserCookie(seam.connection, AUTHORITY)
   const route = seam.routes.find(candidate => candidate.path === API_PATH)
   if (route?.kind !== 'prefix') throw new Error('no /api prefix route')
   const { response, state } = fakeResponse()
   const body = { type: 'client-request', rpcId: 'r1', method: 'demo.echo', payload: { args: [] } }
-  await route.handler(fakePost({ host: AUTHORITY, cookie, ...extraHeaders }, `${API_PATH}/demo.echo`, body), response)
-  return (JSON.parse(String(state.body)) as { result: unknown }).result
+  await route.handler(fakePost({ host: AUTHORITY, ...headers }, `${API_PATH}/demo.echo`, body), response)
+  let result: unknown
+  try {
+    result = state.body === undefined ? undefined : (JSON.parse(String(state.body)) as { result: unknown }).result
+  } catch {
+    result = undefined
+  }
+  return { status: state.status, result }
+}
+
+/** POST as a browser authenticated by the process cookie, returning just the result envelope. */
+async function callApi(
+  seam: Awaited<ReturnType<typeof mount>>,
+  extraHeaders: Record<string, string>,
+): Promise<unknown> {
+  const cookie = browserCookie(seam.connection, AUTHORITY)
+  return (await postApi(seam, { cookie, ...extraHeaders })).result
 }
 
 describe('request-principal seam', () => {
@@ -133,5 +147,21 @@ describe('request-principal seam', () => {
   it('leaves the principal undefined when no resolver is mounted', async () => {
     const seam = await mount()
     expect(await callApi(seam, { 'x-mtil-user': 'alice' })).toEqual({ ok: true, value: { seen: null } })
+  })
+
+  it('admits a valid-ticket request that carries no browser-session cookie', async () => {
+    const seam = await mount({
+      resolve: (request) => {
+        const user = header(request.headers, 'x-mtil-user')
+        return user === undefined ? undefined : { userId: user }
+      },
+    })
+    expect(await postApi(seam, { 'x-mtil-user': 'alice' }))
+      .toEqual({ status: 200, result: { ok: true, value: { seen: { userId: 'alice' } } } })
+  })
+
+  it('refuses a principal-less request that carries no browser-session cookie', async () => {
+    const seam = await mount()
+    expect((await postApi(seam, {})).status).toBe(401)
   })
 })

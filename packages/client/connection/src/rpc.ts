@@ -199,11 +199,14 @@ export interface HostConnectionHandle {
 
   /**
    * Apply Connection's Host/Origin checks and browser authentication to
-   * another Web route.
+   * another Web route. A caller that resolved a request principal (a valid
+   * per-user ticket) passes `hasPrincipal: true` to admit a request that carries
+   * no browser-session cookie; the fence still binds every request.
    * @param request - request headers from the HTTP or upgrade request.
+   * @param hasPrincipal - whether a request principal was resolved for this request.
    * @returns rejection status, or undefined when the route may accept the request.
    */
-  requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection
+  requestRejection(request: ConnectionTrustRequest, hasPrincipal?: boolean): ConnectionRequestRejection
 
   /**
    * Authenticate one frontend index request, owning a token redirect or 401.

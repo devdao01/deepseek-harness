@@ -92,10 +92,15 @@ export class HostConnectionService extends Service implements HostConnectionHand
     }
   }
 
-  /** Apply the configured Host/Origin fence, then browser authentication. */
-  requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection {
+  /**
+   * Apply the configured Host/Origin fence, then admit the request when it is
+   * browser-authenticated OR carries a resolved request principal (a valid
+   * per-user ticket). The fence binds every request; a principal-less,
+   * unauthenticated request is refused 401.
+   */
+  requestRejection(request: ConnectionTrustRequest, hasPrincipal = false): ConnectionRequestRejection {
     if (!isTrustedApiRequest(request, this.trustedHosts)) return 403
-    return this.browserAuth.isAuthenticated(request) ? undefined : 401
+    return this.browserAuth.isAuthenticated(request) || hasPrincipal ? undefined : 401
   }
 
   /** Authenticate an index request through the process-token exchange or cookie. */

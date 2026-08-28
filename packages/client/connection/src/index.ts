@@ -122,15 +122,17 @@ export async function apply(ctx: Context, config?: ConnectionConfig): Promise<vo
     kind: 'prefix',
     path: API_PATH,
     handler: async (req, res) => {
-      const rejection = connection.requestRejection(req)
+      // Resolve the principal first: a valid ticket admits a request that
+      // carries no browser-session cookie (the multi-tenant caller), and the
+      // handler then dispatches inside its AsyncLocalStorage so descendants read
+      // `requestPrincipal.current()`.
+      const principal = ctx.get('requestPrincipalResolver')?.resolve(req)
+      const rejection = connection.requestRejection(req, principal !== undefined)
       if (rejection !== undefined) {
         res.writeHead(rejection)
         res.end(rejection === 401 ? 'unauthorized' : 'forbidden')
         return
       }
-      // Resolve the principal after the gate admits the request, then dispatch
-      // inside its AsyncLocalStorage so descendants read `requestPrincipal.current()`.
-      const principal = ctx.get('requestPrincipalResolver')?.resolve(req)
       await requestPrincipal.run(principal, () => bridge(req, res, fetchHandler, maxRequestBodyBytes))
     },
   }
