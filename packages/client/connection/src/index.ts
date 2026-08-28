@@ -10,6 +10,7 @@ import { bridge, DEFAULT_MAX_REQUEST_BODY_BYTES } from './http-bridge.ts'
 import { assertTrustedAuthority } from './api-request-trust.ts'
 import { BrowserAuth } from './browser-auth.ts'
 import { HostConnectionService } from './rpc-host.ts'
+import { RequestPrincipalStore } from './request-principal.ts'
 
 export type {
   ConnectionFetchMethod,
@@ -40,6 +41,8 @@ export {
   serverResponseSchema,
 } from './rpc-schema.ts'
 export { HostConnectionService } from './rpc-host.ts'
+export { RequestPrincipalStore } from './request-principal.ts'
+export type { RequestPrincipal, RequestPrincipalResolver } from './request-principal.ts'
 
 export { API_PATH } from './api-path.ts'
 
@@ -110,6 +113,10 @@ export async function apply(ctx: Context, config?: ConnectionConfig): Promise<vo
     trustedHosts,
     await BrowserAuth.create(ctx.root, ctx.credentials, cookieMaxAgeDays),
   )
+  // Connection owns the request-principal store; a deployment's optional
+  // resolver (mounted by the multi-tenant front) derives the per-user identity
+  // that a session ACL reads. Absent a resolver every request is principal-less.
+  const requestPrincipal = new RequestPrincipalStore(ctx)
   const fetchHandler = connection.createSharedFetchHandler(API_PATH)
   const route: WebRoute = {
     kind: 'prefix',
@@ -121,7 +128,10 @@ export async function apply(ctx: Context, config?: ConnectionConfig): Promise<vo
         res.end(rejection === 401 ? 'unauthorized' : 'forbidden')
         return
       }
-      await bridge(req, res, fetchHandler, maxRequestBodyBytes)
+      // Resolve the principal after the gate admits the request, then dispatch
+      // inside its AsyncLocalStorage so descendants read `requestPrincipal.current()`.
+      const principal = ctx.get('requestPrincipalResolver')?.resolve(req)
+      await requestPrincipal.run(principal, () => bridge(req, res, fetchHandler, maxRequestBodyBytes))
     },
   }
   ctx.effect(() => ctx.webServer.register(route), 'client-connection: /api route')
