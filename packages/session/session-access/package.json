@@ -22,6 +22,10 @@
       "types": "./lib/types/visibility.d.ts",
       "default": "./lib/visibility.js"
     },
+    "./controller": {
+      "types": "./lib/types/controller.d.ts",
+      "default": "./lib/controller.js"
+    },
     "./invariant": {
       "types": "./lib/types/invariant.d.ts",
       "default": "./lib/invariant.js"
@@ -32,6 +36,7 @@
   "files": [
     "lib/index.js",
     "lib/visibility.js",
+    "lib/controller.js",
     "lib/invariant.js",
     "lib/types/**/*.d.ts"
   ],
@@ -46,6 +51,7 @@
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-storage-domain": "workspace:^",
+    "@deepseek-ai/dsh-typert-protocol": "workspace:^",
     "@deepseek-ai/dsh-user-ticket": "workspace:^"
   },
   "devDependencies": {
@@ -56,6 +62,7 @@
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-storage": "workspace:^",
     "@deepseek-ai/dsh-storage-domain": "workspace:^",
+    "@deepseek-ai/dsh-typert-protocol": "workspace:^",
     "@deepseek-ai/dsh-user-ticket": "workspace:^"
   }
 }

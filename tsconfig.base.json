@@ -399,6 +399,7 @@
       "@deepseek-ai/dsh-session": ["./packages/core/session/src"],
       "@deepseek-ai/dsh-session-access": ["./packages/session/session-access/src/index.ts"],
       "@deepseek-ai/dsh-session-access/visibility": ["./packages/session/session-access/src/visibility.ts"],
+      "@deepseek-ai/dsh-session-access/controller": ["./packages/session/session-access/src/controller.ts"],
       "@deepseek-ai/dsh-session-access/invariant": ["./packages/session/session-access/src/invariant.ts"],
       "@deepseek-ai/dsh-session-checkpoint-policy": ["./packages/session/session-checkpoint-policy/src"],
       "@deepseek-ai/dsh-session-checkpoint-policy/invariant": ["./packages/session/session-checkpoint-policy/src/invariant.ts"],
