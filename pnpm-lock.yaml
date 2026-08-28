@@ -7205,6 +7205,31 @@ importers:
         specifier: workspace:^
         version: link:../../core/tools
 
+  packages/session/session-access:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:../../core/session
+      '@deepseek-ai/dsh-storage':
+        specifier: workspace:^
+        version: link:../../storage/storage
+      '@deepseek-ai/dsh-storage-domain':
+        specifier: workspace:^
+        version: link:../../storage/storage-domain
+      '@deepseek-ai/dsh-user-ticket':
+        specifier: workspace:^
+        version: link:../../identity/user-ticket
+
   packages/session/session-checkpoint-policy:
     devDependencies:
       '@deepseek-ai/cordis':
