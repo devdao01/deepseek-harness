@@ -35,6 +35,14 @@ class ResConfigSettings(models.TransientModel):
              "per-user tickets with; MUST equal the harness DSH_TICKET_SECRET. "
              "The Flask API reads it from this parameter. Never exposed to the browser.",
     )
+    npei_harness_operator_secret = fields.Char(
+        string='Operator Secret',
+        config_parameter='npei_agent_harness.operator_secret',
+        help="Stable shared secret admitting Odoo's server-to-server calls at the "
+             "harness /api gate (sent as the X-DSH-Operator header); MUST equal "
+             "the harness DSH_OPERATOR_SECRET. Unset ⇒ operator auth off. Never "
+             "exposed to the browser.",
+    )
 
     def action_test_harness_connection(self):
         """Ping the harness with the saved settings and report the result.

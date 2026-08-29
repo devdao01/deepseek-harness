@@ -9,10 +9,15 @@ server-side:
 * the connection material (base URL + Bearer token) reused by the proxy
   controllers.
 
-Auth: the harness trust fence lets a request carrying a valid
-``Authorization: Bearer <token>`` and **no browser marker** (``Origin`` /
-``sec-fetch-*``) through from anywhere. Server-side ``requests`` calls have no
-browser markers, so the Bearer token alone authenticates them.
+Auth: harness 0.1.2 authenticates a server-to-server caller by a stable shared
+``X-DSH-Operator`` secret (the ``@deepseek-ai/dsh-user-ticket/operator`` overlay,
+matching the harness ``DSH_OPERATOR_SECRET``). Odoo is the operator (the
+management plane): it reaches the harness over loopback or the trusted proxy host
+(both pass the Host/Origin fence) and carries the secret in that header, so it is
+admitted **principal-less** — the way the operator-gated Remotes expect. The
+legacy ``Authorization: Bearer <token>`` header (an rc.7 scheme 0.1.2 ignores) is
+kept alongside it: harmless against 0.1.2, still honored by an rc.7 harness.
+Server-side ``requests`` calls carry no browser marker either way.
 """
 import base64
 import hashlib
@@ -35,6 +40,12 @@ CONFIG_API_TOKEN = 'npei_agent_harness.api_token'
 # Shared HMAC-SHA256 secret the MTIL Flask API signs SPA tickets with; the
 # harness verifies against the same value (its DSH_TICKET_SECRET).
 CONFIG_TICKET_SECRET = 'npei_agent_harness.ticket_secret'
+# Stable shared operator secret admitting Odoo's server-to-server calls at the
+# harness 0.1.2 /api gate; matches the harness DSH_OPERATOR_SECRET.
+CONFIG_OPERATOR_SECRET = 'npei_agent_harness.operator_secret'
+# Request header the operator secret travels in; MUST match the harness overlay
+# (@deepseek-ai/dsh-user-ticket/operator default header).
+OPERATOR_HEADER = 'X-DSH-Operator'
 
 # Seconds before a management RPC to the harness is abandoned.
 HARNESS_RPC_TIMEOUT = 30
@@ -171,12 +182,37 @@ class HarnessClient(models.AbstractModel):
         return base_url, token
 
     @api.model
+    def _operator_headers(self):
+        """Return the operator-auth header, or ``{}`` when the secret is unset.
+
+        The stable ``X-DSH-Operator`` secret admits Odoo's server-to-server calls
+        at the harness 0.1.2 ``/api`` gate (which ignores the legacy Bearer
+        token). Reads ``npei_agent_harness.operator_secret`` via ``sudo()``; an
+        unset secret yields no header, so a single-tenant harness with operator
+        auth off is unaffected.
+
+        :returns: ``{'X-DSH-Operator': <secret>}`` or ``{}``.
+        :rtype: dict
+        """
+        secret = (self.env['ir.config_parameter'].sudo()
+                  .get_param(CONFIG_OPERATOR_SECRET) or '').strip()
+        return {OPERATOR_HEADER: secret} if secret else {}
+
+    @api.model
     def _auth_headers(self, token):
-        """Build the Bearer + JSON headers for a harness call."""
-        return {
+        """Build the operator + Bearer + JSON headers for a harness call.
+
+        Harness 0.1.2 authenticates by the ``X-DSH-Operator`` secret (see
+        :meth:`_operator_headers`); the ``Authorization: Bearer`` header is kept
+        for an rc.7 harness that still honors it (0.1.2 ignores it, so it is
+        harmless).
+        """
+        headers = {
             'Authorization': 'Bearer %s' % token,
             'Content-Type': 'application/json',
         }
+        headers.update(self._operator_headers())
+        return headers
 
     # ------------------------------------------------------------------
     # SPA user-ticket minting (for the MTIL Flask get_config_v2 gate)

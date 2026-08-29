@@ -3,8 +3,9 @@
 
 The SPA (served same-origin at ``/mtilai``) only ever calls Odoo. Odoo resolves
 the caller from the Odoo session cookie, enforces the session ACL, then forwards
-to the harness with the server-held Bearer token. The token never reaches the
-browser.
+to the harness authenticated as the operator (the ``X-DSH-Operator`` secret; see
+``harness_client._auth_headers``), keeping the legacy Bearer token alongside.
+Neither the secret nor the token ever reaches the browser.
 
 Endpoints (all under ``/api/mtil``):
 
@@ -218,10 +219,7 @@ class MtilAgentController(http.Controller):
             upstream = requests.post(
                 url,
                 data=raw,
-                headers={
-                    'Authorization': 'Bearer %s' % token,
-                    'Content-Type': 'application/json',
-                },
+                headers=request.env['npei.agent.harness.client'].sudo()._auth_headers(token),
                 timeout=PROXY_TIMEOUT,
             )
         except requests.RequestException as exc:
@@ -273,11 +271,14 @@ class MtilAgentController(http.Controller):
         base_url, token = connection
 
         url = '%s/api/%s' % (base_url, kind)
+        download_headers = {'Authorization': 'Bearer %s' % token}
+        download_headers.update(
+            request.env['npei.agent.harness.client'].sudo()._operator_headers())
         try:
             upstream = requests.get(
                 url,
                 params=request.httprequest.args,
-                headers={'Authorization': 'Bearer %s' % token},
+                headers=download_headers,
                 stream=True,
                 timeout=PROXY_TIMEOUT,
             )

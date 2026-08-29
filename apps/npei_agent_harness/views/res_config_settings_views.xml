@@ -21,6 +21,10 @@
                                  help="Shared HMAC-SHA256 secret (>= 32 chars) the MTIL Flask API signs per-user tickets with; must equal the harness DSH_TICKET_SECRET. Never exposed to the browser.">
                             <field name="npei_harness_ticket_secret" password="True"/>
                         </setting>
+                        <setting string="Operator Secret"
+                                 help="Stable shared secret admitting Odoo's server-to-server calls at the harness /api gate (sent as X-DSH-Operator); must equal the harness DSH_OPERATOR_SECRET. Never exposed to the browser.">
+                            <field name="npei_harness_operator_secret" password="True"/>
+                        </setting>
                         <setting string="Connection"
                                  help="Ping the harness (session/modelCatalog) with the saved URL and token.">
                             <button name="action_test_harness_connection"
