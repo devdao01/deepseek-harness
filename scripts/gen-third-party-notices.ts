@@ -155,12 +155,18 @@ function workspaceMembers(rel: string): string[] {
  * would silently push dev-area manifests into the runtime tier.
  */
 function loadWorkspaceManifests(): { manifests: Map<string, Manifest>; names: Set<string> } {
-  const patterns = manifestPatterns(workspaceMembers('pnpm-workspace.yaml'))
+  const members = workspaceMembers('pnpm-workspace.yaml')
+  // A `!`-prefixed member excludes a directory (e.g. the standalone SPA submodule
+  // `!apps/frontend`, which has its own lockfile and third-party notices); the
+  // remaining positive members drive the manifest glob.
+  const excludedDirs = members.filter(member => member.startsWith('!')).map(member => member.slice(1))
+  const patterns = manifestPatterns(members.filter(member => !member.startsWith('!')))
   const manifests = new Map<string, Manifest>()
   const names = new Set<string>()
   for (const pattern of patterns) {
     for (const path of globSync(pattern, { cwd: root })) {
       const normalized = path.replaceAll('\\', '/')
+      if (excludedDirs.some(dir => normalized === `${dir}/package.json` || normalized.startsWith(`${dir}/`))) continue
       const manifest = readManifest(normalized)
       manifests.set(normalized, manifest)
       if (manifest.name !== undefined) names.add(manifest.name)

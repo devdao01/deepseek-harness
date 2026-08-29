@@ -7,6 +7,9 @@ packages:
   - native/landlock-run/packages/*
   # Product assemblies over the package tier; apps/cli owns the `dsh` bin.
   - apps/*
+  # The custom-frontend submodule is a fully standalone SPA with its own
+  # lockfile and node_modules; it must not join this workspace.
+  - '!apps/frontend'
   - website
   # Deploy root of the single-exe build: a pure dependency manifest whose
   # closure is what the exe bundles and what the Python runtime distributes.
