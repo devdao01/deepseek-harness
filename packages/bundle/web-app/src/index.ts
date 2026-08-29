@@ -76,6 +76,9 @@ export interface WebRuntimeValues {
 /** Environment variable naming the canonical local URL of this Web GUI. */
 const DSH_WEB_URL = 'DSH_WEB_URL' as const
 
+/** /api route serving the index injection table to an externally served frontend. */
+export const BOOT_PAYLOAD_PATH = '/api/boot.payload'
+
 // Display-only mirror of the webserver schema's loopback host: the address the
 // local URL always prints. Not a source of truth — the schema is.
 const LOOPBACK_HOST = '127.0.0.1'
@@ -240,6 +243,22 @@ export function apply(ctx: Context, config: Config): void {
   // Release dependent rows only after bind-dependent trust has been sampled once.
   ctx.provide(WEB_RUNTIME_SERVICE, runtime)
   ctx.plugin(FrontendStatic, { distIndex: internals.resolveDistIndex() })
+  // Boot payload for an externally served frontend (apps/frontend): the same
+  // injection table the served index renders, as JSON for a page-side
+  // interpreter. Authenticated like every /api request; rows are collected
+  // fresh per request, exactly as an index render would.
+  ctx.inject(['connection'], (bootCtx) => {
+    bootCtx.connection.fetch.register({
+      path: BOOT_PAYLOAD_PATH,
+      methods: ['GET'],
+      fetch: request => Promise.resolve(request.method !== 'GET'
+        ? new Response(null, { status: 405 })
+        : Response.json(
+          { injections: bootCtx.webServer.collectIndexInjections() },
+          { headers: { 'cache-control': 'no-store' } },
+        )),
+    })
+  })
   if (config.surfaceContext) {
     ctx.inject(['systemPrompt'], (promptCtx) => {
       addHarnessSourceSection(promptCtx, SOURCE_ROOT)
