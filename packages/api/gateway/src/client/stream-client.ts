@@ -340,9 +340,13 @@ class StreamInbox {
 }
 
 function remoteStreamUrl(): string {
+  // Sub-path deployments publish their absolute app base here; absent, the
+  // origin keeps the historical root-mounted behavior.
+  const appBase = (globalThis as { __DSH_APP_BASE__?: string }).__DSH_APP_BASE__
   const location = (globalThis as { location?: { origin?: string } }).location
-  const base = location?.origin !== undefined && location.origin !== 'null' ? location.origin : INTERNAL_BASE
-  const url = new URL(REMOTE_STREAM_MUX_PATH, base)
+  const base = appBase
+    ?? (location?.origin !== undefined && location.origin !== 'null' ? location.origin : INTERNAL_BASE)
+  const url = new URL(REMOTE_STREAM_MUX_PATH.replace(/^\//, ''), base.endsWith('/') ? base : `${base}/`)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   return url.href
 }

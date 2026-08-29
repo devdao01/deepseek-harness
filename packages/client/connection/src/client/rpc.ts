@@ -41,7 +41,7 @@ export function createWebConnectionRpc(doFetch?: RpcFetch, openStream?: RpcStrea
         payload,
       }
       const response = await send(
-        new URL(`${channel}/${endpoint}`, resolveBase()),
+        transportUrl(`${channel}/${endpoint}`),
         {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -106,8 +106,19 @@ function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
 }
 
 function resolveBase(): string {
+  // Sub-path deployments (an externally served frontend mounted below the
+  // domain root) publish their absolute app base here; absent, the origin
+  // keeps the historical root-mounted behavior.
+  const appBase = (globalThis as { __DSH_APP_BASE__?: string }).__DSH_APP_BASE__
+  if (appBase !== undefined) return appBase
   const location = (globalThis as { location?: { origin?: string } }).location
   return location?.origin !== undefined && location.origin !== 'null' ? location.origin : INTERNAL_BASE
+}
+
+/** Resolve a root-relative transport path against the app base, preserving any base sub-path. */
+function transportUrl(path: string): URL {
+  const base = resolveBase()
+  return new URL(path.replace(/^\//, ''), base.endsWith('/') ? base : `${base}/`)
 }
 
 function assertTarget(channel: string, endpoint: string): void {

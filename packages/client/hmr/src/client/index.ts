@@ -163,7 +163,12 @@ export function apply(ctx: Context): void {
   }
 
   ctx.effect(() => {
-    const source = new EventSource(EVENTS_ENDPOINT)
+    // Sub-path deployments publish their absolute app base here; absent, the
+    // root-relative endpoint keeps the historical root-mounted behavior.
+    const appBase = (globalThis as { __DSH_APP_BASE__?: string }).__DSH_APP_BASE__
+    const source = new EventSource(appBase === undefined
+      ? EVENTS_ENDPOINT
+      : new URL(EVENTS_ENDPOINT.replace(/^\//, ''), appBase.endsWith('/') ? appBase : `${appBase}/`).href)
     source.addEventListener('message', (event: MessageEvent<string>) => {
       let value: unknown
       try {
