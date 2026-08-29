@@ -3,15 +3,19 @@
 
 Odoo-side management surface for harness agent presets. The harness stays the
 source of truth for the composition; :meth:`action_sync_from_harness` upserts
-the local mirror from ``agentPreset.list``, and creating a record WITHOUT a
-``preset_id`` authors a new preset on the harness (``agentPreset.copy`` from the
-default) under a name-derived id.
+the local mirror from ``presetWorkspace/list``, and creating a record WITHOUT a
+``preset_id`` authors a new preset on the harness (``presetWorkspace/copy`` from
+the default) under a name-derived id.
 
-The record's ``active`` flag mirrors the harness ``disabled`` state, inverted:
-archiving a USER preset in Odoo pushes ``disabled: true`` so the harness refuses
-to compose new sessions from it, and the sync reads ``disabled`` back into
-``active``. Only user presets round-trip — a system preset is read-only on the
-harness, so its ``active`` flag is a local-mirror concern that never pushes.
+The mtil ``presetWorkspace`` Remote (0.1.2, fork) wraps the stock agent-presets
+roster and provisions a per-preset workspace on ``copy`` (answering
+``{agentPreset, workspace}``) so authored presets keep a ``workspace_id`` for
+skill authoring. Stock 0.1.2 agent-presets exposes NO metadata-push and NO
+``disabled`` state, so the former ``agentPreset.update`` round-trip is gone:
+editing a preset's name/description no longer pushes to the harness (the name is
+fixed at ``copy`` time and the composition owns its published metadata), and the
+``active`` flag is now a LOCAL-mirror archive concern only — archiving a preset
+in Odoo does not disable it on the harness.
 """
 import logging
 import re
@@ -51,8 +55,14 @@ class NpeiAgentPreset(models.Model):
         string='Harness Workspace ID',
         copy=False, tracking=True,
         help="Workspace id the harness provisioned for this preset's default "
-             "workspace (from agentPreset.copy). Used to push the preset name as "
-             "the workspace title so the SPA sidebar shows the Odoo name.",
+             "workspace (from presetWorkspace/copy). Used to push the preset name "
+             "as the workspace title so the SPA sidebar shows the Odoo name. "
+             "presetWorkspace links the workspace by the convention "
+             "``<presetWorkspacesRoot>/<presetId>`` and stores no path, so it "
+             "answers an empty id when the directory is not registered — a blank "
+             "value here means 'not provisioned yet' (every read of this field is "
+             "a truthiness check). The deployment MUST set presetWorkspacesRoot "
+             "(default ``<home>/workspace``) to the same root skill authoring uses.",
     )
     trust = fields.Selection(
         [('system', 'System'), ('user', 'User')],
@@ -61,11 +71,10 @@ class NpeiAgentPreset(models.Model):
     )
     active = fields.Boolean(
         default=True,
-        help="Mirrors the harness ``disabled`` state, inverted: archiving a "
-             "USER preset pushes ``disabled: true`` to the harness so it "
-             "refuses to compose new sessions from it, and the sync reads "
-             "``disabled`` back here. System presets are read-only on the "
-             "harness, so their flag only archives the local mirror.", tracking=True
+        help="Local-mirror archive flag. Harness 0.1.2 agent-presets has no "
+             "``disabled`` state, so archiving a preset here only hides the Odoo "
+             "mirror row; it does NOT disable the preset on the harness.",
+        tracking=True
     )
     session_ids = fields.One2many(
         'npei.agent.session',
@@ -134,7 +143,7 @@ class NpeiAgentPreset(models.Model):
 
     @api.model
     def _harness_presets(self):
-        """Return the harness roster (``agentPreset.list`` entries)."""
+        """Return the harness roster (``presetWorkspace/list`` entries)."""
         value = self.env['npei.agent.harness.client'].sudo()._rpc('agentPreset.list', {})
         return value.get('presets') or []
 
@@ -143,9 +152,9 @@ class NpeiAgentPreset(models.Model):
 
         Copies the default preset under ``_slugify(name)``; the harness copy
         keeps the SOURCE's composition, and an authored copy is always ``user``
-        trust. The provisioned workspace path is stored back. The description is
-        pushed separately by :meth:`_push_display` after create (copy carries no
-        description parameter).
+        trust. The provisioned workspace id/path is stored back. The name is set
+        at ``copy`` time; description is not pushed (0.1.2 exposes no preset
+        metadata write — see the module docstring).
 
         Collisions are caught up front against BOTH the Odoo mirror and the
         harness roster, so a slug already taken on the harness (e.g. a preset
@@ -175,15 +184,16 @@ class NpeiAgentPreset(models.Model):
             raise UserError(_("The harness reports no default preset to copy from."))
         value = self.env['npei.agent.harness.client'].sudo()._rpc('agentPreset.copy', {
             'from': default_id,
-            'agentPreset': slug,
+            'id': slug,
             'name': name,
         })
+        # presetWorkspace/copy answers {agentPreset, workspace} where ``workspace``
+        # is the provisioned workspace id STRING (0.1.2 exposes no path). The path
+        # is left blank; skill authoring keys off ``workspace_id`` alone.
         vals['preset_id'] = value.get('agentPreset') or slug
-        workspace = value.get('workspace') or {}
-        if workspace.get('path'):
-            vals['workspace_path'] = workspace['path']
-        if workspace.get('workspaceId'):
-            vals['workspace_id'] = workspace['workspaceId']
+        workspace_id = value.get('workspace')
+        if workspace_id:
+            vals['workspace_id'] = workspace_id
         vals.setdefault('trust', 'user')
 
     def _resolve_workspace_id_by_path(self, path):
@@ -235,37 +245,15 @@ class NpeiAgentPreset(models.Model):
                 _logger.warning(
                     "Failed to push workspace title for preset %s: %s", record.preset_id, exc)
 
-    def _push_display(self):
-        """Push each USER preset's ``name``/``description``/``disabled`` to the harness.
-
-        Calls ``agentPreset.update`` (full-token authoring) so a user preset's
-        display text and disabled state on the harness/SPA match Odoo — an empty
-        display value clears that field, and ``disabled`` is ``not active`` so
-        archiving a preset turns it off on the harness. A SYSTEM preset is
-        read-only on the harness (``agentPreset.update`` answers
-        ``agent-preset-read-only``), so it is skipped here: Odoo may archive its
-        own mirror row without pushing. Fail-loud otherwise: an unreachable
-        harness rolls the Odoo write back.
-        """
-        client = self.env['npei.agent.harness.client'].sudo()
-        for record in self:
-            if not record.preset_id or record.trust != 'user':
-                continue
-            client._rpc('agentPreset.update', {
-                'agentPreset': record.preset_id,
-                'name': record.name or '',
-                'description': record.description or '',
-                'disabled': not record.active,
-            })
-
     @api.model_create_multi
     def create(self, vals_list):
         """Author on the harness when no ``preset_id`` is given, else mirror.
 
         A record saved without ``preset_id`` (the Odoo "new preset" flow) is
-        authored via ``agentPreset.copy`` and its display text pushed with
-        ``agentPreset.update``; a record given one (the sync/adopt path, e.g.
-        :meth:`action_sync_from_harness`) is mirrored as-is with no push.
+        authored via ``presetWorkspace/copy``; a record given one (the sync/adopt
+        path, e.g. :meth:`action_sync_from_harness`) is mirrored as-is. 0.1.2
+        exposes no preset metadata write, so nothing but the provisioned
+        workspace title is pushed back.
         """
         authored = []
         for vals in vals_list:
@@ -276,32 +264,21 @@ class NpeiAgentPreset(models.Model):
         records = super().create(vals_list)
         for record, was_authored in zip(records, authored):
             if was_authored:
-                # Best-effort: the preset is ALREADY created on the harness
-                # (agentPreset.copy is an external effect Odoo cannot roll back),
-                # so a failed display push must not roll the Odoo record back and
-                # orphan the harness copy. a later write() (editing name/description) retries it.
-                try:
-                    record._push_display()
-                except UserError as exc:
-                    _logger.warning(
-                        "Failed to push display for preset %s: %s", record.preset_id, exc)
-                # Cosmetic; best-effort internally, so it never rolls the record back.
+                # Cosmetic; best-effort internally, so it never rolls the record
+                # back (the preset is already provisioned on the harness).
                 record._push_workspace_title()
         return records
 
     def write(self, vals):
-        """Write, then push when ``name``/``description``/``active`` changed.
+        """Write, then push the workspace title when ``name`` changed.
 
-        ``active`` rides the same push because it maps to the harness
-        ``disabled`` state (see :meth:`_push_display`), so archiving a user
-        preset turns it off on the harness in one call. ``_push_display`` skips
-        system presets, so archiving a system mirror row stays local. The sync
-        passes ``npei_syncing`` so mirroring harness values back does not echo
-        them straight to the harness again.
+        0.1.2 exposes no preset metadata write, so editing ``description`` or the
+        local ``active`` archive flag pushes nothing to the harness. A ``name``
+        change still renames the preset's provisioned workspace so the SPA sidebar
+        stays in step. The sync passes ``npei_syncing`` so mirrored values are not
+        echoed back.
         """
         result = super().write(vals)
-        if not self.env.context.get('npei_syncing') and ({'name', 'description', 'active'} & set(vals)):
-            self._push_display()
         if not self.env.context.get('npei_syncing') and 'name' in vals:
             # Keep the harness workspace title in step with the preset name.
             self._push_workspace_title()
@@ -309,16 +286,20 @@ class NpeiAgentPreset(models.Model):
 
     @api.model
     def action_sync_from_harness(self):
-        """Upsert local presets from the harness ``agentPreset.list``.
+        """Upsert local presets from the harness ``presetWorkspace/list``.
 
         Manager-gated. Returns a client notification action summarising the
         sync so it can back an ``ir.actions.server`` menu item.
+
+        0.1.2 has no ``disabled`` state, so the mirror never touches the local
+        ``active`` archive flag — a preset archived in Odoo stays archived across
+        syncs. Each roster entry carries its provisioned ``workspaceId`` directly.
         """
         self._check_manager()
         value = self.env['npei.agent.harness.client']._rpc('agentPreset.list', {})
         entries = value.get('presets') or []
         # Mirroring writes harness values back into Odoo; the flag stops write()
-        # from echoing them straight to agentPreset.update.
+        # from echoing a name change out as a workspace rename.
         model = self.with_context(npei_syncing=True)
         synced = 0
         for entry in entries:
@@ -328,15 +309,14 @@ class NpeiAgentPreset(models.Model):
             vals = {
                 'name': entry.get('name') or preset_id,
                 'description': entry.get('description') or False,
-                'workspace_path': entry.get('workspacePath') or False,
                 'trust': entry.get('trust') or 'user',
-                # Harness `disabled` mirrors to Odoo `active`, inverted. The
-                # write runs under npei_syncing, so it does not echo back.
-                'active': not entry.get('disabled'),
             }
-            # active_test=False so a locally archived mirror (active=False,
-            # from an earlier disabled sync) is found and updated rather than
-            # duplicated into a preset_id_uniq violation.
+            workspace_id = entry.get('workspaceId')
+            if workspace_id:
+                vals['workspace_id'] = workspace_id
+            # active_test=False so a locally archived mirror (active=False) is
+            # found and updated rather than duplicated into a preset_id_uniq
+            # violation. `active` is deliberately left untouched (local-only).
             existing = model.with_context(active_test=False).search(
                 [('preset_id', '=', preset_id)], limit=1)
             if existing:

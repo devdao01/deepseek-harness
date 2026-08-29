@@ -22,7 +22,7 @@
                             <field name="npei_harness_ticket_secret" password="True"/>
                         </setting>
                         <setting string="Connection"
-                                 help="Ping the harness (host.describe) with the saved URL and token.">
+                                 help="Ping the harness (session/modelCatalog) with the saved URL and token.">
                             <button name="action_test_harness_connection"
                                     type="object"
                                     string="Test Connection"

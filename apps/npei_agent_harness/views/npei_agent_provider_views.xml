@@ -62,7 +62,7 @@
                     </group>
                     <notebook>
                         <page string="Catalog Models" name="catalog_models">
-                            <p class="text-muted" colspan="2">Read-only resolved models this provider offers (from llm.models). Run "Sync Models from Harness" to refresh. This is what the provider serves when Configured Models below is empty (inherited).</p>
+                            <p class="text-muted" colspan="2">Read-only resolved models this provider offers (from session/modelCatalog). Run "Sync Models from Harness" to refresh. This is what the provider serves when Configured Models below is empty (inherited).</p>
                             <field name="catalog_model_ids" readonly="1">
                                 <tree>
                                     <field name="model_id"/>

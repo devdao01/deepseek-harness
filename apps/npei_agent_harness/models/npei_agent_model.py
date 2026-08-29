@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 """LLM model catalog mirror.
 
-Odoo-side static catalog of harness LLM models, synced from ``llm.models``.
-Each record is one model within a provider group (``group.id``). The harness
-stays the source of truth; this mirror is a read-only management surface plus
-Odoo archiving. Group resolution ``failures`` reported by the harness are logged
-as a warning rather than raised, so a single broken group does not abort the
-whole sync.
+Odoo-side static catalog of harness LLM models, synced from the harness
+``session/modelCatalog`` Remote (0.1.2; replaces the deleted ``llm.models``).
+The catalog is host-wide (no session id) and answers ``{default,
+routableProviders, groups, failures}``; this mirror reads the ``groups`` and
+``failures`` only. Each record is one model within a provider group
+(``group.id``). The harness stays the source of truth; this mirror is a
+read-only management surface plus Odoo archiving. Group resolution ``failures``
+reported by the harness are logged as a warning rather than raised, so a single
+broken group does not abort the whole sync.
 """
 import logging
 import uuid
@@ -38,7 +41,7 @@ class NpeiAgentModel(models.Model):
         required=True,
         index=True, tracking=True,
         help="Provider group id this model belongs to (``group.id``); the raw "
-             "key from llm.models and the unique-constraint partner.",
+             "key from session/modelCatalog and the unique-constraint partner.",
     )
     provider_id = fields.Many2one(
         'npei.agent.provider',
@@ -85,7 +88,7 @@ class NpeiAgentModel(models.Model):
 
     @api.model
     def action_sync_from_harness(self):
-        """Upsert local models from the harness ``llm.models`` groups.
+        """Upsert local models from the harness ``session/modelCatalog`` groups.
 
         Manager-gated. Iterates every group's models, upserting by
         ``(provider, model_id)``. Any group ``failures`` are logged as a
@@ -93,7 +96,8 @@ class NpeiAgentModel(models.Model):
         ``ir.actions.server`` menu item.
         """
         self._check_manager()
-        value = self.env['npei.agent.harness.client'].sudo()._rpc('llm.models', {})
+        value = self.env['npei.agent.harness.client'].sudo()._rpc(
+            'session.modelCatalog', {})
         groups = value.get('groups') or []
         failures = value.get('failures') or []
         synced = 0
@@ -123,7 +127,7 @@ class NpeiAgentModel(models.Model):
                 synced += 1
         if failures:
             _logger.warning(
-                "llm.models reported %s group failure(s): %s",
+                "session/modelCatalog reported %s group failure(s): %s",
                 len(failures),
                 '; '.join(
                     '%s (%s)' % (failure.get('id'), failure.get('message'))

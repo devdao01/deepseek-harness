@@ -1,11 +1,17 @@
 # -*- coding: utf-8 -*-
 """LLM provider mirror.
 
-Odoo-side catalog of harness LLM providers, synced from ``llm.providers``. The
-harness stays the source of truth for provider routing; this mirror is a
-read-only management surface plus Odoo archiving.
+Odoo-side catalog of harness LLM providers. Harness 0.1.2 deleted the
+``llm.providers`` route-metadata endpoint, so the roster is DERIVED from
+``session/modelCatalog``: each catalog ``group`` is a provider (id + display
+name) and ``routableProviders`` marks the ones currently able to serve a
+request. The harness no longer reports a provider's ``settingsNs`` /
+``settingsPath`` / ``declared`` metadata, so those fields are NOT synced — a
+manager sets ``settings_ns`` by hand (it is required to push configurable models
+via ``settings/mutate``). This mirror stays a read-only management surface plus
+Odoo archiving.
 
-The harness ``active`` flag (whether the route is live) is stored as
+The harness routable flag (whether the provider can serve) is stored as
 :attr:`route_active` so it does not clash with Odoo's own ``active`` archive
 field.
 """
@@ -32,7 +38,7 @@ class NpeiAgentProvider(models.Model):
     )
     display_name = fields.Char(
         string='Display Name', tracking=True,
-        help="Human-readable provider name from ``llm.providers``.",
+        help="Human-readable provider name from the model catalog group.",
     )
     settings_ns = fields.Char(
         string='Settings Namespace', tracking=True,
@@ -53,11 +59,13 @@ class NpeiAgentProvider(models.Model):
     )
     route_active = fields.Boolean(
         string='Route Active', tracking=True,
-        help="Whether the harness reports this provider's route as active.",
+        help="Whether the harness catalog reports this provider as routable "
+             "(present in ``modelCatalog.routableProviders``).",
     )
     declared = fields.Boolean(
         string='Declared', tracking=True,
-        help="Whether the provider is explicitly declared in settings.",
+        help="Legacy flag from the removed ``llm.providers`` endpoint; no longer "
+             "synced in 0.1.2 (kept for existing data).",
     )
     active = fields.Boolean(default=True, tracking=True)
     seq = fields.Integer('Trình tự*:', default=1)
@@ -75,8 +83,8 @@ class NpeiAgentProvider(models.Model):
         'npei.agent.model',
         'provider_id',
         string='Catalog Models',
-        help="Read-only resolved catalog models (llm.models) whose group id "
-             "matches this provider.",
+        help="Read-only resolved catalog models (session/modelCatalog) whose "
+             "group id matches this provider.",
     )
     catalog_model_count = fields.Integer(
         string='Catalog Model Count',
@@ -130,30 +138,31 @@ class NpeiAgentProvider(models.Model):
 
     @api.model
     def action_sync_from_harness(self):
-        """Upsert local providers from the harness ``llm.providers``.
+        """Upsert local providers derived from ``session/modelCatalog``.
 
-        Manager-gated. Returns a client notification action so it can back an
-        ``ir.actions.server`` menu item.
+        Manager-gated. Each catalog ``group`` is a provider; ``routableProviders``
+        marks the ones able to serve. 0.1.2 no longer supplies ``settingsNs`` /
+        ``settingsPath`` / ``declared``, so those fields are left untouched
+        (preserving any manually set ``settings_ns``). Returns a client
+        notification action so it can back an ``ir.actions.server`` menu item.
         """
         self._check_manager()
-        value = self.env['npei.agent.harness.client'].sudo()._rpc('llm.providers', {})
-        entries = value.get('providers') or []
+        value = self.env['npei.agent.harness.client'].sudo()._rpc(
+            'session.modelCatalog', {})
+        groups = value.get('groups') or []
+        routable = set(value.get('routableProviders') or [])
+        # A group carries a display name; a routable provider with an empty
+        # catalog appears only in `routableProviders`, so union the two.
+        names = {group.get('id'): group.get('name')
+                 for group in groups if group.get('id')}
+        provider_ids = [pid for pid in
+                        list(names.keys()) + [p for p in routable if p not in names]
+                        if pid]
         synced = 0
-        for entry in entries:
-            provider = entry.get('provider')
-            if not provider:
-                continue
-            path = entry.get('settingsPath') or []
-            settings_ns = entry.get('settingsNs') or False
-            setting = self.env['npei.agent.setting'].search(
-                [('ns', '=', settings_ns)], limit=1) if settings_ns else False
+        for provider in provider_ids:
             vals = {
-                'display_name': entry.get('displayName') or provider,
-                'settings_ns': settings_ns,
-                'settings_id': setting.id if setting else False,
-                'settings_path': '/'.join(path) if path else False,
-                'route_active': bool(entry.get('active')),
-                'declared': bool(entry.get('declared')),
+                'display_name': names.get(provider) or provider,
+                'route_active': provider in routable,
             }
             existing = self.search([('provider', '=', provider)], limit=1)
             if existing:

@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Odoo-side preset authoring: name->id slug and the agentPreset.copy call.
+"""Odoo-side preset authoring: name->id slug and the presetWorkspace/copy call.
 
 The harness client is mocked, so these assert the slug rule and what Odoo sends
 when a preset is created without a ``preset_id`` (author) versus with one (mirror).
+
+Harness 0.1.2 exposes no preset metadata write (the former ``agentPreset.update``
+is gone) and no ``disabled`` state, so authoring pushes only the ``copy`` and the
+workspace-title rename; editing description or the local ``active`` archive flag
+pushes nothing.
 """
 from unittest.mock import patch
 
@@ -18,8 +23,6 @@ class TestPresetAuthoring(TransactionCase):
         # Extra harness roster entries a test can pre-seed to simulate a slug
         # already taken on the harness; the default is a single system preset.
         self._extra_presets = []
-        # When set, agentPreset.update raises to exercise the best-effort path.
-        self._fail_update = False
         # Harness workspace roster a test can pre-seed for the resolve-by-path path.
         self._workspaces = []
 
@@ -28,34 +31,29 @@ class TestPresetAuthoring(TransactionCase):
         def fake_rpc(model, method, payload=None):
             self._calls.append((method, payload))
             if method == 'agentPreset.list':
-                return {'presets': [{'id': 'base', 'isDefault': True, 'trust': 'system'}] + self._extra_presets}
+                # presetWorkspace/list: {presets:[{id, workspaceId, name?, ...}]}
+                return {'presets': [{'id': 'base', 'isDefault': True,
+                                     'trust': 'system'}] + self._extra_presets}
             if method == 'workspace.list':
                 return {'items': self._workspaces, 'archivedSessionIds': []}
             if method == 'agentPreset.copy':
-                agent_preset = (payload or {})['agentPreset']
-                return {
-                    'agentPreset': agent_preset,
-                    'workspace': {
-                        'workspaceId': 'ws-%s' % agent_preset,
-                        'path': '/home/u/workspace/%s' % agent_preset,
-                    },
-                }
-            if method == 'agentPreset.update':
-                if self._fail_update:
-                    raise UserError("simulated agentPreset.update failure")
-                return {
-                    'name': (payload or {}).get('name'),
-                    'description': (payload or {}).get('description'),
-                }
+                # presetWorkspace/copy request {from, id, name?} -> {agentPreset,
+                # workspace} where `workspace` is the provisioned workspace id STRING.
+                preset_id = (payload or {})['id']
+                return {'agentPreset': preset_id, 'workspace': 'ws-%s' % preset_id}
             return {}
 
         patcher = patch.object(client_cls, '_rpc', fake_rpc)
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def _update_calls(self):
-        """Every captured agentPreset.update payload, in call order."""
-        return [payload for method, payload in self._calls if method == 'agentPreset.update']
+    def _methods(self):
+        """Every RPC method captured, in call order."""
+        return [method for method, _payload in self._calls]
+
+    def _payloads_for(self, method):
+        """Every captured payload for ``method``, in call order."""
+        return [payload for m, payload in self._calls if m == method]
 
     def test_slugify_strips_vietnamese_diacritics(self):
         slug = self.Preset._slugify
@@ -67,12 +65,14 @@ class TestPresetAuthoring(TransactionCase):
     def test_create_without_preset_id_authors_on_harness(self):
         preset = self.Preset.create({'name': 'Hồ Sơ X', 'description': 'ghi chú'})
 
-        copy_calls = [payload for method, payload in self._calls if method == 'agentPreset.copy']
+        copy_calls = self._payloads_for('agentPreset.copy')
         self.assertEqual(len(copy_calls), 1)
-        self.assertEqual(copy_calls[0], {'from': 'base', 'agentPreset': 'ho-so-x', 'name': 'Hồ Sơ X'})
+        # 0.1.2 copy is keyed {from, id, name} (was {from, agentPreset, name}).
+        self.assertEqual(copy_calls[0], {'from': 'base', 'id': 'ho-so-x', 'name': 'Hồ Sơ X'})
         self.assertEqual(preset.preset_id, 'ho-so-x')
-        self.assertEqual(preset.workspace_path, '/home/u/workspace/ho-so-x')
+        # 0.1.2 copy returns the workspace id only (no path).
         self.assertEqual(preset.workspace_id, 'ws-ho-so-x')
+        self.assertFalse(preset.workspace_path)
         self.assertEqual(preset.trust, 'user')
         self.assertEqual(preset.description, 'ghi chú')
 
@@ -81,7 +81,7 @@ class TestPresetAuthoring(TransactionCase):
 
         # The provisioned workspace is renamed to the preset's display name so the
         # SPA sidebar groups sessions under the Odoo name, not the bare slug.
-        rename_calls = [payload for method, payload in self._calls if method == 'workspace.rename']
+        rename_calls = self._payloads_for('workspace.rename')
         self.assertEqual(len(rename_calls), 1)
         self.assertEqual(rename_calls[0], {'workspaceId': 'ws-ho-so-x', 'title': 'Hồ Sơ X'})
         self.assertEqual(preset.workspace_id, 'ws-ho-so-x')
@@ -91,7 +91,7 @@ class TestPresetAuthoring(TransactionCase):
 
         preset.write({'name': 'Hồ Sơ Y'})
 
-        rename_calls = [payload for method, payload in self._calls if method == 'workspace.rename']
+        rename_calls = self._payloads_for('workspace.rename')
         # Authoring pushed once; the name write pushed the new title again.
         self.assertEqual(rename_calls[-1], {'workspaceId': 'ws-ho-so-x', 'title': 'Hồ Sơ Y'})
 
@@ -110,112 +110,87 @@ class TestPresetAuthoring(TransactionCase):
 
         # The id is recovered from workspace.list by path, backfilled, and used.
         self.assertEqual(preset.workspace_id, 'ws-1')
-        rename_calls = [payload for method, payload in self._calls if method == 'workspace.rename']
+        rename_calls = self._payloads_for('workspace.rename')
         self.assertEqual(rename_calls[-1], {'workspaceId': 'ws-1', 'title': 'Hồ Sơ Y'})
-        # The name write re-pushes the display: the new name, no description (none
-        # was set), and `disabled: False` (the mirror row is active).
-        self.assertEqual(
-            self._update_calls(),
-            [{'agentPreset': 'ho-so-x', 'name': 'Hồ Sơ Y', 'description': '', 'disabled': False}],
-        )
 
     def test_create_with_preset_id_mirrors_without_authoring(self):
         self.Preset.create({'preset_id': 'existing', 'name': 'Existing'})
 
-        self.assertEqual([m for m, _ in self._calls if m == 'agentPreset.copy'], [])
-        # A mirror/adopt create pushes nothing back to the harness.
-        self.assertEqual(self._update_calls(), [])
+        # A mirror/adopt create authors nothing and pushes no workspace rename.
+        self.assertNotIn('agentPreset.copy', self._methods())
+        self.assertNotIn('workspace.rename', self._methods())
 
-    def test_write_description_pushes_update(self):
-        preset = self.Preset.create({'preset_id': 'adopted', 'name': 'Old', 'description': 'old'})
+    def test_write_description_pushes_nothing(self):
+        # 0.1.2 has no preset metadata write, so editing the description is a
+        # local-only change: no harness call.
+        preset = self.Preset.create({'preset_id': 'adopted', 'name': 'Old',
+                                     'description': 'old'})
         self._calls.clear()
 
         preset.write({'description': 'new'})
 
-        self.assertEqual(
-            self._update_calls(),
-            [{'agentPreset': 'adopted', 'name': 'Old', 'description': 'new', 'disabled': False}],
-        )
+        self.assertEqual(self._calls, [])
 
-    def test_archive_user_preset_pushes_disabled(self):
-        # A user preset with a harness id: archiving it (active=False) pushes
-        # `disabled: true` so the harness refuses to compose new sessions from it.
-        preset = self.Preset.create({'preset_id': 'zzz-disabled-test', 'name': 'Toggle', 'trust': 'user'})
+    def test_archive_user_preset_stays_local(self):
+        # No disabled round-trip in 0.1.2: archiving a user preset only hides the
+        # Odoo mirror row and pushes nothing.
+        preset = self.Preset.create({'preset_id': 'zzz-arch', 'name': 'Toggle',
+                                     'trust': 'user'})
         self._calls.clear()
 
         preset.write({'active': False})
 
-        self.assertEqual(
-            self._update_calls(),
-            [{'agentPreset': 'zzz-disabled-test', 'name': 'Toggle', 'description': '', 'disabled': True}],
-        )
-
-    def test_unarchive_user_preset_pushes_enabled(self):
-        preset = self.Preset.create({'preset_id': 'zzz-enable-test', 'name': 'Toggle', 'trust': 'user'})
-        preset.write({'active': False})
-        self._calls.clear()
-
-        preset.write({'active': True})
-
-        self.assertEqual(
-            self._update_calls(),
-            [{'agentPreset': 'zzz-enable-test', 'name': 'Toggle', 'description': '', 'disabled': False}],
-        )
+        self.assertEqual(self._calls, [])
 
     def test_archive_system_preset_does_not_push(self):
-        # A system preset is read-only on the harness; archiving its Odoo mirror
-        # stays local and pushes nothing.
-        preset = self.Preset.create({'preset_id': 'zzz-system-test', 'name': 'Shipped', 'trust': 'system'})
+        preset = self.Preset.create({'preset_id': 'zzz-system-test', 'name': 'Shipped',
+                                     'trust': 'system'})
         self._calls.clear()
 
         preset.write({'active': False})
 
-        self.assertEqual(self._update_calls(), [])
+        self.assertEqual(self._calls, [])
 
-    def test_sync_disabled_sets_inactive(self):
-        # A harness entry reporting `disabled: true` mirrors to active=False,
-        # and does not echo the change back to the harness.
+    def test_sync_leaves_active_untouched(self):
+        # 0.1.2 has no disabled state, so a sync must not flip the local archive
+        # flag. A locally archived mirror stays archived across syncs.
         self.env.user.groups_id = [
             (4, self.env.ref('npei_agent_harness.group_npei_agent_manager').id)]
         self._extra_presets = [
-            {'id': 'zzz-off', 'trust': 'user', 'disabled': True, 'name': 'Off'}]
+            {'id': 'zzz-user', 'trust': 'user', 'name': 'User One',
+             'workspaceId': 'ws-zzz'}]
+        archived = self.Preset.create({'preset_id': 'zzz-user', 'name': 'User One',
+                                       'trust': 'user', 'active': False})
 
         self.Preset.action_sync_from_harness()
 
-        preset = self.Preset.with_context(active_test=False).search(
-            [('preset_id', '=', 'zzz-off')], limit=1)
-        self.assertTrue(preset)
-        self.assertFalse(preset.active)
-        self.assertEqual(self._update_calls(), [])
+        self.assertFalse(archived.active)   # not un-archived by the sync
+        self.assertEqual(archived.workspace_id, 'ws-zzz')
 
-    def test_sync_does_not_echo_update(self):
+    def test_sync_does_not_author(self):
         # Sync is manager-gated (_check_manager); grant the group so the mirror
-        # path actually runs and we can assert it does NOT echo to the harness.
+        # path runs and we can assert it authors/pushes nothing.
         self.env.user.groups_id = [
             (4, self.env.ref('npei_agent_harness.group_npei_agent_manager').id)]
 
         self.Preset.action_sync_from_harness()
 
-        self.assertEqual(self._update_calls(), [])
+        self.assertNotIn('agentPreset.copy', self._methods())
 
     def test_slug_already_on_harness_raises_before_copy(self):
         # An orphan from an earlier failed create: the slug exists on the
         # harness but not in the Odoo mirror. 'Base' -> slug 'base' (seeded).
         with self.assertRaises(UserError):
             self.Preset.create({'name': 'Base'})
-        self.assertEqual([m for m, _ in self._calls if m == 'agentPreset.copy'], [])
+        self.assertNotIn('agentPreset.copy', self._methods())
 
-    def test_create_survives_failed_display_push(self):
-        # copy succeeds (external, unrollbackable); a failed update must NOT roll
-        # the Odoo record back and orphan the harness copy.
-        self._fail_update = True
-
+    def test_create_authors_with_id_key(self):
         preset = self.Preset.create({'name': 'Kế Toán', 'description': 'sổ sách'})
 
         self.assertTrue(preset.exists())
         self.assertEqual(preset.preset_id, 'ke-toan')
-        copy_calls = [payload for method, payload in self._calls if method == 'agentPreset.copy']
-        self.assertEqual(copy_calls, [{'from': 'base', 'agentPreset': 'ke-toan', 'name': 'Kế Toán'}])
+        copy_calls = self._payloads_for('agentPreset.copy')
+        self.assertEqual(copy_calls, [{'from': 'base', 'id': 'ke-toan', 'name': 'Kế Toán'}])
 
     def test_duplicate_slug_raises_before_authoring(self):
         self.Preset.create({'preset_id': 'ho-so-x', 'name': 'seed'})
@@ -223,4 +198,4 @@ class TestPresetAuthoring(TransactionCase):
 
         with self.assertRaises(UserError):
             self.Preset.create({'name': 'Hồ Sơ X'})
-        self.assertEqual([m for m, _ in self._calls if m == 'agentPreset.copy'], [])
+        self.assertNotIn('agentPreset.copy', self._methods())

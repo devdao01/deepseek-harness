@@ -6,6 +6,9 @@
         <field name="arch" type="xml">
             <form string="Harness Host Status">
                 <sheet>
+                    <div class="alert alert-info" role="alert" colspan="2">
+                        <field name="unavailable_note" nolabel="1" readonly="1"/>
+                    </div>
                     <group>
                         <group>
                             <field name="version"/>

@@ -1,13 +1,19 @@
 # -*- coding: utf-8 -*-
 """Harness host status panel.
 
-Manager-only, read-only snapshot of the DeepSeek Harness host via the
-``host.describe`` unary method: the harness app version, working directory, the
-default provider/model applied to new agents, the count of currently attached
-sessions, and whether the deployment can hand a path to a native desktop.
+Manager-only, read-only operations snapshot of the DeepSeek Harness host.
 
-There is nothing to configure here — this is an operations dashboard. Opening
-the panel fetches once (``default_get``); the Refresh button re-fetches.
+Harness 0.1.2 deleted the ``host.describe`` unary method, so the panel is
+DEGRADED to what the surviving Remotes expose:
+
+* default provider/model — from ``session/modelCatalog`` (``default``),
+* attached-session count — from ``session/list`` (``items`` length),
+* native-open capability — from ``session/canOpenWorkspacePath``.
+
+The harness app **version** and **working directory** are no longer exposed by
+any 0.1.2 endpoint; those fields stay blank and the form flags the gap. There is
+nothing to configure here. Opening the panel fetches once (``default_get``); the
+Refresh button re-fetches.
 """
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
@@ -22,13 +28,19 @@ class NpeiHostStatus(models.TransientModel):
     version = fields.Char(
         string='Harness Version',
         readonly=True,
-        help="The harness host app (apps/cli) package.json version.",
+        help="Not exposed by harness 0.1.2 (the host.describe endpoint was "
+             "removed); always blank.",
     )
     cwd = fields.Char(
         string='Working Directory',
         readonly=True,
-        help="Host process working directory: the root for session "
-             "persistence and tool execution.",
+        help="Not exposed by harness 0.1.2 (the host.describe endpoint was "
+             "removed); always blank.",
+    )
+    unavailable_note = fields.Char(
+        string='Note',
+        readonly=True,
+        help="Explains which fields harness 0.1.2 no longer exposes.",
     )
     provider = fields.Char(
         string='Default Provider',
@@ -60,36 +72,48 @@ class NpeiHostStatus(models.TransientModel):
             raise AccessError(
                 _("Only NPEI Agent Managers can view the harness host status."))
 
+    # Fixed message: harness 0.1.2 no longer exposes the host app version or cwd.
+    _UNAVAILABLE_NOTE = (
+        "Harness version and working directory are not exposed by harness 0.1.2 "
+        "(host.describe was removed).")
+
     @api.model
     def _describe_values(self):
-        """Fetch ``host.describe`` and map it onto this model's fields.
+        """Assemble the degraded 0.1.2 host snapshot from the surviving Remotes.
 
-        Manager-gated. The optional ``provider``/``model`` keys are absent when
-        the host configures no explicit default; they map to a blank Char.
+        Manager-gated. Default provider/model come from ``session/modelCatalog``
+        (absent default keys map to a blank Char); the attached-session count is
+        the length of ``session/list`` items; native-open capability is
+        ``session/canOpenWorkspacePath``. Version/cwd have no 0.1.2 source and
+        stay blank.
 
         :rtype: dict
         """
         self._check_manager()
-        value = self.env['npei.agent.harness.client'].sudo()._rpc(
-            'host.describe', {})
+        client = self.env['npei.agent.harness.client'].sudo()
+        catalog = client._rpc('session.modelCatalog', {})
+        default = catalog.get('default') or {}
+        sessions = client._rpc('session.list', {})
+        can_open = client._rpc('session.canOpenWorkspacePath', {})
         return {
-            'version': value.get('version') or '',
-            'cwd': value.get('cwd') or '',
-            'provider': value.get('provider') or '',
-            'model': value.get('model') or '',
-            'attached_sessions': value.get('attachedSessions') or 0,
-            'can_open_path': bool(value.get('canOpenPath')),
+            'version': '',
+            'cwd': '',
+            'provider': default.get('provider') or '',
+            'model': default.get('model') or '',
+            'attached_sessions': len(sessions.get('items') or []),
+            'can_open_path': bool(can_open),
+            'unavailable_note': self._UNAVAILABLE_NOTE,
         }
 
     @api.model
     def default_get(self, fields_list):
-        """Populate a freshly opened panel with a live ``host.describe`` snapshot."""
+        """Populate a freshly opened panel with a live host snapshot."""
         defaults = super().default_get(fields_list)
         defaults.update(self._describe_values())
         return defaults
 
     def action_refresh(self):
-        """Re-fetch ``host.describe`` and re-open the panel showing the result."""
+        """Re-fetch the degraded host snapshot and re-open the panel."""
         self.ensure_one()
         self.write(self._describe_values())
         return {

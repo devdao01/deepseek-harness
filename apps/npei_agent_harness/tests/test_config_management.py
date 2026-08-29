@@ -26,23 +26,17 @@ class TestConfigManagement(TransactionCase):
             self._calls.append((method, payload))
             if method == 'credentials.describe':
                 refs = (payload or {}).get('refs') or []
-                return {'credentials': {
+                # Stock credentials/describe answers a bare Record<ref, info>.
+                return {
                     ref: {'configured': True, 'source': 'env', 'writable': True}
                     for ref in refs
-                }}
+                }
             if method in ('credentials.set', 'credentials.unset'):
                 return {}
-            if method == 'llm.providers':
-                return {'providers': [{
-                    'provider': 'deepseek',
-                    'displayName': 'DeepSeek',
-                    'settingsNs': 'llm.deepseek',
-                    'settingsPath': ['llm', 'deepseek'],
-                    'active': True,
-                    'declared': True,
-                }]}
-            if method == 'llm.models':
+            if method == 'session.modelCatalog':
                 return {
+                    'default': {'provider': 'deepseek', 'model': 'deepseek-chat'},
+                    'routableProviders': ['deepseek'],
                     'groups': [{
                         'id': 'deepseek',
                         'name': 'DeepSeek',
@@ -56,15 +50,11 @@ class TestConfigManagement(TransactionCase):
                     'failures': [{'id': 'broken', 'name': 'Broken',
                                   'message': 'boom'}],
                 }
-            if method == 'host.describe':
-                return {
-                    'version': '17.0.0',
-                    'cwd': '/home/dsh',
-                    'provider': 'deepseek',
-                    'model': 'deepseek-chat',
-                    'attachedSessions': 3,
-                    'canOpenPath': False,
-                }
+            if method == 'session.list':
+                return {'items': [{'sessionId': 's1'}, {'sessionId': 's2'},
+                                  {'sessionId': 's3'}]}
+            if method == 'session.canOpenWorkspacePath':
+                return {}
             if method == 'llm.discoverModels':
                 return {'models': [
                     {'id': 'm1', 'name': 'Model One',
@@ -167,44 +157,58 @@ class TestConfigManagement(TransactionCase):
     # ------------------------------------------------------------------
     # Providers
     # ------------------------------------------------------------------
-    def test_provider_sync_upserts(self):
+    def test_provider_sync_derives_from_model_catalog(self):
+        # 0.1.2: the roster is derived from session/modelCatalog groups +
+        # routableProviders. settingsNs/settingsPath/declared are no longer
+        # supplied, so they stay blank/untouched.
         Provider = self.env['npei.agent.provider']
 
         Provider.action_sync_from_harness()
 
-        self.assertEqual(self._calls_for('llm.providers'), [{}])
+        self.assertEqual(self._calls_for('session.modelCatalog'), [{}])
         provider = Provider.search([('provider', '=', 'deepseek')])
         self.assertEqual(len(provider), 1)
         self.assertEqual(provider.display_name, 'DeepSeek')
-        self.assertEqual(provider.settings_ns, 'llm.deepseek')
-        self.assertEqual(provider.settings_path, 'llm/deepseek')
-        self.assertTrue(provider.route_active)
-        self.assertTrue(provider.declared)
+        self.assertTrue(provider.route_active)   # in routableProviders
+        self.assertFalse(provider.settings_ns)   # not supplied by 0.1.2
+        self.assertFalse(provider.settings_path)
 
         # A second sync updates in place instead of duplicating.
         Provider.action_sync_from_harness()
         self.assertEqual(
             len(Provider.search([('provider', '=', 'deepseek')])), 1)
 
-    def test_provider_sync_links_settings_namespace(self):
-        setting = self.env['npei.agent.setting'].create({'ns': 'zzz-ns'})
+    def test_provider_sync_preserves_manual_settings_ns(self):
+        # A manager sets settings_ns by hand (0.1.2 no longer reports it); a
+        # later sync must not clobber it back to blank.
+        Provider = self.env['npei.agent.provider']
+        prov = Provider.create({
+            'provider': 'deepseek', 'display_name': 'old',
+            'settings_ns': 'llm-deepseek'})
 
+        Provider.action_sync_from_harness()
+
+        self.assertEqual(prov.settings_ns, 'llm-deepseek')  # preserved
+        self.assertEqual(prov.display_name, 'DeepSeek')     # refreshed
+        self.assertTrue(prov.route_active)
+
+    def test_provider_sync_marks_non_routable(self):
+        # A provider present in a group but absent from routableProviders is
+        # mirrored inactive.
         def fake(model, method, payload=None):
-            if method == 'llm.providers':
-                return {'providers': [{
-                    'provider': 'zzz-p', 'displayName': 'ZP',
-                    'settingsNs': 'zzz-ns',
-                    'settingsPath': ['providers', 'zzz-p'],
-                    'active': True, 'declared': True}]}
+            if method == 'session.modelCatalog':
+                return {'default': {}, 'routableProviders': [],
+                        'groups': [{'id': 'idle-p', 'name': 'Idle',
+                                    'models': []}], 'failures': []}
             return {}
 
         client_cls = type(self.env['npei.agent.harness.client'])
         with patch.object(client_cls, '_rpc', fake):
             self.env['npei.agent.provider'].action_sync_from_harness()
 
-        prov = self.env['npei.agent.provider'].search([('provider', '=', 'zzz-p')])
-        self.assertEqual(prov.settings_id, setting)
-        self.assertIn(prov, setting.provider_ids)
+        prov = self.env['npei.agent.provider'].search([('provider', '=', 'idle-p')])
+        self.assertEqual(prov.display_name, 'Idle')
+        self.assertFalse(prov.route_active)
 
     def test_setting_sync_backfills_provider_link(self):
         prov = self.env['npei.agent.provider'].create({
@@ -233,7 +237,7 @@ class TestConfigManagement(TransactionCase):
 
         Model.action_sync_from_harness()
 
-        self.assertEqual(self._calls_for('llm.models'), [{}])
+        self.assertEqual(self._calls_for('session.modelCatalog'), [{}])
         models = Model.search([('provider', '=', 'deepseek')])
         self.assertEqual(len(models), 2)
         chat = Model.search([
@@ -247,7 +251,7 @@ class TestConfigManagement(TransactionCase):
             'settings_ns': 'llm-pi-ai'})
 
         def fake(model, method, payload=None):
-            if method == 'llm.models':
+            if method == 'session.modelCatalog':
                 return {'groups': [{'id': 'zzz-fwd',
                                     'models': [{'id': 'm-x'}]}], 'failures': []}
             return {}
@@ -264,7 +268,7 @@ class TestConfigManagement(TransactionCase):
 
     def test_model_link_backfilled_when_provider_synced_after(self):
         def fake(model, method, payload=None):
-            if method == 'llm.models':
+            if method == 'session.modelCatalog':
                 return {'groups': [{'id': 'zzz-back',
                                     'models': [{'id': 'm-b'}]}], 'failures': []}
             if method == 'llm.providers':
@@ -586,19 +590,25 @@ class TestConfigManagement(TransactionCase):
     # ------------------------------------------------------------------
     # Host status panel
     # ------------------------------------------------------------------
-    def test_host_status_refresh_maps_describe(self):
+    def test_host_status_refresh_maps_catalog(self):
+        # 0.1.2 degrade: default model/provider from session/modelCatalog, count
+        # from session/list, native-open from session/canOpenWorkspacePath;
+        # version/cwd have no source and stay blank.
         panel = self.env['npei.agent.host.status'].create({})
         self._calls.clear()
 
         action = panel.action_refresh()
 
-        self.assertEqual(self._calls_for('host.describe'), [{}])
-        self.assertEqual(panel.version, '17.0.0')
-        self.assertEqual(panel.cwd, '/home/dsh')
+        self.assertEqual(self._calls_for('session.modelCatalog'), [{}])
+        self.assertEqual(self._calls_for('session.list'), [{}])
+        self.assertEqual(self._calls_for('session.canOpenWorkspacePath'), [{}])
+        self.assertFalse(panel.version)   # not exposed by 0.1.2
+        self.assertFalse(panel.cwd)       # not exposed by 0.1.2
         self.assertEqual(panel.provider, 'deepseek')
         self.assertEqual(panel.model, 'deepseek-chat')
         self.assertEqual(panel.attached_sessions, 3)
         self.assertFalse(panel.can_open_path)
+        self.assertTrue(panel.unavailable_note)
         self.assertEqual(action['res_model'], 'npei.agent.host.status')
         self.assertEqual(action['res_id'], panel.id)
 
@@ -606,20 +616,23 @@ class TestConfigManagement(TransactionCase):
         defaults = self.env['npei.agent.host.status'].default_get(
             ['version', 'attached_sessions', 'can_open_path'])
 
-        self.assertEqual(self._calls_for('host.describe'), [{}])
-        self.assertEqual(defaults['version'], '17.0.0')
+        self.assertEqual(self._calls_for('session.modelCatalog'), [{}])
+        self.assertFalse(defaults.get('version'))
         self.assertEqual(defaults['attached_sessions'], 3)
         self.assertFalse(defaults['can_open_path'])
 
     def test_host_status_absent_default_model_maps_blank(self):
         # A host with no explicit default omits provider/model; they map blank.
+        # canOpenWorkspacePath returns a truthy value here.
         original = self._calls
 
         def describe_without_default(model, method, payload=None):
             original.append((method, payload))
-            if method == 'host.describe':
-                return {'version': '17.0.0', 'cwd': '/home/dsh',
-                        'attachedSessions': 0, 'canOpenPath': True}
+            if method == 'session.list':
+                return {'items': []}
+            if method == 'session.canOpenWorkspacePath':
+                return True
+            # session.modelCatalog with no default; anything else -> {}
             return {}
 
         client_cls = type(self.env['npei.agent.harness.client'])
@@ -629,6 +642,7 @@ class TestConfigManagement(TransactionCase):
 
         self.assertFalse(panel.provider)
         self.assertFalse(panel.model)
+        self.assertEqual(panel.attached_sessions, 0)
         self.assertTrue(panel.can_open_path)
 
     def test_host_status_denied_for_non_manager(self):

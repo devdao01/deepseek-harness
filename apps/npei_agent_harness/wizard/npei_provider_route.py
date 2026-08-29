@@ -15,6 +15,14 @@ under Providers, where its models are configured through
 The ``api`` protocol list and ``compat.thinkingFormat`` list mirror the pi-ai
 adapter's ``supportedProtocols()`` / ``SUPPORTED_THINKING_FORMATS`` (protocol
 constants; kept in sync with the adapter by hand).
+
+0.1.2 note: this wizard needs NO rework — ``settings/mutate`` and
+``credentials/set`` are both live 0.1.2 Remotes, and writing a route into the
+``llm-pi-ai`` provider-config namespace IS the settings-document + credential-
+reference approach 0.1.2 expects (there is no "add route" RPC to replace). The
+one thing to VERIFY against a running 0.1.2 harness is that the ``llm-pi-ai``
+namespace still exists and its provider-route value shape (``api`` / ``baseURL``
+/ ``apiKeyEnv`` / ``compat.thinkingFormat`` / ``models``) is unchanged.
 """
 import re
 

@@ -40,15 +40,25 @@ CONFIG_TICKET_SECRET = 'npei_agent_harness.ticket_secret'
 HARNESS_RPC_TIMEOUT = 30
 
 # Harness 0.1.2 replaced the ApiProxy unary routes with Typert Remote namespaces:
-# a call is POST /api/<namespace>/<method> with the business payload wrapped as
-# {"args": [payload]}. This maps the legacy dotted RpcMethodMap keys the module
-# still calls onto the new <namespace>/<method> endpoints. Keys NOT listed default
-# to a plain dot->slash (e.g. workspace.list -> workspace/list). Skills split into
-# the session-addressed `skills` catalog and the workspace-addressed
-# `skillAuthoring` surface; per-session access moved to the `sessionAccess` Remote.
-# NOTE: the admin surfaces agentPreset.*, host.describe, and llm.* changed shape
-# with the ApiProxy removal and need dedicated rework — their default mapping here
-# is provisional.
+# a call is POST /api/<namespace>/<method> with the business payload carried under
+# ``payload.args``. This maps the legacy dotted RpcMethodMap keys the module still
+# calls onto the new <namespace>/<method> endpoints. Keys NOT listed default to a
+# plain dot->slash (e.g. workspace.list -> workspace/list). Skills split into the
+# session-addressed `skills` catalog and the workspace-addressed `skillAuthoring`
+# surface; per-session access moved to the `sessionAccess` Remote.
+#
+# Admin-surface rework (0.1.2, ApiProxy removed):
+#   * ``llm.models``    -> ``session/modelCatalog`` (host-wide; {default,
+#     routableProviders, groups, failures}); the group/model shape is preserved.
+#   * ``agentPreset.*``  -> the mtil custom ``presetWorkspace`` Remote (fork), which
+#     wraps the stock agent-presets roster AND provisions a per-preset workspace so
+#     ``copy`` still answers ``{agentPreset, workspace}`` and skill authoring keeps
+#     its ``workspace_id``. Every method takes one ``request`` object. There is NO
+#     metadata-push (former ``agentPreset.update``) nor ``disabled`` round-trip —
+#     that push is dropped and archiving stays a local-mirror concern.
+#   * ``llm.providers`` and ``host.describe`` have NO 0.1.2 equivalent; the admin
+#     models that consumed them are degraded (derive from modelCatalog / session
+#     list) rather than calling a dead endpoint.
 _ENDPOINT_MAP = {
     'skill.list': 'skills/list',
     'skill.listWorkspace': 'skillAuthoring/listWorkspace',
@@ -57,12 +67,76 @@ _ENDPOINT_MAP = {
     'skill.remove': 'skillAuthoring/remove',
     'session.setAccess': 'sessionAccess/set',
     'session.getAccess': 'sessionAccess/get',
+    # Host-wide model catalog (replaces the deleted ``llm.models``).
+    'session.modelCatalog': 'session/modelCatalog',
+    # mtil custom preset Remote (fork): roster + per-preset workspace provisioning.
+    'agentPreset.list': 'presetWorkspace/list',
+    'agentPreset.read': 'presetWorkspace/read',
+    'agentPreset.copy': 'presetWorkspace/copy',
+    'agentPreset.remove': 'presetWorkspace/remove',
 }
 
 
 def _harness_endpoint(method):
     """Map a legacy dotted method to its 0.1.2 ``<namespace>/<method>`` endpoint."""
     return _ENDPOINT_MAP.get(method) or method.replace('.', '/', 1)
+
+
+# Argument shaping for the 0.1.2 Typert gateway. The gateway
+# (``packages/api/gateway``) requires ``payload.args`` to be a PLAIN OBJECT keyed
+# by the target method's exact parameter names — an array is rejected, and the
+# key set must match the ``@Remote`` signature. Three shapes cover every endpoint
+# the module calls:
+#   * no-arg methods            -> ``{}``
+#   * named/multi-param methods -> the flat payload spread as named args (the
+#     payload's keys already ARE the parameter names)
+#   * single-``request``-param  -> ``{"request": payload}`` (the default; every
+#     mtil custom controller — skillAuthoring / sessionAccess / presetWorkspace /
+#     workspace — takes one ``request`` object)
+# ``session/list`` is the one stock single-object method whose parameter is named
+# ``_request`` rather than ``request``.
+
+# Endpoints whose ``@Remote`` method takes no parameter.
+_ARGS_NOARG = frozenset({
+    'session/modelCatalog',
+    'session/canOpenWorkspacePath',
+    'settings/describe',
+    'settings/openSettingsDocument',
+    'settings/canOpenAgentPresetDirectory',
+})
+# Endpoints whose ``@Remote`` method takes named positional parameters; the flat
+# payload's keys already are those parameter names.
+_ARGS_SPREAD = frozenset({
+    'credentials/describe',
+    'credentials/set',
+    'credentials/unset',
+    'settings/update',
+    'settings/replace',
+    'settings/mutate',
+})
+# Single-object endpoints whose sole parameter is not named ``request``.
+_ARGS_WRAP_KEY = {
+    'session/list': '_request',
+}
+
+
+def _remote_args(endpoint, payload):
+    """Shape ``payload`` into the gateway's ``payload.args`` object for ``endpoint``.
+
+    The gateway keys ``args`` by parameter name, so a single-object custom
+    controller call becomes ``{"request": payload}``, a no-arg call becomes
+    ``{}``, and a named-parameter stock call spreads the flat payload as-is.
+
+    :param str endpoint: the resolved ``<namespace>/<method>`` endpoint.
+    :param dict payload: the business payload the model passed to :meth:`_rpc`.
+    :returns: the ``args`` plain object keyed by the method's parameter names.
+    :rtype: dict
+    """
+    if endpoint in _ARGS_NOARG:
+        return {}
+    if endpoint in _ARGS_SPREAD:
+        return dict(payload or {})
+    return {_ARGS_WRAP_KEY.get(endpoint, 'request'): payload or {}}
 
 # Ticket wire rules — MUST match @deepseek-ai/dsh-user-ticket and the harness.
 TICKET_VERSION = 'v1'
@@ -182,14 +256,15 @@ class HarnessClient(models.AbstractModel):
         :returns: the ``result.value`` dict (``ResponseValue<K>``).
         """
         base_url, token = self._get_connection()
-        # 0.1.2 Remote wire: endpoint <namespace>/<method>, business payload wrapped
-        # as {"args": [payload]} (the method takes one request object, signal aside).
+        # 0.1.2 Remote wire: endpoint <namespace>/<method>, business payload carried
+        # under payload.args as a PLAIN OBJECT keyed by the method's parameter names
+        # (see _remote_args; the gateway rejects an array or a wrong key set).
         endpoint = _harness_endpoint(method)
         envelope = {
             'type': 'client-request',
             'rpcId': str(uuid.uuid4()),
             'method': endpoint,
-            'payload': {'args': [payload or {}]},
+            'payload': {'args': _remote_args(endpoint, payload)},
         }
         url = '%s/api/%s' % (base_url, endpoint)
         try:

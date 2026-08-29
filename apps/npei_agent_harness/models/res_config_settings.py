@@ -39,19 +39,22 @@ class ResConfigSettings(models.TransientModel):
     def action_test_harness_connection(self):
         """Ping the harness with the saved settings and report the result.
 
-        Calls ``host.describe`` through the shared client (Bearer token,
-        server-side) and raises the harness identity as a sticky notification.
-        Any misconfiguration or transport failure surfaces as the client's
-        UserError, so the button doubles as a one-click connectivity check.
+        Harness 0.1.2 removed ``host.describe``, so connectivity is probed with
+        ``session/modelCatalog`` (a host-wide, no-argument Remote) through the
+        shared client (Bearer token, server-side). The default model and the
+        routable-provider count stand in for the old version/cwd identity. Any
+        misconfiguration or transport failure surfaces as the client's UserError,
+        so the button doubles as a one-click connectivity check.
         """
         self.ensure_one()
-        value = self.env['npei.agent.harness.client']._rpc('host.describe', {})
+        value = self.env['npei.agent.harness.client']._rpc('session.modelCatalog', {})
+        default = value.get('default') or {}
+        routable = value.get('routableProviders') or []
         message = _(
-            "Connected. Model: %(model)s · cwd: %(cwd)s · version: %(version)s"
+            "Connected. Default model: %(model)s · routable providers: %(count)s"
         ) % {
-            'model': value.get('model', '?'),
-            'cwd': value.get('cwd', '?'),
-            'version': value.get('version', '?'),
+            'model': default.get('model') or '?',
+            'count': len(routable),
         }
         return {
             'type': 'ir.actions.client',

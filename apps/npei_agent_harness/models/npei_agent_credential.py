@@ -91,7 +91,11 @@ class NpeiAgentCredential(models.Model):
         }
 
     def _describe(self, refs):
-        """Return the ``credentials.describe`` map for ``refs`` (empty if none).
+        """Return the ``credentials/describe`` map for ``refs`` (empty if none).
+
+        Harness 0.1.2 answers ``credentials/describe`` with a BARE
+        ``Record<ref, info>`` (no ``credentials`` wrapper), so ``result.value`` is
+        the map itself.
 
         :param refs: an iterable of reference keys.
         :rtype: dict
@@ -101,7 +105,7 @@ class NpeiAgentCredential(models.Model):
             return {}
         value = self.env['npei.agent.harness.client'].sudo()._rpc(
             'credentials.describe', {'refs': refs})
-        return value.get('credentials') or {}
+        return value or {}
 
     def _apply_describe(self, credentials):
         """Update each record's status fields from a describe map, in place.

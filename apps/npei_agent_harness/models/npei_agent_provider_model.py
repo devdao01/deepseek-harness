@@ -13,7 +13,7 @@ Emptying a provider's rows unsets the ``models`` path (return to the inherited
 catalog) rather than storing an empty array, matching the SPA's reset semantics.
 
 Distinct from :class:`~odoo.addons.npei_agent_harness.models.npei_agent_model`,
-which is the READ-ONLY mirror of the resolved ``llm.models`` catalog. This model
+which is the READ-ONLY mirror of the resolved ``session/modelCatalog``. This model
 is the user-layer override the manager edits.
 """
 import uuid
