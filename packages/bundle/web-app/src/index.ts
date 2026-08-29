@@ -251,12 +251,10 @@ export function apply(ctx: Context, config: Config): void {
     bootCtx.connection.fetch.register({
       path: BOOT_PAYLOAD_PATH,
       methods: ['GET'],
-      fetch: request => Promise.resolve(request.method !== 'GET'
-        ? new Response(null, { status: 405 })
-        : Response.json(
-          { injections: bootCtx.webServer.collectIndexInjections() },
-          { headers: { 'cache-control': 'no-store' } },
-        )),
+      fetch: () => Promise.resolve(Response.json(
+        { injections: bootCtx.webServer.collectIndexInjections() },
+        { headers: { 'cache-control': 'no-store' } },
+      )),
     })
   })
   if (config.surfaceContext) {
