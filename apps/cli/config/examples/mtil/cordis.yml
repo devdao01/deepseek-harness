@@ -44,3 +44,10 @@
     # the Odoo module drives to enumerate, read, write, and remove skill files.
     - id: skill-controller
       name: '@deepseek-ai/dsh-api-skill-controller'
+
+    # Preset management with a provisioned per-preset workspace
+    # (ctx.remote.presetWorkspace.*): copy clones a preset AND provisions its
+    # workspace, remove drops both — so the Odoo module gets preset.workspace_id.
+    # A preset's workspace lives at <presetWorkspacesRoot>/<presetId>.
+    - id: preset-workspace-controller
+      name: '@deepseek-ai/dsh-api-preset-workspace-controller'
