@@ -10,9 +10,9 @@ import Storage from '@deepseek-ai/dsh-storage'
 import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import { TypertRemoteFailure, type RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { RequestPrincipal } from '@deepseek-ai/dsh-client-connection'
+import SessionAccessService from '@deepseek-ai/dsh-session-access'
 import { MemoryMediaPool, MemoryStorageBackend } from '../../../storage/storage-domain/tests/helpers/memory-backend.ts'
-import SessionAccessService from '../src/index.ts'
-import SessionAccessController from '../src/controller.ts'
+import SessionAccessController from '../src/index.ts'
 
 const SIGNAL = new AbortController().signal
 

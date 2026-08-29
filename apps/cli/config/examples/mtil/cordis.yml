@@ -52,7 +52,7 @@
     # Operator Remote (ctx.remote.sessionAccess.set/get) so Odoo grants a session
     # to a user; operator-gated (a ticket caller is refused).
     - id: session-access-controller
-      name: '@deepseek-ai/dsh-session-access/controller'
+      name: '@deepseek-ai/dsh-api-session-access-controller'
 
     # Workspace-addressed skill authoring Remote (ctx.remote.skillAuthoring.*)
     # the Odoo module drives to enumerate, read, write, and remove skill files.

@@ -64,6 +64,7 @@
     "@deepseek-ai/dsh-skill-filesystem": "workspace:^",
     "@deepseek-ai/dsh-api-skill-controller": "workspace:^",
     "@deepseek-ai/dsh-api-preset-workspace-controller": "workspace:^",
+    "@deepseek-ai/dsh-api-session-access-controller": "workspace:^",
     "@deepseek-ai/dsh-session-access": "workspace:^",
     "@deepseek-ai/dsh-user-ticket": "workspace:^",
     "@deepseek-ai/dsh-jobs-local": "workspace:^",

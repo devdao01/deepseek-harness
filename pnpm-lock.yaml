@@ -153,6 +153,9 @@ importers:
       '@deepseek-ai/dsh-api-preset-workspace-controller':
         specifier: workspace:^
         version: link:../../packages/api/preset-workspace-controller
+      '@deepseek-ai/dsh-api-session-access-controller':
+        specifier: workspace:^
+        version: link:../../packages/session/session-access-controller
       '@deepseek-ai/dsh-api-skill-controller':
         specifier: workspace:^
         version: link:../../packages/api/skill-controller
@@ -7267,6 +7270,40 @@ importers:
       '@deepseek-ai/dsh-session':
         specifier: workspace:^
         version: link:../../core/session
+      '@deepseek-ai/dsh-storage':
+        specifier: workspace:^
+        version: link:../../storage/storage
+      '@deepseek-ai/dsh-storage-domain':
+        specifier: workspace:^
+        version: link:../../storage/storage-domain
+      '@deepseek-ai/dsh-typert-protocol':
+        specifier: workspace:^
+        version: link:../../typert/protocol
+      '@deepseek-ai/dsh-user-ticket':
+        specifier: workspace:^
+        version: link:../../identity/user-ticket
+
+  packages/session/session-access-controller:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-client-connection':
+        specifier: workspace:^
+        version: link:../../client/connection
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:../../core/session
+      '@deepseek-ai/dsh-session-access':
+        specifier: workspace:^
+        version: link:../session-access
       '@deepseek-ai/dsh-storage':
         specifier: workspace:^
         version: link:../../storage/storage

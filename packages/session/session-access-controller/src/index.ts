@@ -10,7 +10,13 @@
  * single-tenant deployment (no ticket principal) treats every admitted caller as
  * the operator.
  *
- * @module @deepseek-ai/dsh-session-access/controller
+ * This package is the workspace's separate Remote-owner package for the
+ * `sessionAccess` namespace: its index default export is the `@Remote` service,
+ * so the Typert workspace generator binds this package's `lib/typert.host.js`
+ * descriptor to it and `ctx.remote.sessionAccess.set/get` registers. The durable
+ * access-list service it drives lives in `@deepseek-ai/dsh-session-access`.
+ *
+ * @module @deepseek-ai/dsh-api-session-access-controller
  */
 
 import { Context } from '@deepseek-ai/cordis'
@@ -19,23 +25,10 @@ import { UserId } from '@deepseek-ai/dsh-user-ticket'
 import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 // Type-only imports that activate the Context service merges read below.
 import type {} from '@deepseek-ai/dsh-client-connection'
-import type {} from './index.ts'
+import type {} from '@deepseek-ai/dsh-session-access'
+import type { SessionAccessGetRequest, SessionAccessSetRequest, SessionAccessValue } from './types.ts'
 
-/** Request for `sessionAccess.set`: the session and its complete new allowed-user set. */
-export interface SessionAccessSetRequest {
-  readonly sessionId: string
-  readonly userIds: readonly string[]
-}
-
-/** Request for `sessionAccess.get`. */
-export interface SessionAccessGetRequest {
-  readonly sessionId: string
-}
-
-/** Value of `sessionAccess.set`/`get`: the current allowed-user set. */
-export interface SessionAccessValue {
-  readonly userIds: readonly string[]
-}
+export type * from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

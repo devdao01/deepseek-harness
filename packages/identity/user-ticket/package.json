@@ -20,11 +20,11 @@
     },
     "./resolver": {
       "types": "./lib/types/resolver.d.ts",
-      "default": "./lib/resolver.js"
+      "default": "./lib/types/resolver.js"
     },
     "./operator": {
       "types": "./lib/types/operator.d.ts",
-      "default": "./lib/operator.js"
+      "default": "./lib/types/operator.js"
     },
     "./invariant": {
       "types": "./lib/types/invariant.d.ts",
@@ -35,9 +35,8 @@
   },
   "files": [
     "lib/index.js",
-    "lib/resolver.js",
-    "lib/operator.js",
     "lib/invariant.js",
+    "lib/types/**/*.js",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
