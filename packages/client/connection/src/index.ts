@@ -43,6 +43,7 @@ export {
 export { HostConnectionService } from './rpc-host.ts'
 export { RequestPrincipalStore } from './request-principal.ts'
 export type { RequestPrincipal, RequestPrincipalResolver } from './request-principal.ts'
+export type { OperatorAuth } from './operator-auth.ts'
 
 export { API_PATH } from './api-path.ts'
 
@@ -127,7 +128,11 @@ export async function apply(ctx: Context, config?: ConnectionConfig): Promise<vo
       // handler then dispatches inside its AsyncLocalStorage so descendants read
       // `requestPrincipal.current()`.
       const principal = ctx.get('requestPrincipalResolver')?.resolve(req)
-      const rejection = connection.requestRejection(req, principal !== undefined)
+      // A server-to-server operator (no principal) is admitted by the operator
+      // secret instead of browser auth; it stays principal-less, so the
+      // operator-gated controllers keep treating it as the operator.
+      const operator = principal === undefined && ctx.get('operatorAuth')?.verify(req) === true
+      const rejection = connection.requestRejection(req, principal !== undefined || operator)
       if (rejection !== undefined) {
         res.writeHead(rejection)
         res.end(rejection === 401 ? 'unauthorized' : 'forbidden')

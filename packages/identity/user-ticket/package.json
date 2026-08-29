@@ -22,6 +22,10 @@
       "types": "./lib/types/resolver.d.ts",
       "default": "./lib/resolver.js"
     },
+    "./operator": {
+      "types": "./lib/types/operator.d.ts",
+      "default": "./lib/operator.js"
+    },
     "./invariant": {
       "types": "./lib/types/invariant.d.ts",
       "default": "./lib/invariant.js"
@@ -32,6 +36,7 @@
   "files": [
     "lib/index.js",
     "lib/resolver.js",
+    "lib/operator.js",
     "lib/invariant.js",
     "lib/types/**/*.d.ts"
   ],

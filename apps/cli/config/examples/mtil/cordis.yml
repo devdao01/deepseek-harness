@@ -15,6 +15,9 @@
 # proxied authority with --trusted-host. With DSH_TICKET_SECRET unset the ticket
 # resolver mounts nothing and the surface stays single-tenant (unchanged), so the
 # overlay is safe to leave in a deployment that has not turned tickets on yet.
+#
+# Set DSH_OPERATOR_SECRET to a stable shared secret to admit the server-to-server
+# operator (Odoo) via the `x-dsh-operator` header; unset ⇒ operator auth off.
 
 - insert:
     # Per-user identity: verify the dsh_ticket cookie (HMAC-SHA256) and resolve
@@ -24,6 +27,17 @@
       name: '@deepseek-ai/dsh-user-ticket/resolver'
       config:
         secret: !!js process.env.DSH_TICKET_SECRET ?? ''
+
+    # Server-to-server operator auth: admit the Odoo/MTIL management plane (a
+    # principal-less, non-browser caller reaching loopback or the trusted proxy
+    # host) when it carries the shared secret in the `x-dsh-operator` header. The
+    # secret does NOT bypass the Host/Origin fence; it replaces the browser-auth
+    # step and leaves the caller principal-less, so the operator-gated Remotes
+    # keep treating it as the operator. Empty secret ⇒ not mounted.
+    - id: user-ticket-operator
+      name: '@deepseek-ai/dsh-user-ticket/operator'
+      config:
+        secret: !!js process.env.DSH_OPERATOR_SECRET ?? ''
 
     # Durable per-session access list (which users may see a session).
     - id: session-access
