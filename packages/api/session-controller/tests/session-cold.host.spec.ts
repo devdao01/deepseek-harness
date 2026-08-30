@@ -26,6 +26,7 @@ import {
   type PersistenceBackend,
   type StoredPrefix,
 } from '@deepseek-ai/dsh-session-persistence'
+import { SessionAccessStore } from '../src/access.ts'
 import { ApiSessionList } from '../src/list.ts'
 import {
   createSessionTestRemote,
@@ -294,7 +295,7 @@ describe('sessions.list cold merge', () => {
       source: 'prepared', header: meta, events: [], cursor: -1,
       retain: vi.fn(), [Symbol.dispose]: vi.fn(),
     })
-    const list = new ApiSessionList(ctx, 1024)
+    const list = new ApiSessionList(ctx, 1024, new SessionAccessStore(ctx))
 
     await expect(list.list()).resolves.toEqual([
       expect.objectContaining({ sessionId: meta.id, blank: false }),

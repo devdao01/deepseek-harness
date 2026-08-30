@@ -210,6 +210,7 @@ export class FakeApiClient {
       },
       session: {
         canOpenWorkspacePath: () => Promise.resolve(remoteOk(true)),
+        setAccess: () => Promise.resolve(remoteOk({ allowedUsers: [] })),
         list: payload => this.remoteResult('session.list', payload, this.onList(payload)),
         modelCatalog: () => Promise.resolve({
           ok: true,

@@ -7,6 +7,7 @@ import { canOpenNativePath, openNativePath } from '@deepseek-ai/dsh-native-comma
 import type { SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { currentUserId, SessionAccessStore } from './access.ts'
 import {
   ApiSessionAgentController,
   inspectApiSession,
@@ -47,11 +48,14 @@ import type {
   SessionSearchValue,
   SessionSelectModelRequest,
   SessionSelectModelValue,
+  SessionSetAccessRequest,
+  SessionSetAccessValue,
   SessionUpdateQueueRequest,
   SessionUpdateQueueValue,
 } from './types.ts'
 
 export type * from './types.ts'
+export { currentUserId, SessionAccessStore, USER_TICKET_COOKIE, verifyUserTicket } from './access.ts'
 export { ApiSessionNotFound } from './agent.ts'
 export { SessionFileReferences } from './file-references.ts'
 export { SessionSkillCatalog } from './skill-catalog.ts'
@@ -75,6 +79,14 @@ export interface Config {
    * (`~` expands). Unset keeps the process working directory.
    */
   readonly presetWorkspaceRoot?: string
+  /**
+   * Shared HMAC-SHA256 secret the deployment's identity provider signs user
+   * tickets with (the `mtil-ticket` cookie). Set, it makes `session/list`
+   * and `session/search` filter by each session's allowed-users record and
+   * tags sessions created by an identified caller. Unset, every caller is
+   * anonymous and only unrestricted sessions are listed.
+   */
+  readonly ticketSecret?: string
 }
 
 /** Host integrations replaceable by direct unit tests. */
@@ -103,9 +115,12 @@ export class SessionController extends TypertRemoteService {
     coldBlankProbeMaxBytes: z.natural().default(DEFAULT_COLD_BLANK_PROBE_MAX_BYTES),
     nativeOpen: z.boolean(),
     presetWorkspaceRoot: z.string(),
+    ticketSecret: z.string(),
   })
 
   private readonly agents: ApiSessionAgentController
+  private readonly access: SessionAccessStore
+  private readonly ticketSecret: string | undefined
   private readonly commands: SessionCommandController
   private readonly controlState: SessionControlController
   private readonly history: SessionHistoryController
@@ -121,6 +136,8 @@ export class SessionController extends TypertRemoteService {
   constructor(ctx: Context, config: Config, internals: SessionControllerInternals = {}) {
     super(ctx, 'sessionController', { namespace: 'session' })
     installModelSelectionProjection(ctx)
+    this.ticketSecret = config.ticketSecret
+    this.access = new SessionAccessStore(ctx)
     this.agents = new ApiSessionAgentController(ctx)
     this.commands = new SessionCommandController(ctx, this.agents, process.cwd(), config.presetWorkspaceRoot)
     this.controlState = new SessionControlController(ctx)
@@ -133,6 +150,7 @@ export class SessionController extends TypertRemoteService {
     this.listState = new ApiSessionList(
       ctx,
       config.coldBlankProbeMaxBytes ?? DEFAULT_COLD_BLANK_PROBE_MAX_BYTES,
+      this.access,
     )
     this.openPath = internals.openPath ?? openNativePath
     this.canOpenPath = internals.canOpenPath
@@ -214,7 +232,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('list')
   async list(_request: SessionListRequest, signal: AbortSignal): Promise<SessionListValue> {
-    return { items: await this.listState.list(signal) }
+    return { items: await this.listState.list(signal, currentUserId(this.ticketSecret)) }
   }
 
   /**
@@ -225,7 +243,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('search')
   search(request: SessionSearchRequest, signal: AbortSignal): Promise<SessionSearchValue> {
-    return this.listState.search(request.query, signal)
+    return this.listState.search(request.query, signal, currentUserId(this.ticketSecret))
   }
 
   /**
@@ -234,8 +252,52 @@ export class SessionController extends TypertRemoteService {
    * @returns the Session identity and resolved preset when configured.
    */
   @Remote('create')
-  create(request: SessionCreateRequest): Promise<SessionCreateValue> {
-    return this.commands.create(request)
+  async create(request: SessionCreateRequest): Promise<SessionCreateValue> {
+    const value = await this.commands.create(request)
+    // An identified caller owns the session it creates. Only an absent record
+    // is written: adopting an existing session must not shrink or replace an
+    // access list some other caller installed.
+    const viewer = currentUserId(this.ticketSecret)
+    if (viewer !== undefined) {
+      const header = this.ctx.sessions.get(value.sessionId)?.header
+      if (header !== undefined && (await this.access.allowedUsers(header)).length === 0) {
+        try {
+          await this.access.setAllowedUsers(header, [viewer])
+        } catch (error) {
+          this.ctx.logger.warn(`session "${value.sessionId}" was created but its access record could not be written: ${String(error)}`)
+        }
+      }
+    }
+    return value
+  }
+
+  /**
+   * Replace one Session's allowed-users access list.
+   * @param request - Session identity and the complete new list.
+   * @returns the list as stored (empty = unrestricted).
+   */
+  @Remote('setAccess')
+  async setAccess(request: SessionSetAccessRequest): Promise<SessionSetAccessValue> {
+    const header = this.ctx.sessions.get(request.sessionId)?.header
+      ?? (await this.ctx.sessionQuery.listSessions())
+        .find(record => record.header.id === request.sessionId)?.header
+    if (header === undefined) {
+      throw new TypertRemoteFailure({
+        code: 'session-not-found',
+        message: `session "${request.sessionId}" not found`,
+        details: { sessionId: request.sessionId },
+      })
+    }
+    try {
+      await this.access.setAllowedUsers(header, request.allowedUsers)
+    } catch (error) {
+      throw new TypertRemoteFailure({
+        code: 'internal',
+        message: `failed to store the access list of session "${request.sessionId}": ${String(error)}`,
+        details: {},
+      })
+    }
+    return { allowedUsers: await this.access.allowedUsers(header) }
   }
 
   /**

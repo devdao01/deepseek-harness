@@ -160,6 +160,22 @@ export interface SessionSummary {
   readonly origin?: 'subagent'
   readonly cwd?: string
   readonly projections?: SessionProjectionHints
+  /** External user ids allowed to see this session; absent = unrestricted. */
+  readonly allowedUsers?: readonly string[]
+}
+
+/** Request replacing one Session's allowed-users access list. */
+export interface SessionSetAccessRequest {
+  /** The session whose access list is replaced. */
+  readonly sessionId: SessionId
+  /** The complete new list; empty makes the session unrestricted again. */
+  readonly allowedUsers: readonly string[]
+}
+
+/** The stored access list after a {@link SessionSetAccessRequest}. */
+export interface SessionSetAccessValue {
+  /** The list as stored (deduplicated, sorted; empty = unrestricted). */
+  readonly allowedUsers: readonly string[]
 }
 
 /** One session-content search result. */

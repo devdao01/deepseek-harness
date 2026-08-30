@@ -10,6 +10,7 @@ import type {} from '@deepseek-ai/dsh-session-projection-cache'
 import { SessionQueryError, type SessionSearchCursor } from '@deepseek-ai/dsh-session-query'
 import { TypertRemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
 import { z } from 'zod'
+import type { SessionAccessStore } from './access.ts'
 import {
   SESSION_SEARCH_RESULT_LIMIT,
   SESSION_SEARCH_SNIPPET_MAX_CODE_POINTS,
@@ -86,6 +87,7 @@ export class ApiSessionList {
   constructor(
     private readonly ctx: Context,
     private readonly coldBlankProbeMaxBytes: number,
+    private readonly access: SessionAccessStore,
   ) {
     ctx.inject(['sessionProjections'], (projectionCtx) => {
       projectionCtx.sessionProjections.register<'sessionListMetadata', SessionListMetadata>({
@@ -135,13 +137,19 @@ export class ApiSessionList {
    * @param signal - optional cancellation for persistence reads.
    * @returns visible Session summaries ordered by activity.
    */
-  async list(signal?: AbortSignal): Promise<SessionSummary[]> {
+  async list(signal?: AbortSignal, viewer?: string): Promise<SessionSummary[]> {
     signal?.throwIfAborted()
     const records = await this.ctx.sessionQuery.listSessions(signal)
     signal?.throwIfAborted()
     const items: SessionSummary[] = []
     const cold: SessionHeader[] = []
+    const restricted = new Map<SessionId, readonly string[]>()
     for (const record of records) {
+      const allowed = await this.access.allowedUsers(record.header)
+      if (allowed.length > 0) {
+        if (viewer === undefined || !allowed.includes(viewer)) continue
+        restricted.set(record.header.id, allowed)
+      }
       const live = this.ctx.sessions.get(record.header.id)
       if (live !== undefined) {
         items.push(this.summaryFor(live))
@@ -159,7 +167,10 @@ export class ApiSessionList {
       }
     }
     items.sort((left, right) => right.updatedAt - left.updatedAt)
-    return items
+    return items.map((item) => {
+      const allowedUsers = restricted.get(item.sessionId)
+      return allowedUsers === undefined ? item : { ...item, allowedUsers }
+    })
   }
 
   private async summarizeCold(
@@ -223,7 +234,7 @@ export class ApiSessionList {
    * @param signal - cancellation for list and search reads.
    * @returns authorized bounded Session search results.
    */
-  async search(query: string, signal: AbortSignal): Promise<SessionSearchValue> {
+  async search(query: string, signal: AbortSignal, viewer?: string): Promise<SessionSearchValue> {
     const normalizedQuery = normalizeSearchQuery(query)
     signal.throwIfAborted()
     const provider = this.ctx.get('sessionQuery')
@@ -237,9 +248,13 @@ export class ApiSessionList {
     try {
       const visible = await provider.listSessions(signal)
       signal.throwIfAborted()
-      const visibleIds = new Set(visible
-        .filter(record => record.header.cwd !== undefined)
-        .map(record => record.header.id))
+      const visibleIds = new Set<SessionId>()
+      for (const record of visible) {
+        if (record.header.cwd === undefined) continue
+        const allowed = await this.access.allowedUsers(record.header)
+        if (allowed.length > 0 && (viewer === undefined || !allowed.includes(viewer))) continue
+        visibleIds.add(record.header.id)
+      }
       if (visibleIds.size === 0) return { items: [], hasMore: false }
       const authorized: SessionSearchItem[] = []
       const acceptedIds = new Set<SessionId>()

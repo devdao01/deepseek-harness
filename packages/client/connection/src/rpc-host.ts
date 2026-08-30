@@ -8,6 +8,7 @@ import {
   type RpcId as RpcIdType,
 } from './rpc.ts'
 import { clientRequestSchema } from './rpc-schema.ts'
+import { runWithRpcRequest } from './rpc-request-context.ts'
 import { bridge, type FetchHandler } from './http-bridge.ts'
 import { isTrustedApiRequest } from './api-request-trust.ts'
 import { API_PATH } from './api-path.ts'
@@ -237,7 +238,12 @@ function rpcFetchHandler(
       }
 
       try {
-        const result = await handler(endpoint, message.payload, request.signal)
+        // The Fetch Request ends here; caller-derived policy (e.g. a signed
+        // user ticket in the Cookie header) reads the ambient context instead.
+        const result = await runWithRpcRequest(
+          { headers: request.headers },
+          () => handler(endpoint, message.payload, request.signal),
+        )
         return fullResponse(message.rpcId, result)
       } catch (error) {
         return new Response(`handler failure: ${String(error)}`, { status: 500 })
