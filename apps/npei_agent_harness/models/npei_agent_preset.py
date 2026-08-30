@@ -8,11 +8,16 @@ preset on the harness (``agentPresets/copy`` from the default roster entry)
 under a name-derived id, and deleting a user-authored mirror deletes the
 harness preset (``agentPresets/deletePreset``).
 
-Harness capability notes (verified): the roster carries
-``id/name/description/trust/isDefault`` only — there is no preset-update or
-workspace-provisioning endpoint, so ``name``/``description`` edits and the
-``active`` flag stay local to Odoo, and ``workspace_path``/``workspace_id``
-are manual annotations.
+Harness capability notes: the roster carries
+``id/name/description/trust/isDefault/active``. A ``name`` change on a
+``user``-trust mirror pushes ``agentPresets/rename`` (display text only —
+the harness preset id, and with it the per-preset workspace path, never
+changes); toggling ``active`` pushes ``agentPresets/setActive`` (covers
+``system`` presets too — the harness stores the flag in settings and
+withholds deactivated presets from pickers and new selection).
+``description`` edits stay local, and ``workspace_id`` is a manual
+annotation; ``workspace_path`` mirrors the harness's derived
+``<presetWorkspaceRoot>/<preset_id>`` default.
 """
 import logging
 import re
@@ -54,8 +59,10 @@ class NpeiAgentPreset(models.Model):
     )
     workspace_path = fields.Char(
         string='Default Workspace Path', tracking=True,
-        help="Manual annotation: the cwd new sessions of this preset should "
-             "use (the harness roster does not carry one).",
+        help="The cwd new sessions of this preset land in. The harness "
+             "derives it as <presetWorkspaceRoot>/<preset id> (deployment "
+             "default ~/workspace/<preset id>); renames never change it "
+             "because the preset id is fixed.",
     )
     workspace_id = fields.Char(
         string='Harness Workspace ID',
@@ -72,8 +79,9 @@ class NpeiAgentPreset(models.Model):
     )
     active = fields.Boolean(
         default=True, tracking=True,
-        help="Local archive flag only — the harness roster has no disabled "
-             "state to mirror.",
+        help="Mirrors the harness roster's active state. Toggling pushes "
+             "agentPresets/setActive: an inactive preset is withheld from "
+             "pickers and new selection while its running sessions continue.",
     )
     session_ids = fields.One2many(
         'npei.agent.session',
@@ -180,6 +188,9 @@ class NpeiAgentPreset(models.Model):
         })
         vals['preset_id'] = slug
         vals.setdefault('trust', 'user')
+        # Mirror the harness's preset-derived session cwd (~/workspace/<id>).
+        if not vals.get('workspace_path'):
+            vals['workspace_path'] = '~/workspace/%s' % slug
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -188,6 +199,35 @@ class NpeiAgentPreset(models.Model):
             if not vals.get('preset_id') and not self.env.context.get('npei_syncing'):
                 self._author_on_harness(vals)
         return super().create(vals_list)
+
+    def write(self, vals):
+        """Write, then push renames and active toggles to the harness.
+
+        ``name`` on a ``user``-trust mirror pushes ``agentPresets/rename``
+        (system presets are read-only there; their display edits stay local).
+        ``active`` pushes ``agentPresets/setActive`` for every trust.
+        Fail-loud: a push the harness refused rolls the Odoo write back.
+        Suppressed under ``npei_syncing`` (mirror refresh).
+        """
+        result = super().write(vals)
+        if self.env.context.get('npei_syncing'):
+            return result
+        client = self.env['npei.agent.harness.client'].sudo()
+        if 'name' in vals:
+            for record in self:
+                if record.preset_id and record.trust == 'user' and (record.name or '').strip():
+                    client._rpc('agentPresets/rename', {
+                        'agentPreset': record.preset_id,
+                        'name': record.name,
+                    })
+        if 'active' in vals:
+            for record in self.with_context(active_test=False):
+                if record.preset_id:
+                    client._rpc('agentPresets/setActive', {
+                        'agentPreset': record.preset_id,
+                        'active': bool(record.active),
+                    })
+        return result
 
     def unlink(self):
         """Delete user-authored presets on the harness, then the mirror rows.
@@ -224,6 +264,7 @@ class NpeiAgentPreset(models.Model):
                 'description': entry.get('description') or False,
                 'trust': entry.get('trust') or 'user',
                 'is_default': bool(entry.get('isDefault')),
+                'active': entry.get('active', True),
             }
             # active_test=False so a locally archived mirror is found and
             # updated rather than duplicated into a preset_id_uniq violation.

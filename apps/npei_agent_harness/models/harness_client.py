@@ -230,11 +230,32 @@ class HarnessClient(models.AbstractModel):
         :returns: the ``result.value`` (dict, list, or scalar; ``None`` for void).
         """
         base_url, token = self._get_connection()
+        wire = _wire_for(base_url, token)
+        self._attach_admin_ticket(wire)
         try:
-            return _wire_for(base_url, token).rpc(method, args)
+            return wire.rpc(method, args)
         except HarnessWireError as exc:
             _logger.warning("Harness RPC %s failed: %s", method, exc)
             raise UserError(_("%s", exc))
+
+    @api.model
+    def _attach_admin_ticket(self, wire):
+        """Attach the management wildcard ticket to the wire's cookie jar.
+
+        The harness scopes ``session/list``/``session/search`` by the
+        ``mtil-ticket`` cookie; Odoo is the trusted management plane and must
+        see every session to administer access lists, so it presents a ticket
+        for user ``*`` — the harness-recognized wildcard. Minted fresh per
+        call (cheap HMAC) so wire reuse never presents an expired ticket.
+        Without a configured Ticket Secret the cookie is left absent and the
+        harness treats Odoo as anonymous (unrestricted sessions only).
+        """
+        secret = (self.env['ir.config_parameter'].sudo()
+                  .get_param(CONFIG_TICKET_SECRET) or '').strip()
+        if len(secret) < MIN_TICKET_SECRET_LENGTH:
+            return
+        ticket, _expires = self.mint_user_ticket('*')
+        wire.http.cookies.set('mtil-ticket', ticket)
 
     @api.model
     def _host_status(self):

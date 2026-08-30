@@ -147,7 +147,10 @@ export class ApiSessionList {
     for (const record of records) {
       const allowed = await this.access.allowedUsers(record.header)
       if (allowed.length > 0) {
-        if (viewer === undefined || !allowed.includes(viewer)) continue
+        // '*' is the management wildcard: a server-side caller (the Odoo
+        // module) minting it over the shared secret sees every session,
+        // with the record attached, to administer access lists.
+        if (viewer !== '*' && (viewer === undefined || !allowed.includes(viewer))) continue
         restricted.set(record.header.id, allowed)
       }
       const live = this.ctx.sessions.get(record.header.id)
@@ -252,7 +255,8 @@ export class ApiSessionList {
       for (const record of visible) {
         if (record.header.cwd === undefined) continue
         const allowed = await this.access.allowedUsers(record.header)
-        if (allowed.length > 0 && (viewer === undefined || !allowed.includes(viewer))) continue
+        if (allowed.length > 0 && viewer !== '*'
+          && (viewer === undefined || !allowed.includes(viewer))) continue
         visibleIds.add(record.header.id)
       }
       if (visibleIds.size === 0) return { items: [], hasMore: false }

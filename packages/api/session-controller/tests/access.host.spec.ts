@@ -155,6 +155,14 @@ describe('session list filtering', () => {
     expect(owner.map(item => item.sessionId).sort()).toEqual([
       SessionId('session-open'), SessionId('session-user15'),
     ])
+
+    // '*' is the management wildcard: everything, with records attached.
+    const admin = await list.list(undefined, '*')
+    expect(admin.map(item => item.sessionId).sort()).toEqual([
+      SessionId('session-open'), SessionId('session-user15'),
+    ])
+    expect(admin.find(item => item.sessionId === SessionId('session-user15'))?.allowedUsers)
+      .toEqual(['15'])
     expect(owner.find(item => item.sessionId === SessionId('session-user15'))?.allowedUsers)
       .toEqual(['15'])
     expect(owner.find(item => item.sessionId === SessionId('session-open'))?.allowedUsers)

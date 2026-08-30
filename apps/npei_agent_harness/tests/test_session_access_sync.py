@@ -28,6 +28,8 @@ class TestSessionAccessSync(TransactionCase):
                 return {'title': ((args or {}).get('request') or {}).get('title'), 'seq': 1}
             if method == 'session/list':
                 return {'items': self._list_items}
+            if method == 'session/setAccess':
+                return {'allowedUsers': ((args or {}).get('request') or {}).get('allowedUsers') or []}
             return {}
 
         patcher = patch.object(client_cls, '_rpc', fake_rpc)
@@ -86,6 +88,51 @@ class TestSessionAccessSync(TransactionCase):
         renames = self._calls_for('session/rename')
         self.assertEqual(renames, [
             {'request': {'sessionId': 'session-t', 'title': 'Tiêu đề mới'}}])
+
+    def test_user_ids_push_set_access(self):
+        record = self.Session.create({
+            'session_id': 'session-acl',
+            'user_ids': [(4, self.user_a.id)],
+        })
+        pushes = self._calls_for('session/setAccess')
+        self.assertEqual(pushes, [{'request': {
+            'sessionId': 'session-acl',
+            'allowedUsers': [str(self.user_a.id)],
+        }}])
+        self._calls.clear()
+        record.user_ids = [(6, 0, [self.user_a.id, self.user_b.id])]
+        pushes = self._calls_for('session/setAccess')
+        self.assertEqual(len(pushes), 1)
+        self.assertCountEqual(
+            pushes[0]['request']['allowedUsers'],
+            [str(self.user_a.id), str(self.user_b.id)])
+        # Clearing the list pushes an empty replacement (unrestricted again).
+        self._calls.clear()
+        record.user_ids = [(5, 0, 0)]
+        self.assertEqual(self._calls_for('session/setAccess'), [{'request': {
+            'sessionId': 'session-acl', 'allowedUsers': []}}])
+
+    def test_sync_adopts_allowed_users_only_into_empty_sets(self):
+        self.env.user.groups_id |= self.manager_group
+        self._list_items = [{
+            'sessionId': 'session-h2',
+            'updatedAt': 1788061604833,
+            'running': False,
+            'blank': True,
+            'cwd': '/srv/workspace',
+            'allowedUsers': [str(self.user_a.id)],
+            'projections': {'values': {}},
+        }]
+        self.Session.action_sync_from_harness()
+        record = self.Session.search([('session_id', '=', 'session-h2')])
+        self.assertEqual(record.user_ids, self.user_a)
+        # The sync never echoes the access list back.
+        self.assertFalse(self._calls_for('session/setAccess'))
+        # A locally maintained list wins over the harness copy on re-sync.
+        record.user_ids = [(6, 0, [self.user_b.id])]
+        self._list_items[0]['allowedUsers'] = [str(self.user_a.id)]
+        self.Session.action_sync_from_harness()
+        self.assertEqual(record.user_ids, self.user_b)
 
     def test_sync_upserts_items(self):
         self.env.user.groups_id |= self.manager_group

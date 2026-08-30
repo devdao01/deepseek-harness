@@ -715,3 +715,48 @@ class TestConfigManagement(TransactionCase):
         with self.assertRaises(UserError):
             namespace.action_save()
         self.assertEqual(self._calls_for('settings/replace'), [])
+
+
+class TestAdminTicket(TransactionCase):
+    """The management wildcard ticket Odoo presents on every wire call."""
+
+    class _FakeJar:
+        def __init__(self):
+            self.values = {}
+
+        def set(self, name, value):
+            self.values[name] = value
+
+    class _FakeWire:
+        def __init__(self):
+            self.http = type('H', (), {})()
+            self.http.cookies = TestAdminTicket._FakeJar()
+
+    def test_attach_sets_a_verifiable_wildcard_ticket(self):
+        import base64
+        import hashlib
+        import hmac as hmac_mod
+        import json as json_mod
+
+        secret = 'x' * 32
+        self.env['ir.config_parameter'].sudo().set_param(
+            'npei_agent_harness.ticket_secret', secret)
+        wire = self._FakeWire()
+        self.env['npei.agent.harness.client']._attach_admin_ticket(wire)
+        ticket = wire.http.cookies.values.get('mtil-ticket')
+        self.assertTrue(ticket)
+        version, body, mac = ticket.split('.')
+        self.assertEqual(version, 'v1')
+        expected = base64.urlsafe_b64encode(hmac_mod.new(
+            secret.encode(), ('v1.%s' % body).encode(), hashlib.sha256,
+        ).digest()).rstrip(b'=').decode()
+        self.assertEqual(mac, expected)
+        payload = json_mod.loads(base64.urlsafe_b64decode(body + '=' * (-len(body) % 4)))
+        self.assertEqual(payload['u'], '*')
+
+    def test_attach_skips_without_a_usable_secret(self):
+        self.env['ir.config_parameter'].sudo().set_param(
+            'npei_agent_harness.ticket_secret', 'too-short')
+        wire = self._FakeWire()
+        self.env['npei.agent.harness.client']._attach_admin_ticket(wire)
+        self.assertNotIn('mtil-ticket', wire.http.cookies.values)

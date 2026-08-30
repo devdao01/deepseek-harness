@@ -9,13 +9,18 @@ proxy call before Odoo forwards it to the harness with the full connection.
 where the per-user identity lives, which is Odoo.)
 
 Harness effects (verified wire): a mapping saved without a ``session_id``
-creates the session (``session/create``), and a ``name`` change pushes the
-harness title (``session/rename``). :meth:`action_sync_from_harness` upserts
-mirrors for every session the harness lists (``session/list``).
+creates the session (``session/create``), a ``name`` change pushes the
+harness title (``session/rename``), and a ``user_ids`` change pushes the
+harness access record (``session/setAccess`` — the harness scopes its own
+``session/list`` per signed-in SPA user by that record).
+:meth:`action_sync_from_harness` upserts mirrors for every session the
+harness lists (``session/list`` under the management wildcard ticket, rows
+carrying ``allowedUsers``).
 
-Access is defined entirely by ``user_ids``. A non-empty set restricts the
-session to those users (plus the creator); an EMPTY set makes it public —
-every Odoo user may use it through the proxy.
+Access is defined by ``user_ids`` with Odoo as the authority: a non-empty
+set restricts the session to those users (plus the creator); an EMPTY set
+makes it public. Odoo pushes the list to the harness; the sync adopts the
+harness list only into mappings whose local set is empty.
 """
 import logging
 import uuid
@@ -133,6 +138,25 @@ class NpeiAgentSession(models.Model):
                 _logger.warning(
                     "Failed to push title for session %s: %s", record.session_id, exc)
 
+    def _push_access(self):
+        """Push each mapping's ``user_ids`` as the harness access record.
+
+        ``session/setAccess`` replaces the record whole; an empty list makes
+        the session unrestricted again. Fail-loud (unlike the cosmetic
+        title): a harness that did not take the access change must not look
+        like it did. Suppressed under ``npei_syncing``.
+        """
+        if self.env.context.get('npei_syncing'):
+            return
+        client = self.env['npei.agent.harness.client'].sudo()
+        for record in self:
+            if not record.session_id:
+                continue
+            client._rpc('session/setAccess', {'request': {
+                'sessionId': record.session_id,
+                'allowedUsers': [str(user.id) for user in record.user_ids],
+            }})
+
     @api.onchange('preset_id')
     def _onchange_preset_id_workspace(self):
         """Fill the workspace from the chosen preset's recorded default."""
@@ -184,13 +208,16 @@ class NpeiAgentSession(models.Model):
                 vals['session_id'] = self._create_harness_session(vals)
         records = super().create(vals_list)
         records._push_title()
+        records.filtered(lambda r: r.user_ids)._push_access()
         return records
 
     def write(self, vals):
-        """Write, then push the harness title when ``name`` changed."""
+        """Write, then push the harness title/access when they changed."""
         result = super().write(vals)
         if 'name' in vals:
             self._push_title()
+        if 'user_ids' in vals:
+            self._push_access()
         return result
 
     # ------------------------------------------------------------------
@@ -230,17 +257,27 @@ class NpeiAgentSession(models.Model):
             preset_key = projections.get('agentPreset')
             if preset_key and preset_key in presets:
                 vals['preset_id'] = presets[preset_key]
+            # Rows arrive under the management wildcard ticket, so restricted
+            # sessions carry their allowedUsers (res.users ids as strings).
+            allowed_ids = [int(u) for u in (item.get('allowedUsers') or [])
+                           if str(u).isdigit()]
+            allowed_users = self.env['res.users'].browse(allowed_ids).exists()
             existing = model.with_context(active_test=False).search(
                 [('session_id', '=', session_id)], limit=1)
             if existing:
                 if not existing.name and projections.get('title'):
                     vals['name'] = projections['title']
+                # Odoo is the ACL authority: adopt the harness list only into
+                # a mapping whose local set is still empty.
+                if allowed_users and not existing.user_ids:
+                    vals['user_ids'] = [(6, 0, allowed_users.ids)]
                 existing.write(vals)
             else:
                 model.create(dict(
                     vals,
                     session_id=session_id,
                     name=projections.get('title') or False,
+                    user_ids=[(6, 0, allowed_users.ids)],
                 ))
             synced += 1
         return {

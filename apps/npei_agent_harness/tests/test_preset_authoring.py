@@ -82,6 +82,47 @@ class TestPresetAuthoring(TransactionCase):
         record.with_context(npei_syncing=False).unlink()
         self.assertFalse(self._calls_for('agentPresets/deletePreset'))
 
+    def test_name_write_pushes_rename_for_user_presets_only(self):
+        record = self.Preset.create({'name': 'Hồ Sơ 1'})
+        self.assertEqual(record.workspace_path, '~/workspace/ho-so-1')
+        self._calls.clear()
+        record.name = 'Hồ Sơ Mới'
+        self.assertEqual(self._calls_for('agentPresets/rename'), [
+            {'agentPreset': 'ho-so-1', 'name': 'Hồ Sơ Mới'}])
+        # The id — and the id-derived workspace path — never changes.
+        self.assertEqual(record.preset_id, 'ho-so-1')
+        self.assertEqual(record.workspace_path, '~/workspace/ho-so-1')
+
+        system = self.Preset.with_context(npei_syncing=True).create(
+            {'name': 'Base', 'preset_id': 'base', 'trust': 'system'})
+        self._calls.clear()
+        system.name = 'Base đổi tên'
+        self.assertFalse(self._calls_for('agentPresets/rename'))
+
+    def test_active_toggle_pushes_set_active(self):
+        record = self.Preset.with_context(npei_syncing=True).create(
+            {'name': 'Base', 'preset_id': 'base', 'trust': 'system'})
+        self._calls.clear()
+        record.active = False
+        self.assertEqual(self._calls_for('agentPresets/setActive'), [
+            {'agentPreset': 'base', 'active': False}])
+        self._calls.clear()
+        record.active = True
+        self.assertEqual(self._calls_for('agentPresets/setActive'), [
+            {'agentPreset': 'base', 'active': True}])
+
+    def test_sync_adopts_roster_active(self):
+        self.env.user.groups_id |= self.env.ref(
+            'npei_agent_harness.group_npei_agent_manager')
+        self._extra_presets = [
+            {'id': 'dormant', 'trust': 'user', 'name': 'Dormant', 'active': False}]
+        self.Preset.action_sync_from_harness()
+        record = self.Preset.with_context(active_test=False).search(
+            [('preset_id', '=', 'dormant')])
+        self.assertFalse(record.active)
+        # The sync never echoes the state back.
+        self.assertFalse(self._calls_for('agentPresets/setActive'))
+
     def test_sync_upserts_roster(self):
         self.env.user.groups_id |= self.env.ref(
             'npei_agent_harness.group_npei_agent_manager')
