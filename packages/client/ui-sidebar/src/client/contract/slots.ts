@@ -27,6 +27,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'sidebar.brand.name': { kind: 'single'; scope: 'root'; owner: SidebarBrandNameOwnerProps }
     /**
+     * Optional action buttons between the expanded brand and the collapse
+     * toggle (theme/language switches, deployment shortcuts). Declared by
+     * this package's `sidebar` entry; empty deployments render nothing.
+     */
+    'sidebar.header.actions': { kind: 'list'; scope: 'root'; owner: SidebarHeaderActionOwnerProps }
+    /**
      * The workspace/session browsing region: section header, search, the
      * grouped/flat session list, and every workspace dialog. Declared by this
      * package's 'sidebar' entry (declaring is claiming); ui-workspace
@@ -55,6 +61,12 @@ export interface SidebarBrandMarkOwnerProps {
 
 /** Empty owner share for the sidebar brand-name occupant. */
 export interface SidebarBrandNameOwnerProps {
+  /** Marker field: the occupant owns its own content and width. */
+  children?: never
+}
+
+/** Empty owner share for a sidebar header action occupant. */
+export interface SidebarHeaderActionOwnerProps {
   /** Marker field: the occupant owns its own content and width. */
   children?: never
 }
@@ -99,6 +111,14 @@ export type SidebarRootInjected = {
   startSession: (workspaceId?: WorkspaceId) => void
   /** Toggle the sidebar column through the layout service. */
   toggleSidebar: () => void
+  /**
+   * Deployment override for the expanded brand click (MTIL frontend: clear
+   * the selection back to its welcome panel); absent keeps the New Session
+   * shortcut.
+   */
+  exitSession?: () => void
+  /** Deployment flag hiding the New Session button (MTIL frontend). */
+  hideNewSession?: boolean
 }
 
 /**
@@ -111,6 +131,7 @@ export type SidebarRootComponentProps =
   & PropsRenderSlots<
     | 'sidebar.brand.mark'
     | 'sidebar.brand.name'
+    | 'sidebar.header.actions'
     | 'sidebar.workspaces'
     | 'sidebar.settings'
     | 'sidebar.footer.action'

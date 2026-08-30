@@ -29,6 +29,13 @@ import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
 import css from './WorkspaceBrowser.module.css'
 
 /**
+ * MTIL frontend-only flag: the standalone SPA bootstrap hides the header's
+ * Add-workspace affordance; absent on the harness-served original.
+ */
+const mtilHidesAddWorkspace = (): boolean =>
+  (globalThis as { __MTIL_UI__?: { hideAddWorkspace?: boolean } }).__MTIL_UI__?.hideAddWorkspace === true
+
+/**
  * Column slide length (--ds-transition-duration-slow): rail-search focus waits it out —
  * focus() forces a synchronous layout and would jank the slide.
  */
@@ -1145,7 +1152,7 @@ export function WorkspaceBrowser({
           {/* Adding is the button's one action, so a composition with no
               picking affordance has nothing to offer here: the region hides the
               button rather than leaving a dead one in the header. */}
-          {directoryFlowAvailable && (
+          {directoryFlowAvailable && !mtilHidesAddWorkspace() && (
             <Tooltip label={t('workspace.add')} side="bottom" delayMs={500}>
               <button
                 ref={wsPlusRef}
