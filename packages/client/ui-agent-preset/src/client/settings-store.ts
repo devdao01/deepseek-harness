@@ -139,9 +139,12 @@ export async function beginRosterRead<S extends { status: string; error: string 
  * @returns one option per selectable preset, in roster order.
  */
 export function presetOptions(
-  presets: readonly { id: string; trust: 'system' | 'user'; name?: string; description?: string; broken?: string }[],
+  presets: readonly { id: string; trust: 'system' | 'user'; name?: string; description?: string; broken?: string; active?: boolean }[],
 ): AgentPresetOption[] {
-  return presets.filter(preset => preset.broken === undefined).map(preset => ({
+  // A deactivated preset is withheld exactly like a broken one: the Host
+  // refuses selecting it, so offering it would defer that refusal to a
+  // failed pick. The management section still renders the full roster.
+  return presets.filter(preset => preset.broken === undefined && preset.active !== false).map(preset => ({
     id: preset.id,
     trust: preset.trust,
     ...preset.name === undefined ? {} : { name: preset.name },
