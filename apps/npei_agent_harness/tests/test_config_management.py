@@ -295,11 +295,13 @@ class TestConfigManagement(TransactionCase):
                 return {'groups': [{'id': 'zzz-back',
                                     'models': [{'id': 'm-b'}]}], 'failures': []}
             if method == 'llm/listConfigurableProviders':
-                return {'providers': [{
+                return [{
                     'provider': 'zzz-back', 'displayName': 'ZB',
                     'settingsNs': 'llm-pi-ai',
                     'settingsPath': ['providers', 'zzz-back'],
-                    'active': True, 'declared': True}]}
+                    'declared': True}]
+            if method == 'llm/listProviders':
+                return [{'id': 'zzz-back', 'name': 'ZB'}]
             return {}
 
         client_cls = type(self.env['npei.agent.harness.client'])
