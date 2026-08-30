@@ -1,7 +1,9 @@
 /** Session commands whose activation policy is explicit at each Remote method. */
 
 import { randomUUID } from 'node:crypto'
+import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
+import { expandHomePath } from '@deepseek-ai/dsh-home-paths'
 import type { Agent, ModelSelection as AgentModelSelection } from '@deepseek-ai/dsh-agent'
 import { PresetMountError, UnknownPresetError } from '@deepseek-ai/dsh-agent-presets'
 import { AttachmentError, admitEncodedImages } from '@deepseek-ai/dsh-attachment'
@@ -57,12 +59,27 @@ export class SessionCommandController {
    * @param ctx - Host context carrying Agent, model, attachment, title, and Workspace services.
    * @param agents - sole owner of create, resume, and Session-local model selection.
    * @param defaultCwd - project directory used when create names neither a Workspace nor a cwd.
+   * @param presetWorkspaceRoot - directory whose `<root>/<presetId>` subdirectory
+   * takes precedence over `defaultCwd`; unset keeps `defaultCwd` alone.
    */
   constructor(
     private readonly ctx: Context,
     private readonly agents: ApiSessionAgentController,
     private readonly defaultCwd: string,
+    private readonly presetWorkspaceRoot?: string,
   ) {}
+
+  /**
+   * The preset-derived default working directory, or undefined when the
+   * deployment configures no preset workspace root or no preset id resolves.
+   * The directory itself is created downstream with the session.
+   */
+  private presetDefaultCwd(requestedPreset: string | undefined): string | undefined {
+    if (this.presetWorkspaceRoot === undefined) return undefined
+    const presetId = requestedPreset ?? this.ctx.get('agentPresets')?.defaultId
+    if (presetId === undefined || presetId === '') return undefined
+    return join(resolve(expandHomePath(this.presetWorkspaceRoot)), presetId)
+  }
 
   /**
    * Create or idempotently adopt one ordinary Session.
@@ -83,7 +100,8 @@ export class SessionCommandController {
         })
       }
     }
-    const cwd = workspace?.path ?? request.cwd ?? this.defaultCwd
+    const cwd = workspace?.path ?? request.cwd
+      ?? this.presetDefaultCwd(request.agentPreset) ?? this.defaultCwd
     let adopted: Agent
     try {
       adopted = await this.agents.ensureSession(

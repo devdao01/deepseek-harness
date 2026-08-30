@@ -16,7 +16,7 @@ import { chmod, cp, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { expandHomePath } from '@deepseek-ai/dsh-home-paths'
-import { METADATA_FILE, renderPresetMetadata } from './metadata.ts'
+import { METADATA_FILE, readPresetMetadata, renderPresetMetadata } from './metadata.ts'
 import { PRESET_ID, type AgentPreset, type PresetRoot } from './preset.ts'
 
 /** A preset id that cannot be used as a directory name under a root. */
@@ -193,4 +193,38 @@ export async function deleteComposition(
     throw new PresetNotWritableError(preset.id, 'it does not live under the writable preset root')
   }
   await rm(dir, { recursive: true, force: true })
+}
+
+/**
+ * Rewrite a locally authored preset's display name.
+ *
+ * Display-only by design: the id is the directory name and stays fixed, so
+ * everything keyed by id — standing mounts, session headers, and any
+ * deployment path derived from the preset id — is untouched. The current
+ * description and roster `order` are preserved.
+ * @param roots - the configured roots.
+ * @param preset - the resolved preset to rename.
+ * @param name - the new display name; empty falls back to the id at render.
+ * @throws when the preset ships with the deployment or lies outside the writable root.
+ */
+export async function renameComposition(
+  roots: readonly PresetRoot[],
+  preset: AgentPreset,
+  name: string,
+): Promise<void> {
+  if (preset.trust !== 'user') {
+    throw new PresetNotWritableError(preset.id, 'it ships with the deployment')
+  }
+  const dir = join(writableRoot(roots), preset.id)
+  if (!isAbsolute(preset.path) || !preset.path.startsWith(dir)) {
+    throw new PresetNotWritableError(preset.id, 'it does not live under the writable preset root')
+  }
+  const current = await readPresetMetadata(dir)
+  const rendered = renderPresetMetadata({ ...current, name })
+  const metadataPath = join(dir, METADATA_FILE)
+  if (rendered === undefined) {
+    await rm(metadataPath, { force: true })
+  } else {
+    await writeFileAtomic(metadataPath, rendered, { mode: 0o600, dirMode: 0o700 })
+  }
 }

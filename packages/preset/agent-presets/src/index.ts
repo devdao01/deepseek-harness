@@ -37,7 +37,7 @@ import { settingsNamespace, type SettingsScope, type default as SettingsService 
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { discoverPresets, SHIPPED_PRESET_ROOT, USER_PRESET_DIR } from './discovery.ts'
 import {
-  copyComposition, deleteComposition, readComposition,
+  copyComposition, deleteComposition, readComposition, renameComposition,
   InvalidPresetIdError, PresetExistsError, PresetNotWritableError,
 } from './authoring.ts'
 import { mountPreset, serviceForAgent, standingMountFor } from './mount.ts'
@@ -116,11 +116,17 @@ function rejectPreset(error: unknown, agentPreset: string, fallbackMessage: stri
 export interface AgentPresetSettings {
   /** Preset mounted when a session names none. */
   default?: string
+  /**
+   * Preset ids withheld from pickers and from new selection. Sessions already
+   * composed from a listed preset keep running and resuming on it.
+   */
+  disabled?: string[]
 }
 
 /** Runtime schema for the user-writable slice. */
 export const AgentPresetSettingsSchema: z<AgentPresetSettings> = z.object({
   default: z.string(),
+  disabled: z.array(z.string()),
 })
 
 export { COMPOSITION_FILE, discoverPresets, scanRoot, SHIPPED_PRESET_ROOT } from './discovery.ts'
@@ -317,17 +323,83 @@ export class AgentPresets extends TypertRemoteService {
   @Remote('list')
   async remoteExportList(): Promise<AgentPresetRoster> {
     const defaultId = this.defaultId
+    const disabled = this.disabledIds
     return {
       presets: (await this.list()).map(preset => ({
         id: preset.id,
         trust: preset.trust,
         isDefault: preset.id === defaultId,
+        active: !disabled.has(preset.id),
         ...preset.name === undefined ? {} : { name: preset.name },
         ...preset.description === undefined ? {} : { description: preset.description },
         ...preset.broken === undefined ? {} : { broken: preset.broken },
       })),
       authorable: this.authorable,
     }
+  }
+
+  /** Preset ids currently withheld from pickers and new selection. */
+  get disabledIds(): ReadonlySet<string> {
+    return new Set(this.settings?.get().disabled ?? [])
+  }
+
+  /**
+   * Rewrite one locally authored preset's display name. The id — and with it
+   * every id-derived path — never changes; a shipped preset is refused.
+   * @param agentPreset - the preset id.
+   * @param name - the new display name.
+   * @returns once the metadata is stored.
+   * @throws {TypertRemoteFailure} `bad-request`, `agent-preset-not-found`, or
+   * `agent-preset-read-only` when the rename is refused.
+   */
+  @Remote('rename')
+  async remoteExportRename(agentPreset: string, name: string): Promise<void> {
+    validatePresetId(agentPreset, 'agentPreset')
+    if (name.trim() === '') {
+      throw remotePresetFailure('bad-request', 'name must be a non-empty string', {})
+    }
+    try {
+      await renameComposition(this.resolvedRoots, await this.resolve(agentPreset), name)
+    } catch (error: unknown) {
+      rejectPreset(error, agentPreset, `agent preset "${agentPreset}": ${String(error)}`)
+    }
+  }
+
+  /**
+   * Activate or deactivate one preset for pickers and new selection.
+   *
+   * The state lives in the `agent-presets` settings namespace, so it covers
+   * shipped read-only presets too and hot-reloads like the default. Sessions
+   * already composed from a deactivated preset keep running and resuming.
+   * @param agentPreset - the preset id.
+   * @param active - whether pickers may offer the preset again.
+   * @returns once the state is stored.
+   * @throws {TypertRemoteFailure} `bad-request`, `agent-preset-not-found`, or
+   * `internal` when no settings service is mounted.
+   */
+  @Remote('setActive')
+  async remoteExportSetActive(agentPreset: string, active: boolean): Promise<void> {
+    validatePresetId(agentPreset, 'agentPreset')
+    try {
+      await this.resolve(agentPreset)
+    } catch (error: unknown) {
+      rejectPreset(error, agentPreset, `agent preset "${agentPreset}": ${String(error)}`)
+    }
+    if (this.settingsService === undefined) {
+      throw remotePresetFailure('internal', 'preset activation is unavailable: this deployment mounts no settings service', {})
+    }
+    const disabled = new Set(this.settings?.get().disabled ?? [])
+    if (active) {
+      disabled.delete(agentPreset)
+    } else {
+      disabled.add(agentPreset)
+    }
+    await this.settingsService.mutate(
+      settingsNamespace(SETTINGS_NAMESPACE),
+      disabled.size === 0
+        ? [{ op: 'unset', path: ['disabled'] }]
+        : [{ op: 'set', path: ['disabled'], value: [...disabled].sort() }],
+    )
   }
 
   /**
@@ -718,6 +790,11 @@ export class AgentPresets extends TypertRemoteService {
     // session that has only run commands is still blank.
     if (agent.session.events.some(event => event.type === 'turn/start')) {
       throw new PresetLockedError(agent.id, agentPreset)
+    }
+    // Deactivation withholds NEW selection only; resume and running sessions
+    // keep their composition, so the check lives here and not in the mount.
+    if (this.disabledIds.has(agentPreset)) {
+      throw new PresetMountError(agentPreset, 'the preset is deactivated')
     }
     const preset = await this.recompose(agent.ctx, agentPreset)
     // Recorded only after the swap committed: the log states what the agent

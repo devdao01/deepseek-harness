@@ -69,6 +69,12 @@ export interface Config {
   readonly coldBlankProbeMaxBytes?: number
   /** Override platform desktop-opener detection. */
   readonly nativeOpen?: boolean
+  /**
+   * Directory whose `<root>/<presetId>` subdirectory becomes the working
+   * directory of a session created with neither a Workspace nor a cwd
+   * (`~` expands). Unset keeps the process working directory.
+   */
+  readonly presetWorkspaceRoot?: string
 }
 
 /** Host integrations replaceable by direct unit tests. */
@@ -96,6 +102,7 @@ export class SessionController extends TypertRemoteService {
   static Config: z<Config> = z.object({
     coldBlankProbeMaxBytes: z.natural().default(DEFAULT_COLD_BLANK_PROBE_MAX_BYTES),
     nativeOpen: z.boolean(),
+    presetWorkspaceRoot: z.string(),
   })
 
   private readonly agents: ApiSessionAgentController
@@ -115,7 +122,7 @@ export class SessionController extends TypertRemoteService {
     super(ctx, 'sessionController', { namespace: 'session' })
     installModelSelectionProjection(ctx)
     this.agents = new ApiSessionAgentController(ctx)
-    this.commands = new SessionCommandController(ctx, this.agents, process.cwd())
+    this.commands = new SessionCommandController(ctx, this.agents, process.cwd(), config.presetWorkspaceRoot)
     this.controlState = new SessionControlController(ctx)
     // Registered before history so reverse-order teardown closes every
     // follower before waiting for already-admitted promotions.

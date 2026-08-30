@@ -15,6 +15,11 @@ export interface AgentPresetRow {
   readonly trust: PresetTrust
   /** Whether a session naming no preset composes this one. */
   readonly isDefault: boolean
+  /**
+   * Whether pickers offer this preset. A deactivated preset stays mounted for
+   * the sessions already composed from it; only new selection is withheld.
+   */
+  readonly active: boolean
   /** Display name the preset published. */
   readonly name?: string
   /** One sentence on what this preset is for. */

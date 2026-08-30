@@ -66,6 +66,55 @@ describe('Session creation failures', () => {
     await ctx.fiber.dispose()
   })
 
+  it('derives the default cwd from the preset id under a configured preset workspace root', async () => {
+    const ctx = await baseContext()
+    ctx.provide('workspaceRegistry', { get: () => undefined, list: () => [] } as never)
+    ctx.provide('agentPresets', { defaultId: 'ho-so-default' } as never)
+    const ensureSession = vi.fn((sessionId: SessionId, cwd: string) => {
+      const session = ctx.sessions.create(sessionId, { meta: { cwd } })
+      return Promise.resolve({ id: sessionId, session } as Agent)
+    })
+    const controller = new SessionCommandController(
+      ctx,
+      controllerAgents({ ensureSession }),
+      '/default-workspace',
+      '/workspace-root',
+    )
+
+    // The requested preset names the subdirectory.
+    const explicit = await controller.create({ agentPreset: 'ho-so-1' })
+    expect(ensureSession).toHaveBeenCalledWith(explicit.sessionId, '/workspace-root/ho-so-1', false, 'ho-so-1')
+
+    // No requested preset falls back to the roster default id.
+    const defaulted = await controller.create({})
+    expect(ensureSession).toHaveBeenCalledWith(defaulted.sessionId, '/workspace-root/ho-so-default', false, undefined)
+
+    // An explicit cwd still wins over the preset-derived default.
+    const explicitCwd = await controller.create({ cwd: '/elsewhere', agentPreset: 'ho-so-1' })
+    expect(ensureSession).toHaveBeenCalledWith(explicitCwd.sessionId, '/elsewhere', false, 'ho-so-1')
+    await ctx.fiber.dispose()
+  })
+
+  it('keeps the plain default cwd when no preset id resolves under the root', async () => {
+    const ctx = await baseContext()
+    ctx.provide('workspaceRegistry', { get: () => undefined, list: () => [] } as never)
+    const ensureSession = vi.fn((sessionId: SessionId, cwd: string) => {
+      const session = ctx.sessions.create(sessionId, { meta: { cwd } })
+      return Promise.resolve({ id: sessionId, session } as Agent)
+    })
+    const controller = new SessionCommandController(
+      ctx,
+      controllerAgents({ ensureSession }),
+      '/default-workspace',
+      '/workspace-root',
+    )
+
+    const created = await controller.create({})
+
+    expect(ensureSession).toHaveBeenCalledWith(created.sessionId, '/default-workspace', false, undefined)
+    await ctx.fiber.dispose()
+  })
+
   it('maps missing Workspaces and attachment failures', async () => {
     const missing = await baseContext()
     missing.provide('workspaceRegistry', { get: () => undefined, list: () => [] } as never)
