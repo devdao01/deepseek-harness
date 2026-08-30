@@ -155,6 +155,12 @@ export function apply(ctx: ClientContext): void {
   })
 
   // Entry 2: the composer's named model seat over the SAME directory.
+  // MTIL frontend-only flag: the standalone SPA mounts its own seat occupant
+  // over the shared directory; absent on the harness-served original.
+  const customPicker = (globalThis as {
+    __MTIL_UI__?: { customModelPicker?: boolean }
+  }).__MTIL_UI__?.customModelPicker === true
+  if (customPicker) return
   ctx.inject(['slots', 'modelDirectories'], (scope: ClientContext) => {
     const models = scope.modelDirectories
     const sessions = scope.sessions
