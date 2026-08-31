@@ -70,18 +70,93 @@ export class SessionCommandController {
     private readonly presetWorkspaceRoot?: string,
   ) {
     if (presetWorkspaceRoot !== undefined) {
-      // Materialize a freshly authored preset's workspace directory up front,
-      // so files can be staged there before its first session (which would
-      // otherwise create the directory itself). Best-effort: a failed mkdir
-      // costs nothing — session creation still creates the directory.
+      // Materialize a freshly authored preset's workspace directory AND its
+      // Workspace grouping entity up front, so files can be staged and the
+      // sidebar group exists before the first session. Best-effort: session
+      // creation still creates the directory and re-ensures the Workspace.
       ctx.on('agent-preset/authored', (agentPreset) => {
         const dir = this.presetDefaultCwd(agentPreset)
         /* v8 ignore next -- presetDefaultCwd cannot return undefined when the root is set and the id is non-empty. */
         if (dir === undefined) return
-        void mkdir(dir, { recursive: true }).catch((error: unknown) => {
-          ctx.logger.warn(`session-controller: could not materialize the workspace of preset "${agentPreset}" at ${dir}: ${String(error)}`)
-        })
+        void mkdir(dir, { recursive: true })
+          .then(() => this.ensurePresetWorkspace(agentPreset))
+          .catch((error: unknown) => {
+            ctx.logger.warn(`session-controller: could not materialize the workspace of preset "${agentPreset}" at ${dir}: ${String(error)}`)
+          })
       })
+      // A display rename retitles the preset's Workspace group; the directory
+      // (and every session inside it) is keyed by the id and never moves.
+      ctx.on('agent-preset/renamed', (agentPreset, name) => {
+        const dir = this.presetDefaultCwd(agentPreset)
+        /* v8 ignore next -- presetDefaultCwd cannot return undefined when the root is set and the id is non-empty. */
+        if (dir === undefined) return
+        void this.ctx.workspaceRegistry.resolveByPath(dir)
+          .then(workspace => workspace?.setTitle(name))
+          .catch((error: unknown) => {
+            ctx.logger.warn(`session-controller: could not retitle the workspace of preset "${agentPreset}": ${String(error)}`)
+          })
+      })
+    }
+  }
+
+  /**
+   * Ensure the Workspace grouping entity of one preset's directory (which
+   * must already exist), titled by the preset's display name. Undefined when
+   * no preset workspace root is configured, no preset id resolves, or the
+   * registration fails — grouping is presentation, never worth failing a
+   * session over.
+   */
+  private async ensurePresetWorkspace(presetId: string | undefined): Promise<Workspace | undefined> {
+    const dir = this.presetDefaultCwd(presetId)
+    if (dir === undefined || presetId === undefined) return undefined
+    try {
+      const existing = await this.ctx.workspaceRegistry.resolveByPath(dir)
+      if (existing !== undefined) return existing
+      let name: string | undefined
+      try {
+        name = (await this.ctx.get('agentPresets')?.resolve(presetId))?.name
+      } catch {
+        // An unknown or unreadable preset still gets its directory grouped; the
+        // id is the display fallback everywhere else too.
+      }
+      return await this.ctx.workspaceRegistry.create(dir, name ?? presetId)
+    } catch (error) {
+      this.ctx.logger.warn(`session-controller: could not ensure the workspace of preset "${presetId}" at ${dir}: ${String(error)}`)
+      return undefined
+    }
+  }
+
+  /**
+   * One-shot backfill: group every preset directory that already exists —
+   * and every stored session sitting in one — under its preset Workspace.
+   * Runs lazily from the first `session/list`, when the roster and the
+   * persistence index are both up; presets and sessions created before the
+   * grouping feature are otherwise never adopted.
+   */
+  private reconciled = false
+
+  async reconcilePresetWorkspaces(): Promise<void> {
+    if (this.reconciled || this.presetWorkspaceRoot === undefined) return
+    this.reconciled = true
+    const presets = await this.ctx.get('agentPresets')?.list().catch(() => undefined)
+    if (presets === undefined) return
+    const byPath = new Map<string, Workspace>()
+    for (const preset of presets) {
+      // resolveByPath/create reject for a directory that does not exist yet —
+      // ensurePresetWorkspace logs and skips those presets.
+      const workspace = await this.ensurePresetWorkspace(preset.id)
+      if (workspace !== undefined) byPath.set(workspace.path, workspace)
+    }
+    if (byPath.size === 0) return
+    const records = await this.ctx.sessionQuery.listSessions().catch(() => [])
+    for (const record of records) {
+      const workspace = record.header.cwd === undefined ? undefined : byPath.get(record.header.cwd)
+      if (workspace === undefined) continue
+      try {
+        await workspace.attachSession(record.header.id)
+      } catch (error) {
+        this.ctx.logger.warn(`session-controller: could not attach session "${record.header.id}" to its preset workspace: ${String(error)}`)
+      }
     }
   }
 
@@ -138,6 +213,17 @@ export class SessionCommandController {
           `session "${sessionId}" was created but could not attach to workspace "${workspace.id}": ${String(error)}`,
           { sessionId, workspaceId: workspace.id },
         )
+      }
+    } else if (request.cwd === undefined && this.presetDefaultCwd(request.agentPreset) === cwd) {
+      // A session landing in its preset's derived directory groups under the
+      // preset's Workspace. Best-effort: grouping is presentation, and the
+      // session exists either way.
+      const presetWorkspace = await this.ensurePresetWorkspace(
+        request.agentPreset ?? this.ctx.get('agentPresets')?.defaultId)
+      try {
+        await presetWorkspace?.attachSession(sessionId)
+      } catch (error) {
+        this.ctx.logger.warn(`session "${sessionId}" was created but could not attach to its preset workspace: ${String(error)}`)
       }
     }
     const agentPreset = this.agents.presetForSession(adopted.session)

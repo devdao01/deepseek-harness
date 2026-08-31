@@ -363,6 +363,11 @@ export class AgentPresets extends TypertRemoteService {
     } catch (error: unknown) {
       rejectPreset(error, agentPreset, `agent preset "${agentPreset}": ${String(error)}`)
     }
+    try {
+      this.ctx.emit('agent-preset/renamed', agentPreset, name)
+    } catch (error: unknown) {
+      this.ctx.logger.warn(`agent-presets: agent-preset/renamed listener failed for "${agentPreset}": ${String(error)}`)
+    }
   }
 
   /**

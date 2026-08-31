@@ -103,6 +103,15 @@ declare module '@deepseek-ai/cordis' {
      * @param agentPreset - the id of the preset just authored.
      */
     'agent-preset/authored'(agentPreset: string): void
+    /**
+     * One preset's display name was rewritten (the id never changes).
+     * Consumers retitle name-derived presentation — the session controller
+     * retitles the preset's Workspace group when one is configured.
+     * @mode emit
+     * @param agentPreset - the id of the renamed preset.
+     * @param name - the new display name.
+     */
+    'agent-preset/renamed'(agentPreset: string, name: string): void
   }
 }
 

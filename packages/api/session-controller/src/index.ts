@@ -232,6 +232,9 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('list')
   async list(_request: SessionListRequest, signal: AbortSignal): Promise<SessionListValue> {
+    // Lazy one-shot: adopt pre-existing preset directories and their stored
+    // sessions into preset Workspaces before the first grouped listing.
+    await this.commands.reconcilePresetWorkspaces()
     return { items: await this.listState.list(signal, currentUserId(this.ticketSecret)) }
   }
 
