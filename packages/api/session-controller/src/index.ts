@@ -496,11 +496,16 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote({ mode: 'stream' })
   follow(request: SessionFollowRequest, signal: AbortSignal): AsyncIterable<SessionFollowFrame> {
-    const assertVisible = (): Promise<void> =>
-      this.assertViewerMayRead(SessionController.addressedSession(request.address))
+    // Started NOW, not on first iteration: the caller identity is ambient to
+    // this call (the stream carrier binds it around the open), while the
+    // iteration happens later in the carrier's serve loop, outside it.
+    const gate = this.assertViewerMayRead(SessionController.addressedSession(request.address))
+    // A carrier that drops the stream before iterating must not surface the
+    // gate's refusal as an unhandled rejection; awaiting below still throws.
+    gate.catch(() => {})
     const open = (): AsyncIterable<SessionFollowFrame> => this.history.follow(request, signal)
     return (async function* gated() {
-      await assertVisible()
+      await gate
       yield* open()
     })()
   }

@@ -165,6 +165,24 @@ describe('session-addressed entry points', () => {
     await expect(runWithRpcRequest({ headers: headers632 }, () => controller.page(pageRequest, signal)))
       .resolves.toBeDefined()
 
+    // follow captures the caller at CALL time: the WS carrier binds the
+    // upgrade headers around the open, while iteration happens later in its
+    // serve loop, outside any ambient scope — exactly what this simulates.
+    const followRequest = { address: pageRequest.address, sinceSeq: -1 }
+    const anonymousFollow = controller.follow(followRequest as never, signal)
+    await expect((async () => {
+      for await (const frame of anonymousFollow) void frame
+    })()).rejects.toMatchObject({ failure: { code: 'session-not-found' } })
+    const allowedFollow = runWithRpcRequest(
+      { headers: headers632 },
+      () => controller.follow(followRequest as never, signal),
+    )
+    const firstFrame = await (async () => {
+      for await (const frame of allowedFollow) return frame
+      return undefined
+    })()
+    expect(firstFrame).toBeDefined()
+
     // setAccess is management-plane only once a ticketSecret is configured.
     await expect(controller.setAccess({ sessionId: restricted.id, allowedUsers: [] }))
       .rejects.toMatchObject({ failure: { code: 'internal' } })
