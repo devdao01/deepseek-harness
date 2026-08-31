@@ -123,10 +123,23 @@ function byRecency(a: SessionSummary, b: SessionSummary): number {
  * sessions are visible nowhere, while their accounting slots remain so
  * unarchiving restores position.
  */
+/**
+ * MTIL frontend flag: a blank session carrying a stored title was created
+ * deliberately (from the Odoo management plane) and lists like an ordinary
+ * row. Unset — every stock deployment — keeps blank rows provisional-only.
+ */
+const mtilShowsTitledBlanks = (): boolean =>
+  (globalThis as { __MTIL_UI__?: { showTitledBlanks?: boolean } }).__MTIL_UI__?.showTitledBlanks === true
+
+/** Whether this blank row is a titled, deliberately created MTIL session. */
+function titledBlank(session: SessionSummary): boolean {
+  return mtilShowsTitledBlanks() && session.blank && session.displayTitle !== ''
+}
+
 function sessionVisible(session: SessionSummary, current: SessionId | undefined, archived: ReadonlySet<SessionId>): boolean {
   return session.origin !== 'subagent'
     && !archived.has(session.id)
-    && (!session.blank || session.id === current)
+    && (!session.blank || session.id === current || titledBlank(session))
 }
 
 /**
@@ -135,7 +148,7 @@ function sessionVisible(session: SessionSummary, current: SessionId | undefined,
  * and the renderer localizes its display label.
  */
 function sessionTitle(session: SessionSummary): string {
-  return session.blank ? '' : session.displayTitle
+  return session.blank && !titledBlank(session) ? '' : session.displayTitle
 }
 
 /** Build one group without projecting session lineage into presentation. */
@@ -240,7 +253,9 @@ function sessionNode(
   return {
     id: s.id,
     title: sessionTitle(s),
-    blank: s.blank,
+    // A titled MTIL blank renders as an ordinary row (its real title, not the
+    // localized New Session substitute).
+    blank: s.blank && !titledBlank(s),
     running: s.running,
     runningSubagentCount: descendants.get(s.id)?.runningCount ?? 0,
     completed: s.completed === true,
@@ -369,8 +384,10 @@ export function deriveSearchResults(
   for (const id of list.ids) {
     const summary = list.byId[id]
     // Blank placeholders never match a query (their canonical title displays
-    // localized, so matching it would tie search to one language).
-    if (summary === undefined || summary.blank || !sessionVisible(summary, list.current, archived)) continue
+    // localized, so matching it would tie search to one language). A titled
+    // MTIL blank carries a real stored title, which is searchable.
+    if (summary === undefined || (summary.blank && !titledBlank(summary))
+      || !sessionVisible(summary, list.current, archived)) continue
     if (
       sessionTitle(summary).toLowerCase().includes(q)
       || labelOf(summary).toLowerCase().includes(q)
