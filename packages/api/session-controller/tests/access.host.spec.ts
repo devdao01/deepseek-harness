@@ -123,6 +123,59 @@ describe('SessionAccessStore', () => {
   })
 })
 
+describe('session-addressed entry points', () => {
+  it('refuses page and setAccess for callers the record does not name', async () => {
+    const { createSessionTestController, testSessionPersistence } = await import('./test-remote.ts')
+    const SessionStore = (await import('@deepseek-ai/dsh-session')).default
+    const AgentRegistry = (await import('@deepseek-ai/dsh-agent')).default
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(AgentRegistry)
+    ctx.provide('storageDomain', fakeStorageDomain())
+    const restricted = header('session-restricted', 1000)
+    ctx.provide('sessionPersistence', testSessionPersistence(ctx, {
+      list: () => Promise.resolve([restricted]),
+      inspect: () => Promise.resolve({ meta: restricted, events: [] }),
+    }) as never)
+    const controller = createSessionTestController(ctx, {
+      defaultModelSelection: () => ({ provider: 'fixture', model: 'fixture' }),
+      cwd: '/w',
+      ticketSecret: SECRET,
+    })
+    const store = new SessionAccessStore(ctx)
+    await store.setAllowedUsers(restricted, ['632'])
+    const pageRequest = {
+      address: { kind: 'session' as const, sessionId: restricted.id },
+      throughSeq: -1,
+      maxMessages: 1,
+    }
+    const signal = new AbortController().signal
+
+    // Anonymous and an unlisted user read the same not-found the id would
+    // get if it did not exist; the wildcard passes the gate (and then reads).
+    await expect(controller.page(pageRequest, signal))
+      .rejects.toMatchObject({ failure: { code: 'session-not-found' } })
+    const headers7 = new Headers({ cookie: `mtil-ticket=${mint('7', future())}` })
+    await expect(runWithRpcRequest({ headers: headers7 }, () => controller.page(pageRequest, signal)))
+      .rejects.toMatchObject({ failure: { code: 'session-not-found' } })
+    const headersStar = new Headers({ cookie: `mtil-ticket=${mint('*', future())}` })
+    await expect(runWithRpcRequest({ headers: headersStar }, () => controller.page(pageRequest, signal)))
+      .resolves.toBeDefined()
+    const headers632 = new Headers({ cookie: `mtil-ticket=${mint('632', future())}` })
+    await expect(runWithRpcRequest({ headers: headers632 }, () => controller.page(pageRequest, signal)))
+      .resolves.toBeDefined()
+
+    // setAccess is management-plane only once a ticketSecret is configured.
+    await expect(controller.setAccess({ sessionId: restricted.id, allowedUsers: [] }))
+      .rejects.toMatchObject({ failure: { code: 'internal' } })
+    await expect(runWithRpcRequest(
+      { headers: headersStar },
+      () => controller.setAccess({ sessionId: restricted.id, allowedUsers: ['1'] }),
+    )).resolves.toEqual({ allowedUsers: ['1'] })
+    await ctx.fiber.dispose()
+  })
+})
+
 describe('session list filtering', () => {
   async function listHarness(): Promise<{ ctx: Context; store: SessionAccessStore; list: ApiSessionList }> {
     const ctx = new Context()

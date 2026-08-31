@@ -81,6 +81,7 @@ export interface TestSessionRemoteDefaults {
   readonly saveDefaultModelSelection?: (selection: AgentModelSelection) => void | Promise<void>
   readonly openPath?: (path: string, signal: AbortSignal) => Promise<void>
   readonly canOpenPath?: () => boolean
+  readonly ticketSecret?: string
 }
 
 const installed = new WeakMap<Context, SessionController>()
@@ -193,6 +194,7 @@ function installControllers(
           ? {}
           : { coldBlankProbeMaxBytes: defaults.coldBlankProbeMaxBytes },
         ...defaults.nativeOpen === undefined ? {} : { nativeOpen: defaults.nativeOpen },
+        ...defaults.ticketSecret === undefined ? {} : { ticketSecret: defaults.ticketSecret },
       },
       {
         ...defaults.openPath === undefined ? {} : { openPath: defaults.openPath },

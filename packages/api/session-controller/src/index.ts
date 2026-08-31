@@ -275,12 +275,51 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
+   * Refuse a session-addressed read or command from a caller its access
+   * record does not name. Answers `session-not-found` — the same refusal an
+   * unknown id gets — so a restricted id does not leak its existence.
+   * Unrestricted sessions (absent/empty record) pass for every caller, the
+   * `*` management wildcard passes always, and an unknown id passes so the
+   * addressed method reports its own not-found.
+   */
+  private async assertViewerMayRead(sessionId: SessionId): Promise<void> {
+    const viewer = currentUserId(this.ticketSecret)
+    if (viewer === '*') return
+    const header = this.ctx.sessions.get(sessionId)?.header
+      ?? (await this.ctx.sessionQuery.listSessions())
+        .find(record => record.header.id === sessionId)?.header
+    if (header === undefined) return
+    if (await this.access.visibleTo(header, viewer)) return
+    throw new TypertRemoteFailure({
+      code: 'session-not-found',
+      message: `session "${sessionId}" not found`,
+      details: { sessionId },
+    })
+  }
+
+  /** The session an address is read through (a subagent reads via its parent). */
+  private static addressedSession(address: SessionPageRequest['address']): SessionId {
+    return address.kind === 'session' ? address.sessionId : address.parentSessionId
+  }
+
+  /**
    * Replace one Session's allowed-users access list.
+   *
+   * With a configured `ticketSecret` only the `*` management wildcard may
+   * write: an ordinary browser could otherwise grant itself access.
    * @param request - Session identity and the complete new list.
    * @returns the list as stored (empty = unrestricted).
    */
   @Remote('setAccess')
   async setAccess(request: SessionSetAccessRequest): Promise<SessionSetAccessValue> {
+    if (this.ticketSecret !== undefined && this.ticketSecret !== ''
+      && currentUserId(this.ticketSecret) !== '*') {
+      throw new TypertRemoteFailure({
+        code: 'internal',
+        message: 'session access lists are administered by the management plane',
+        details: {},
+      })
+    }
     const header = this.ctx.sessions.get(request.sessionId)?.header
       ?? (await this.ctx.sessionQuery.listSessions())
         .find(record => record.header.id === request.sessionId)?.header
@@ -309,7 +348,8 @@ export class SessionController extends TypertRemoteService {
    * @returns the normalized selection installed for the Session.
    */
   @Remote('selectModel')
-  selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue> {
+  async selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue> {
+    await this.assertViewerMayRead(request.sessionId)
     return this.commands.selectModel(request)
   }
 
@@ -374,7 +414,8 @@ export class SessionController extends TypertRemoteService {
    * @returns the accepted title and durable event sequence.
    */
   @Remote('rename')
-  rename(request: SessionRenameRequest): Promise<SessionRenameValue> {
+  async rename(request: SessionRenameRequest): Promise<SessionRenameValue> {
+    await this.assertViewerMayRead(request.sessionId)
     return this.commands.rename(request)
   }
 
@@ -384,7 +425,8 @@ export class SessionController extends TypertRemoteService {
    * @returns the new Session identity.
    */
   @Remote('fork')
-  fork(request: SessionForkRequest): Promise<SessionForkValue> {
+  async fork(request: SessionForkRequest): Promise<SessionForkValue> {
+    await this.assertViewerMayRead(request.sessionId)
     return this.commands.fork(request)
   }
 
@@ -395,8 +437,9 @@ export class SessionController extends TypertRemoteService {
    * @returns acknowledgement that the Agent accepted the prompt.
    */
   @Remote('prompt')
-  prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue> {
+  async prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue> {
     signal.throwIfAborted()
+    await this.assertViewerMayRead(request.sessionId)
     return this.commands.prompt(request)
   }
 
@@ -406,7 +449,8 @@ export class SessionController extends TypertRemoteService {
    * @returns the durable attachment reference and base64-encoded bytes.
    */
   @Remote('attachment')
-  attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue> {
+  async attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue> {
+    await this.assertViewerMayRead(request.sessionId)
     return this.commands.attachment(request)
   }
 
@@ -416,7 +460,8 @@ export class SessionController extends TypertRemoteService {
    * @returns acknowledgement that the queue mutation was applied.
    */
   @Remote('updateQueue')
-  updateQueue(request: SessionUpdateQueueRequest): SessionUpdateQueueValue {
+  async updateQueue(request: SessionUpdateQueueRequest): Promise<SessionUpdateQueueValue> {
+    await this.assertViewerMayRead(request.sessionId)
     return this.commands.updateQueue(request)
   }
 
@@ -426,7 +471,8 @@ export class SessionController extends TypertRemoteService {
    * @returns acknowledgement that cancellation was requested.
    */
   @Remote('cancel')
-  cancel(request: SessionCancelRequest): SessionCancelValue {
+  async cancel(request: SessionCancelRequest): Promise<SessionCancelValue> {
+    await this.assertViewerMayRead(request.sessionId)
     return this.commands.cancel(request)
   }
 
@@ -437,7 +483,8 @@ export class SessionController extends TypertRemoteService {
    * @returns one chronological page.
    */
   @Remote('page')
-  page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage> {
+  async page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage> {
+    await this.assertViewerMayRead(SessionController.addressedSession(request.address))
     return this.history.page(request, signal)
   }
 
@@ -449,7 +496,13 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote({ mode: 'stream' })
   follow(request: SessionFollowRequest, signal: AbortSignal): AsyncIterable<SessionFollowFrame> {
-    return this.history.follow(request, signal)
+    const assertVisible = (): Promise<void> =>
+      this.assertViewerMayRead(SessionController.addressedSession(request.address))
+    const open = (): AsyncIterable<SessionFollowFrame> => this.history.follow(request, signal)
+    return (async function* gated() {
+      await assertVisible()
+      yield* open()
+    })()
   }
 
   /**

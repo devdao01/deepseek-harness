@@ -48,7 +48,9 @@ HARNESS_RPC_TIMEOUT = 30
 # Ticket wire rules — MUST match the MTIL gate and the harness.
 TICKET_VERSION = 'v1'
 MIN_TICKET_SECRET_LENGTH = 32
-DEFAULT_TICKET_TTL_SECONDS = 600
+# 12h: vé sống trọn ca làm việc. SPA không tự refresh vé — hết hạn thì reload
+# trang mới mint lại; TTL quá ngắn làm session restricted "biến mất" giữa chừng.
+DEFAULT_TICKET_TTL_SECONDS = 43200
 
 
 class HarnessWireError(Exception):
