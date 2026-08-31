@@ -154,6 +154,28 @@ describe('preset rename', () => {
     expect(metadata).toContain('kept')
   })
 
+  it('replaces the description when one is given and keeps it otherwise', async () => {
+    const { ctx, userRoot } = await harness()
+
+    await ctx.agentPresets.remoteExportRename('mine', 'Tên Mới', 'Mô tả mới')
+    let metadata = await readFile(join(userRoot, 'mine', METADATA_FILE), 'utf8')
+    expect(metadata).toContain('Mô tả mới')
+
+    await ctx.agentPresets.remoteExportRename('mine', 'Tên Mới Hơn')
+    metadata = await readFile(join(userRoot, 'mine', METADATA_FILE), 'utf8')
+    expect(metadata).toContain('Mô tả mới')
+  })
+
+  it('copies with an explicit description overriding the source', async () => {
+    const { ctx } = await harness()
+
+    await ctx.agentPresets.copy('standard', 'ho-so-desc', 'Hồ Sơ', 'Mô tả riêng')
+
+    const row = (await ctx.agentPresets.remoteExportList()).presets
+      .find(preset => preset.id === 'ho-so-desc')
+    expect(row?.description).toBe('Mô tả riêng')
+  })
+
   it('refuses renaming a shipped preset', async () => {
     const { ctx } = await harness()
 

@@ -102,6 +102,16 @@ class TestPresetAuthoring(TransactionCase):
         system.name = 'Base đổi tên'
         self.assertFalse(self._calls_for('agentPresets/rename'))
 
+    def test_description_travels_with_copy_and_rename(self):
+        record = self.Preset.create({'name': 'Hồ Sơ 9', 'description': 'Mô tả 9'})
+        copies = self._calls_for('agentPresets/copy')
+        self.assertEqual(copies[-1].get('description'), 'Mô tả 9')
+        self._calls.clear()
+        record.description = 'Mô tả mới'
+        renames = self._calls_for('agentPresets/rename')
+        self.assertEqual(renames, [{
+            'agentPreset': 'ho-so-9', 'name': 'Hồ Sơ 9', 'description': 'Mô tả mới'}])
+
     def test_active_toggle_pushes_set_active(self):
         record = self.Preset.with_context(npei_syncing=True).create(
             {'name': 'Base', 'preset_id': 'base', 'trust': 'system'})

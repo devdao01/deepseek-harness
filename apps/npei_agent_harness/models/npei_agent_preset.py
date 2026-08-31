@@ -15,8 +15,9 @@ the harness preset id, and with it the per-preset workspace path, never
 changes); toggling ``active`` pushes ``agentPresets/setActive`` (covers
 ``system`` presets too — the harness stores the flag in settings and
 withholds deactivated presets from pickers and new selection).
-``description`` edits stay local, and ``workspace_id`` is a manual
-annotation; ``workspace_path`` mirrors the harness's derived
+``description`` travels with both calls (``agentPresets/copy`` takes it at
+authoring; ``agentPresets/rename`` replaces it on edit). ``workspace_id``
+is a manual annotation; ``workspace_path`` mirrors the harness's derived
 ``<presetWorkspaceRoot>/<preset_id>`` default.
 """
 import logging
@@ -49,8 +50,9 @@ class NpeiAgentPreset(models.Model):
     name = fields.Char(string='Name', required=True, tracking=True)
     description = fields.Text(
         string='Description', tracking=True,
-        help="Harness roster description (mirrored by the sync; edits stay "
-             "local — the harness has no preset-update endpoint).",
+        help="Harness roster description: sent with agentPresets/copy at "
+             "authoring and pushed via agentPresets/rename on edit "
+             "(user-trust presets only).",
     )
     is_default = fields.Boolean(
         string='Harness Default', readonly=True, copy=False, tracking=True,
@@ -181,11 +183,14 @@ class NpeiAgentPreset(models.Model):
         default_id = next((entry.get('id') for entry in presets if entry.get('isDefault')), None)
         if not default_id:
             raise UserError(_("The harness reports no default preset to copy from."))
-        self.env['npei.agent.harness.client'].sudo()._rpc('agentPresets/copy', {
+        copy_args = {
             'from': default_id,
             'id': slug,
             'name': name,
-        })
+        }
+        if (vals.get('description') or '').strip():
+            copy_args['description'] = vals['description'].strip()
+        self.env['npei.agent.harness.client'].sudo()._rpc('agentPresets/copy', copy_args)
         vals['preset_id'] = slug
         vals.setdefault('trust', 'user')
         # Mirror the harness's preset-derived session cwd (~/workspace/<id>).
@@ -203,8 +208,9 @@ class NpeiAgentPreset(models.Model):
     def write(self, vals):
         """Write, then push renames and active toggles to the harness.
 
-        ``name`` on a ``user``-trust mirror pushes ``agentPresets/rename``
-        (system presets are read-only there; their display edits stay local).
+        ``name`` or ``description`` on a ``user``-trust mirror pushes
+        ``agentPresets/rename`` (system presets are read-only there; their
+        display edits stay local).
         ``active`` pushes ``agentPresets/setActive`` for every trust.
         Fail-loud: a push the harness refused rolls the Odoo write back.
         Suppressed under ``npei_syncing`` (mirror refresh).
@@ -213,13 +219,16 @@ class NpeiAgentPreset(models.Model):
         if self.env.context.get('npei_syncing'):
             return result
         client = self.env['npei.agent.harness.client'].sudo()
-        if 'name' in vals:
+        if 'name' in vals or 'description' in vals:
             for record in self:
                 if record.preset_id and record.trust == 'user' and (record.name or '').strip():
-                    client._rpc('agentPresets/rename', {
+                    rename_args = {
                         'agentPreset': record.preset_id,
                         'name': record.name,
-                    })
+                    }
+                    if (record.description or '').strip():
+                        rename_args['description'] = record.description.strip()
+                    client._rpc('agentPresets/rename', rename_args)
         if 'active' in vals:
             for record in self.with_context(active_test=False):
                 if record.preset_id:

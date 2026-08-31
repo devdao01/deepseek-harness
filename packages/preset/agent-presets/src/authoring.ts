@@ -129,6 +129,7 @@ async function tightenModes(dir: string): Promise<void> {
  * @param source - the resolved preset the copy starts from.
  * @param id - the new preset's id, which becomes its directory name.
  * @param name - display name for the copy; omitted falls back to the id.
+ * @param description - description for the copy; omitted keeps the source's.
  * @returns the absolute path of the new preset directory.
  * @throws when the id is unusable or already occupied on disk, or the
  * deployment configures no writable root.
@@ -138,6 +139,7 @@ export async function copyComposition(
   source: AgentPreset,
   id: string,
   name?: string,
+  description?: string,
 ): Promise<string> {
   if (!PRESET_ID.test(id)) throw new InvalidPresetIdError(id)
   const dir = join(writableRoot(roots), id)
@@ -150,9 +152,10 @@ export async function copyComposition(
       recursive: true, dereference: true, force: false, errorOnExist: true,
     })
     await tightenModes(dir)
+    const copiedDescription = description ?? source.description
     const rendered = renderPresetMetadata({
       ...name === undefined ? {} : { name },
-      ...source.description === undefined ? {} : { description: source.description },
+      ...copiedDescription === undefined ? {} : { description: copiedDescription },
     })
     const metadataPath = join(dir, METADATA_FILE)
     if (rendered === undefined) {
@@ -196,21 +199,23 @@ export async function deleteComposition(
 }
 
 /**
- * Rewrite a locally authored preset's display name.
+ * Rewrite a locally authored preset's display text.
  *
  * Display-only by design: the id is the directory name and stays fixed, so
  * everything keyed by id — standing mounts, session headers, and any
- * deployment path derived from the preset id — is untouched. The current
- * description and roster `order` are preserved.
+ * deployment path derived from the preset id — is untouched. The roster
+ * `order` is preserved; the description only changes when one is given.
  * @param roots - the configured roots.
  * @param preset - the resolved preset to rename.
  * @param name - the new display name; empty falls back to the id at render.
+ * @param description - replacement description; omitted keeps the current one.
  * @throws when the preset ships with the deployment or lies outside the writable root.
  */
 export async function renameComposition(
   roots: readonly PresetRoot[],
   preset: AgentPreset,
   name: string,
+  description?: string,
 ): Promise<void> {
   if (preset.trust !== 'user') {
     throw new PresetNotWritableError(preset.id, 'it ships with the deployment')
@@ -220,7 +225,11 @@ export async function renameComposition(
     throw new PresetNotWritableError(preset.id, 'it does not live under the writable preset root')
   }
   const current = await readPresetMetadata(dir)
-  const rendered = renderPresetMetadata({ ...current, name })
+  const rendered = renderPresetMetadata({
+    ...current,
+    name,
+    ...description === undefined ? {} : { description },
+  })
   const metadataPath = join(dir, METADATA_FILE)
   if (rendered === undefined) {
     await rm(metadataPath, { force: true })
