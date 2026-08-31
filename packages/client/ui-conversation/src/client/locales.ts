@@ -7,6 +7,15 @@ export const NS = 'conversation'
 const PLAN_NEXT_ACTION_ZH = '描述你的任务以生成计划'
 const PLAN_NEXT_ACTION_EN = 'describe your task to generate plan'
 
+/**
+ * MTIL frontend flag: a deployment-branded hero headline replacing the stock
+ * tagline in every language. Absent — every stock deployment — keeps the
+ * shipped per-language headlines. Read at module load; the MTIL shell sets
+ * the global before any bundle executes.
+ */
+const mtilHeroHeadline = (): string | undefined =>
+  (globalThis as { __MTIL_UI__?: { heroHeadline?: string } }).__MTIL_UI__?.heroHeadline
+
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
   'hint.plan': PLAN_NEXT_ACTION_ZH,
@@ -62,7 +71,7 @@ export const zh = {
   'access.confirm.cancel': '取消',
   'access.confirm.enable': '启用 Full access',
   'access.fullLabel': 'Full access',
-  'hero.headline': '探索未至之境',
+  'hero.headline': mtilHeroHeadline() ?? '探索未至之境',
   'hero.preview': '预览版',
   'hero.chooseWorkspace': '选择工作区',
   'session.hierarchy': '会话层级',
@@ -210,7 +219,7 @@ export const en = {
   'access.confirm.cancel': 'Cancel',
   'access.confirm.enable': 'Enable Full access',
   'access.fullLabel': 'Full access',
-  'hero.headline': 'Into the Unknown',
+  'hero.headline': mtilHeroHeadline() ?? 'Into the Unknown',
   'hero.preview': 'Preview',
   'hero.chooseWorkspace': 'Choose workspace',
   'session.hierarchy': 'Session hierarchy',
