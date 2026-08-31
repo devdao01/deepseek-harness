@@ -95,6 +95,9 @@ class TestPresetAuthoring(TransactionCase):
 
         system = self.Preset.with_context(npei_syncing=True).create(
             {'name': 'Base', 'preset_id': 'base', 'trust': 'system'})
+        # Re-browse to drop the sync context, so the negative assertion tests
+        # the trust check rather than the context suppression.
+        system = self.Preset.browse(system.id)
         self._calls.clear()
         system.name = 'Base đổi tên'
         self.assertFalse(self._calls_for('agentPresets/rename'))
@@ -102,6 +105,9 @@ class TestPresetAuthoring(TransactionCase):
     def test_active_toggle_pushes_set_active(self):
         record = self.Preset.with_context(npei_syncing=True).create(
             {'name': 'Base', 'preset_id': 'base', 'trust': 'system'})
+        # The sync context sticks to the created recordset and would suppress
+        # the push; a user edit runs on a clean env, so model that here.
+        record = self.Preset.browse(record.id)
         self._calls.clear()
         record.active = False
         self.assertEqual(self._calls_for('agentPresets/setActive'), [
