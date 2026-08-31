@@ -95,6 +95,14 @@ declare module '@deepseek-ai/cordis' {
      * @param agentPreset - the preset recorded by the committed selection.
      */
     'agent-preset/selected'(sessionId: SessionId, agentPreset: string): void
+    /**
+     * One locally authored preset was stored on disk (the copy committed).
+     * Consumers prepare per-preset resources — the session controller
+     * materializes the preset's workspace directory when one is configured.
+     * @mode emit
+     * @param agentPreset - the id of the preset just authored.
+     */
+    'agent-preset/authored'(agentPreset: string): void
   }
 }
 

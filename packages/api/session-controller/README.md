@@ -40,7 +40,7 @@ The Session object also carries local submission echoes: `session.beginSubmissio
 |---|---:|---|
 | `coldBlankProbeMaxBytes` | `1,024` | Maximum physical size of a cold Session artifact eligible for blankness verification; `0` disables probes |
 | `nativeOpen` | platform-detected | Whether Session workspace paths can be handed to a native desktop opener |
-| `presetWorkspaceRoot` | unset | Directory whose `<root>/<presetId>` subdirectory becomes the cwd of a session created with neither a Workspace nor a cwd (`~` expands); unset keeps the process working directory |
+| `presetWorkspaceRoot` | unset | Directory whose `<root>/<presetId>` subdirectory becomes the cwd of a session created with neither a Workspace nor a cwd (`~` expands); unset keeps the process working directory. The subdirectory is created with the session, and eagerly on `agent-preset/authored` so files can be staged before the first session |
 | `ticketSecret` | unset | Shared HMAC-SHA256 secret user tickets (the `mtil-ticket` cookie) are verified with. Set, `session/list`/`session/search` filter by each session's `session_access` allowed-users record (absent/empty record = unrestricted, visible to everyone; anonymous callers see unrestricted sessions only), an identified creator is written into a new session's record, and `session/setAccess` replaces a record. A ticket for user `*` is the management wildcard: it sees every session with its record attached. Unset, every caller is anonymous |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-api-session-controller) is the exhaustive source for accepted fields and their JSDoc.

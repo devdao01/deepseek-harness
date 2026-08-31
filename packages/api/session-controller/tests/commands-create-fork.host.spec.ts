@@ -1,3 +1,7 @@
+import { existsSync } from 'node:fs'
+import { mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentHandle, CreateAgentOptions } from '@deepseek-ai/dsh-agent'
@@ -92,6 +96,19 @@ describe('Session creation failures', () => {
     // An explicit cwd still wins over the preset-derived default.
     const explicitCwd = await controller.create({ cwd: '/elsewhere', agentPreset: 'ho-so-1' })
     expect(ensureSession).toHaveBeenCalledWith(explicitCwd.sessionId, '/elsewhere', false, 'ho-so-1')
+    await ctx.fiber.dispose()
+  })
+
+  it('materializes an authored preset workspace directory under the root', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-preset-ws-'))
+    const ctx = await baseContext()
+    ctx.provide('workspaceRegistry', { get: () => undefined, list: () => [] } as never)
+    void new SessionCommandController(ctx, controllerAgents(), '/default', root)
+
+    ctx.emit('agent-preset/authored', 'ho-so-9')
+    await vi.waitFor(() => {
+      expect(existsSync(join(root, 'ho-so-9'))).toBe(true)
+    })
     await ctx.fiber.dispose()
   })
 

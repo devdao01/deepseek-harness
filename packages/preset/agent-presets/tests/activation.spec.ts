@@ -129,6 +129,18 @@ describe('preset activation', () => {
   })
 })
 
+describe('preset authoring notification', () => {
+  it('emits agent-preset/authored after a copy commits', async () => {
+    const { ctx } = await harness()
+    const authored: string[] = []
+    ctx.on('agent-preset/authored', (agentPreset) => { authored.push(agentPreset) })
+
+    await ctx.agentPresets.copy('standard', 'ho-so-9')
+
+    expect(authored).toEqual(['ho-so-9'])
+  })
+})
+
 describe('preset rename', () => {
   it('rewrites the display name and keeps id and description', async () => {
     const { ctx, userRoot } = await harness()

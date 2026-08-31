@@ -1,6 +1,7 @@
 /** Session commands whose activation policy is explicit at each Remote method. */
 
 import { randomUUID } from 'node:crypto'
+import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { expandHomePath } from '@deepseek-ai/dsh-home-paths'
@@ -67,7 +68,22 @@ export class SessionCommandController {
     private readonly agents: ApiSessionAgentController,
     private readonly defaultCwd: string,
     private readonly presetWorkspaceRoot?: string,
-  ) {}
+  ) {
+    if (presetWorkspaceRoot !== undefined) {
+      // Materialize a freshly authored preset's workspace directory up front,
+      // so files can be staged there before its first session (which would
+      // otherwise create the directory itself). Best-effort: a failed mkdir
+      // costs nothing — session creation still creates the directory.
+      ctx.on('agent-preset/authored', (agentPreset) => {
+        const dir = this.presetDefaultCwd(agentPreset)
+        /* v8 ignore next -- presetDefaultCwd cannot return undefined when the root is set and the id is non-empty. */
+        if (dir === undefined) return
+        void mkdir(dir, { recursive: true }).catch((error: unknown) => {
+          ctx.logger.warn(`session-controller: could not materialize the workspace of preset "${agentPreset}" at ${dir}: ${String(error)}`)
+        })
+      })
+    }
+  }
 
   /**
    * The preset-derived default working directory, or undefined when the

@@ -617,6 +617,11 @@ export class AgentPresets extends TypertRemoteService {
     // from disk outside `remove`); the new preset must not inherit it. Every
     // session already joined keeps the generation it runs on regardless.
     this.standing.delete(id)
+    try {
+      this.ctx.emit('agent-preset/authored', id)
+    } catch (error: unknown) {
+      this.ctx.logger.warn(`agent-presets: agent-preset/authored listener failed for "${id}": ${String(error)}`)
+    }
   }
 
   /**
