@@ -137,9 +137,12 @@ describe('session-addressed entry points', () => {
       list: () => Promise.resolve([restricted]),
       inspect: () => Promise.resolve({ meta: restricted, events: [] }),
     }) as never)
+    const { mkdtemp } = await import('node:fs/promises')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
     const controller = createSessionTestController(ctx, {
       defaultModelSelection: () => ({ provider: 'fixture', model: 'fixture' }),
-      cwd: '/w',
+      cwd: await mkdtemp(join(tmpdir(), 'dsh-access-gate-')),
       ticketSecret: SECRET,
     })
     const store = new SessionAccessStore(ctx)
@@ -182,6 +185,31 @@ describe('session-addressed entry points', () => {
       return undefined
     })()
     expect(firstFrame).toBeDefined()
+
+    // The wildcard creates on behalf of others: a session it creates gets NO
+    // creator tag (none pushed = deliberately public), unlike an ordinary
+    // user. Creation itself is stubbed — the tag decision under test lives in
+    // the Remote wrapper, after the command returns.
+    let nextCreated = 0
+    const fakeCreate = vi.fn(() => {
+      const sessionId = SessionId(`session-created-${nextCreated += 1}`)
+      ctx.sessions.create(sessionId, { meta: { cwd: '/w' } })
+      return Promise.resolve({ sessionId })
+    })
+    ;(controller as unknown as { commands: { create: unknown } }).commands.create = fakeCreate
+    const created = await runWithRpcRequest(
+      { headers: headersStar },
+      () => controller.create({}),
+    )
+    const createdHeader = ctx.sessions.get(created.sessionId)?.header
+    expect(createdHeader).toBeDefined()
+    expect(await store.allowedUsers(createdHeader as never)).toEqual([])
+    const owned = await runWithRpcRequest(
+      { headers: headers632 },
+      () => controller.create({}),
+    )
+    const ownedHeader = ctx.sessions.get(owned.sessionId)?.header
+    expect(await store.allowedUsers(ownedHeader as never)).toEqual(['632'])
 
     // setAccess is management-plane only once a ticketSecret is configured.
     await expect(controller.setAccess({ sessionId: restricted.id, allowedUsers: [] }))

@@ -259,9 +259,11 @@ export class SessionController extends TypertRemoteService {
     const value = await this.commands.create(request)
     // An identified caller owns the session it creates. Only an absent record
     // is written: adopting an existing session must not shrink or replace an
-    // access list some other caller installed.
+    // access list some other caller installed. The management wildcard is NOT
+    // an owner — it creates on behalf of others (the Odoo plane pushes the
+    // intended list through setAccess; none pushed = deliberately public).
     const viewer = currentUserId(this.ticketSecret)
-    if (viewer !== undefined) {
+    if (viewer !== undefined && viewer !== '*') {
       const header = this.ctx.sessions.get(value.sessionId)?.header
       if (header !== undefined && (await this.access.allowedUsers(header)).length === 0) {
         try {
