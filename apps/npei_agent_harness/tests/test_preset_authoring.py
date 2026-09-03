@@ -32,6 +32,8 @@ class TestPresetAuthoring(TransactionCase):
                 ] + self._extra_presets}
             if method == 'agentPresets/copy':
                 return None  # the harness copy endpoint is void
+            if method == 'agentPresets/author':
+                return None  # void
             if method == 'agentPresets/deletePreset':
                 return None
             return {}
@@ -101,6 +103,56 @@ class TestPresetAuthoring(TransactionCase):
         self._calls.clear()
         system.name = 'Base đổi tên'
         self.assertFalse(self._calls_for('agentPresets/rename'))
+
+    def test_structured_standalone_authors_and_reauthors(self):
+        record = self.Preset.create({
+            'name': 'Hồ Sơ CS', 'kind': 'standalone',
+            'persona': 'Bạn là AGENT CS.', 'allow_web': True,
+        })
+        self.assertEqual(record.preset_id, 'ho-so-cs')
+        self.assertFalse(self._calls_for('agentPresets/copy'))
+        pushes = self._calls_for('agentPresets/author')
+        self.assertEqual(pushes[-1]['request']['kind'], 'standalone')
+        self.assertEqual(pushes[-1]['request']['agentPreset'], 'ho-so-cs')
+        self.assertEqual(pushes[-1]['request']['persona'], 'Bạn là AGENT CS.')
+        self.assertTrue(pushes[-1]['request']['allowWeb'])
+        self._calls.clear()
+        record.persona = 'Bạn là AGENT CS MỚI.'
+        pushes = self._calls_for('agentPresets/author')
+        self.assertEqual(pushes[-1]['request']['persona'], 'Bạn là AGENT CS MỚI.')
+
+    def test_router_authors_with_subagent_lines(self):
+        record = self.Preset.create({
+            'name': 'Bộ Điều Phối', 'kind': 'router',
+            'persona': 'Bạn là ROUTER.',
+            'subagent_ids': [
+                (0, 0, {'tool_name': 'marketing', 'persona': 'MKT.', 'allow_web': True}),
+                (0, 0, {'tool_name': 'ke-toan', 'persona': 'KT.', 'allow_bash': True}),
+            ],
+        })
+        pushes = self._calls_for('agentPresets/author')
+        request = pushes[-1]['request']
+        self.assertEqual(request['kind'], 'router')
+        self.assertEqual(
+            [(sa['toolName'], sa['allowBash'], sa['allowWeb']) for sa in request['subagents']],
+            [('marketing', False, True), ('ke-toan', True, False)])
+        # Line edits re-generate the composition.
+        self._calls.clear()
+        record.subagent_ids[0].persona = 'MKT MỚI.'
+        pushes = self._calls_for('agentPresets/author')
+        self.assertEqual(pushes[-1]['request']['subagents'][0]['persona'], 'MKT MỚI.')
+        self._calls.clear()
+        record.subagent_ids[1].unlink()
+        pushes = self._calls_for('agentPresets/author')
+        self.assertEqual(len(pushes[-1]['request']['subagents']), 1)
+
+    def test_router_without_lines_and_blank_persona_refused(self):
+        with self.assertRaises(UserError):
+            self.Preset.create({
+                'name': 'Router Rỗng', 'kind': 'router', 'persona': 'x',
+            })
+        with self.assertRaises(UserError):
+            self.Preset.create({'name': 'Thiếu Persona', 'kind': 'standalone'})
 
     def test_description_travels_with_copy_and_rename(self):
         record = self.Preset.create({'name': 'Hồ Sơ 9', 'description': 'Mô tả 9'})

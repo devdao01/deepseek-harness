@@ -141,6 +141,88 @@ describe('preset authoring notification', () => {
   })
 })
 
+describe('structured authoring (agentPresets/author)', () => {
+  const standalone = {
+    agentPreset: 'phong-ban',
+    name: 'Phòng Ban',
+    description: 'Agent phòng ban',
+    kind: 'standalone' as const,
+    persona: 'Bạn là AGENT PHÒNG BAN.\nTrả lời trực tiếp.',
+  }
+
+  it('creates a standalone preset from the default composition', async () => {
+    const { ctx, userRoot } = await harness()
+    const authored: string[] = []
+    ctx.on('agent-preset/authored', (agentPreset) => { authored.push(agentPreset) })
+
+    await ctx.agentPresets.remoteExportAuthor(standalone)
+
+    expect(authored).toEqual(['phong-ban'])
+    const row = (await ctx.agentPresets.remoteExportList()).presets
+      .find(preset => preset.id === 'phong-ban')
+    // The generated persona row names the real dsh-persona plugin, which this
+    // fixture-rooted harness cannot resolve — mountability of the generated
+    // row set is proven against the shipped composition in a real deployment.
+    expect(row).toMatchObject({ name: 'Phòng Ban', trust: 'user', active: true })
+    const content = await readFile(join(userRoot, 'phong-ban', COMPOSITION_FILE), 'utf8')
+    expect(content).toContain('Bạn là AGENT PHÒNG BAN.')
+    expect(content).toContain('@deepseek-ai/dsh-persona')
+  })
+
+  it('generates router department rows and rewrites in place on re-author', async () => {
+    const { ctx, userRoot } = await harness()
+    const renamed: [string, string][] = []
+    ctx.on('agent-preset/renamed', (agentPreset, name) => { renamed.push([agentPreset, name]) })
+
+    await ctx.agentPresets.remoteExportAuthor({
+      agentPreset: 'router',
+      name: 'Router',
+      kind: 'router',
+      persona: 'Bạn là ROUTER.',
+      subagents: [
+        { toolName: 'marketing', persona: 'Bạn là MARKETING.', allowWeb: true },
+        { toolName: 'ke-toan', persona: 'Bạn là KẾ TOÁN.', allowBash: true },
+      ],
+    })
+    let content = await readFile(join(userRoot, 'router', COMPOSITION_FILE), 'utf8')
+    expect(content).toContain('toolName: marketing')
+    expect(content).toContain('- web_search')
+    expect(content).toContain('toolName: ke-toan')
+    expect(content).toContain('- bash')
+
+    // Re-authoring the same id rewrites the files and reports a rename.
+    await ctx.agentPresets.remoteExportAuthor({
+      agentPreset: 'router',
+      name: 'Router Mới',
+      kind: 'router',
+      persona: 'Bạn là ROUTER MỚI.',
+      subagents: [{ toolName: 'hr', persona: 'Bạn là HR.' }],
+    })
+    content = await readFile(join(userRoot, 'router', COMPOSITION_FILE), 'utf8')
+    expect(content).toContain('ROUTER MỚI')
+    expect(content).not.toContain('toolName: marketing')
+    expect(renamed).toEqual([['router', 'Router Mới']])
+    const row = (await ctx.agentPresets.remoteExportList()).presets
+      .find(preset => preset.id === 'router')
+    expect(row?.name).toBe('Router Mới')
+  })
+
+  it('refuses unusable specs and shipped ids', async () => {
+    const { ctx } = await harness()
+
+    await expect(ctx.agentPresets.remoteExportAuthor({
+      agentPreset: 'r1', name: 'R', kind: 'router', persona: 'x', subagents: [],
+    })).rejects.toMatchObject({ failure: { code: 'bad-request' } })
+    await expect(ctx.agentPresets.remoteExportAuthor({
+      agentPreset: 'r2', name: 'R', kind: 'router', persona: 'x',
+      subagents: [{ toolName: 'Bad Name', persona: 'x' }],
+    })).rejects.toMatchObject({ failure: { code: 'bad-request' } })
+    await expect(ctx.agentPresets.remoteExportAuthor({
+      agentPreset: 'standard', name: 'X', kind: 'standalone', persona: 'x',
+    })).rejects.toMatchObject({ failure: { code: 'agent-preset-read-only' } })
+  })
+})
+
 describe('preset rename', () => {
   it('rewrites the display name and keeps id and description', async () => {
     const { ctx, userRoot } = await harness()

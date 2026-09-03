@@ -29,7 +29,7 @@ import { bindScopeParent, createScope, scopeOf, type Scope, type ScopeKey, type 
 // Type-only: resolves the `agent/created` lifecycle event this service watches.
 import type {} from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { AgentPresetDocument, AgentPresetErrorDetailsMap, AgentPresetRoster } from './types.ts'
+import type { AgentPresetDocument, AgentPresetErrorDetailsMap, AgentPresetRoster, AuthorPresetRequest } from './types.ts'
 import type {} from '@deepseek-ai/dsh-session-projection'
 // Type-only: resolves the registry notification emitted after scope reparenting.
 import type {} from '@deepseek-ai/dsh-tools'
@@ -38,8 +38,10 @@ import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { discoverPresets, SHIPPED_PRESET_ROOT, USER_PRESET_DIR } from './discovery.ts'
 import {
   copyComposition, deleteComposition, readComposition, renameComposition,
+  writeAuthoredComposition,
   InvalidPresetIdError, PresetExistsError, PresetNotWritableError,
 } from './authoring.ts'
+import { generateComposition, validateAuthorSpec, type AuthorCompositionSpec } from './author.ts'
 import { mountPreset, serviceForAgent, standingMountFor } from './mount.ts'
 import {
   PresetLockedError, PresetMountError, UnknownPresetError,
@@ -341,6 +343,68 @@ export class AgentPresets extends TypertRemoteService {
   /** Preset ids currently withheld from pickers and new selection. */
   get disabledIds(): ReadonlySet<string> {
     return new Set(this.settings?.get().disabled ?? [])
+  }
+
+  /**
+   * Create or rewrite one structured locally authored preset.
+   *
+   * The composition is GENERATED from the deployment's default preset plus
+   * the request's bounded spec (persona, bash/web flags, router departments)
+   * — the caller supplies no composition text or plugin names, so authoring
+   * grants no capability the default composition did not already carry. An
+   * existing user preset is rewritten in place: sessions already composed
+   * keep their generation, new sessions get the new one. A shipped preset id
+   * is refused.
+   * @param request - the preset identity, display text, and composition spec.
+   * @returns once the preset is stored.
+   * @throws {TypertRemoteFailure} `bad-request` for an unusable spec,
+   * `agent-preset-read-only` for a shipped id, or `agent-preset-invalid` for
+   * an unusable preset id.
+   */
+  @Remote('author')
+  async remoteExportAuthor(request: AuthorPresetRequest): Promise<void> {
+    validatePresetId(request.agentPreset, 'agentPreset')
+    if (request.name.trim() === '') {
+      throw remotePresetFailure('bad-request', 'name must be a non-empty string', {})
+    }
+    const spec: AuthorCompositionSpec = {
+      kind: request.kind,
+      persona: request.persona,
+      ...request.allowBash === undefined ? {} : { allowBash: request.allowBash },
+      ...request.allowWeb === undefined ? {} : { allowWeb: request.allowWeb },
+      ...request.subagents === undefined ? {} : { subagents: request.subagents },
+    }
+    try {
+      validateAuthorSpec(spec)
+    } catch (error: unknown) {
+      throw remotePresetFailure('bad-request', error instanceof Error ? error.message : String(error), {})
+    }
+    try {
+      const base = await this.read(this.defaultId)
+      const existing = (await this.list()).find(preset => preset.id === request.agentPreset)
+      await writeAuthoredComposition(
+        this.resolvedRoots,
+        request.agentPreset,
+        generateComposition(base, spec),
+        {
+          name: request.name,
+          ...request.description === undefined ? {} : { description: request.description },
+        },
+        existing,
+      )
+      this.standing.delete(request.agentPreset)
+      try {
+        if (existing === undefined) {
+          this.ctx.emit('agent-preset/authored', request.agentPreset)
+        } else {
+          this.ctx.emit('agent-preset/renamed', request.agentPreset, request.name)
+        }
+      } catch (error: unknown) {
+        this.ctx.logger.warn(`agent-presets: author notification listener failed for "${request.agentPreset}": ${String(error)}`)
+      }
+    } catch (error: unknown) {
+      rejectPreset(error, request.agentPreset, `agent preset "${request.agentPreset}": ${String(error)}`)
+    }
   }
 
   /**

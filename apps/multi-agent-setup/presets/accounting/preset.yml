@@ -1,0 +1,4 @@
+name: Accounting Agent
+description: >-
+  Agent accounting độc lập — người dùng nhắn trực tiếp, không cần agent cha.
+order: 22

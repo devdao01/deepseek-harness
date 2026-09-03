@@ -28,6 +28,38 @@ export interface AgentPresetRow {
   readonly broken?: string
 }
 
+/** One department subagent of an authored router preset, as the wire carries it. */
+export interface AuthorPresetSubagent {
+  /** Tool name the router calls (lowercase slug; also the department identity). */
+  readonly toolName: string
+  /** Child persona: role, duties, and the skills it owns. */
+  readonly persona: string
+  /** Whether the child may run shell commands. */
+  readonly allowBash?: boolean
+  /** Whether the child may search/fetch the web. */
+  readonly allowWeb?: boolean
+}
+
+/** Request creating or rewriting one structured locally authored preset. */
+export interface AuthorPresetRequest {
+  /** The preset id (directory name); an existing user preset is rewritten. */
+  readonly agentPreset: string
+  /** Display name stored in the preset metadata. */
+  readonly name: string
+  /** Description stored in the preset metadata. */
+  readonly description?: string
+  /** `standalone` = one direct-chat agent; `router` delegates to `subagents`. */
+  readonly kind: 'standalone' | 'router'
+  /** The agent's own persona. */
+  readonly persona: string
+  /** Whether this agent may run shell commands. */
+  readonly allowBash?: boolean
+  /** Whether this agent may search/fetch the web. */
+  readonly allowWeb?: boolean
+  /** Router departments; required (non-empty) for `kind: 'router'`. */
+  readonly subagents?: readonly AuthorPresetSubagent[]
+}
+
 /** The roster one deployment currently supplies, with its authoring capability. */
 export interface AgentPresetRoster {
   /** Every preset the configured roots supply, first-root-wins per id. */

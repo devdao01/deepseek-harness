@@ -6,7 +6,11 @@ The harness stays the source of truth for the composition;
 ``agentPresets/list``. Creating a record WITHOUT a ``preset_id`` authors a new
 preset on the harness (``agentPresets/copy`` from the default roster entry)
 under a name-derived id, and deleting a user-authored mirror deletes the
-harness preset (``agentPresets/deletePreset``).
+harness preset (``agentPresets/deletePreset``). ``kind`` standalone/router
+records instead use structured authoring (``agentPresets/author``): the
+harness GENERATES the composition from its default preset plus persona,
+bash/web capability flags, and (router) the department sub-agent lines —
+re-generated on every relevant edit.
 
 Harness capability notes: the roster carries
 ``id/name/description/trust/isDefault/active``. A ``name`` change on a
@@ -53,6 +57,37 @@ class NpeiAgentPreset(models.Model):
         help="Harness roster description: sent with agentPresets/copy at "
              "authoring and pushed via agentPresets/rename on edit "
              "(user-trust presets only).",
+    )
+    kind = fields.Selection(
+        [('copy', 'Copy of default'),
+         ('standalone', 'Standalone Agent'),
+         ('router', 'Router (multi-agent)')],
+        string='Kind', default='copy', required=True, tracking=True,
+        help="copy: plain duplicate of the harness default preset. "
+             "standalone: generated agent with its own persona and bash/web "
+             "capability flags. router: generated coordinator delegating to "
+             "the department sub-agents below. standalone/router presets are "
+             "re-generated on the harness whenever these fields change.",
+    )
+    persona = fields.Text(
+        string='Persona', tracking=True,
+        help="The agent's own persona (role, duties, owned skills). Required "
+             "for standalone/router kinds; pushed via agentPresets/author.",
+    )
+    allow_bash = fields.Boolean(
+        string='Allow Bash', tracking=True,
+        help="Whether this agent may run shell commands (standalone/router).",
+    )
+    allow_web = fields.Boolean(
+        string='Allow Web', default=True, tracking=True,
+        help="Whether this agent may search/fetch the web (standalone/router).",
+    )
+    subagent_ids = fields.One2many(
+        'npei.agent.preset.subagent', 'preset_ref',
+        string='Department Sub-agents',
+        help="Router departments: each line becomes one delegation tool the "
+             "router calls (spawns a child agent with the line's persona and "
+             "capability flags).",
     )
     is_default = fields.Boolean(
         string='Harness Default', readonly=True, copy=False, tracking=True,
@@ -197,13 +232,80 @@ class NpeiAgentPreset(models.Model):
         if not vals.get('workspace_path'):
             vals['workspace_path'] = '~/workspace/%s' % slug
 
+    def _author_request(self):
+        """Build the ``agentPresets/author`` request from this record."""
+        self.ensure_one()
+        if not (self.persona or '').strip():
+            raise UserError(_(
+                "Preset %s needs a Persona for the %s kind.", self.name, self.kind))
+        request = {
+            'agentPreset': self.preset_id,
+            'name': self.name,
+            'kind': self.kind,
+            'persona': self.persona.strip(),
+            'allowBash': bool(self.allow_bash),
+            'allowWeb': bool(self.allow_web),
+        }
+        if (self.description or '').strip():
+            request['description'] = self.description.strip()
+        if self.kind == 'router':
+            if not self.subagent_ids:
+                raise UserError(_(
+                    "Router preset %s needs at least one department sub-agent.",
+                    self.name))
+            request['subagents'] = [{
+                'toolName': line.tool_name,
+                'persona': (line.persona or '').strip(),
+                'allowBash': bool(line.allow_bash),
+                'allowWeb': bool(line.allow_web),
+            } for line in self.subagent_ids]
+        return request
+
+    def _push_author(self):
+        """(Re-)generate this preset on the harness (``agentPresets/author``).
+
+        Fail-loud: a composition the harness refused must not look stored.
+        Suppressed under ``npei_syncing``.
+        """
+        if self.env.context.get('npei_syncing'):
+            return
+        client = self.env['npei.agent.harness.client'].sudo()
+        for record in self:
+            if record.kind == 'copy' or not record.preset_id or record.trust != 'user':
+                continue
+            client._rpc('agentPresets/author', {'request': record._author_request()})
+
     @api.model_create_multi
     def create(self, vals_list):
         """Author on the harness when no ``preset_id`` is given, else mirror."""
+        structured = []
         for vals in vals_list:
-            if not vals.get('preset_id') and not self.env.context.get('npei_syncing'):
+            if vals.get('preset_id') or self.env.context.get('npei_syncing'):
+                continue
+            if vals.get('kind') in ('standalone', 'router'):
+                # The author endpoint creates the preset itself; derive the id
+                # here and skip the copy path.
+                name = (vals.get('name') or '').strip()
+                slug = self._slugify(name)
+                if not slug:
+                    raise UserError(_("Cannot derive a preset id from the name %s.", name))
+                if self.with_context(active_test=False).search_count([('preset_id', '=', slug)]):
+                    raise UserError(_("A preset with id %s already exists in Odoo.", slug))
+                if any(e.get('id') == slug for e in self._harness_presets()):
+                    raise UserError(_(
+                        "A preset '%(slug)s' already exists on the harness.", slug=slug))
+                vals['preset_id'] = slug
+                vals.setdefault('trust', 'user')
+                if not vals.get('workspace_path'):
+                    vals['workspace_path'] = '~/workspace/%s' % slug
+                structured.append(vals)
+            else:
                 self._author_on_harness(vals)
-        return super().create(vals_list)
+        records = super().create(vals_list)
+        records.filtered(
+            lambda r: r.kind in ('standalone', 'router')
+            and not self.env.context.get('npei_syncing'))._push_author()
+        return records
 
     def write(self, vals):
         """Write, then push renames and active toggles to the harness.
@@ -219,8 +321,13 @@ class NpeiAgentPreset(models.Model):
         if self.env.context.get('npei_syncing'):
             return result
         client = self.env['npei.agent.harness.client'].sudo()
-        if 'name' in vals or 'description' in vals:
-            for record in self:
+        author_fields = {'kind', 'persona', 'allow_bash', 'allow_web', 'subagent_ids', 'name', 'description'}
+        structured = self.filtered(lambda r: r.kind in ('standalone', 'router'))
+        if structured and author_fields.intersection(vals):
+            structured._push_author()
+        plain = self - structured
+        if plain and ('name' in vals or 'description' in vals):
+            for record in plain:
                 if record.preset_id and record.trust == 'user' and (record.name or '').strip():
                     rename_args = {
                         'agentPreset': record.preset_id,
@@ -300,3 +407,53 @@ class NpeiAgentPreset(models.Model):
 
     def act_unlock(self):
         self.write({'is_locked': False})
+
+
+class NpeiAgentPresetSubagent(models.Model):
+    """One router department: a delegation tool spawning a child agent."""
+
+    _name = 'npei.agent.preset.subagent'
+    _description = 'DeepSeek Harness Router Sub-agent'
+    _order = 'seq, id'
+
+    preset_ref = fields.Many2one(
+        'npei.agent.preset', string='Router Preset',
+        required=True, ondelete='cascade', index=True,
+    )
+    seq = fields.Integer(string='Sequence', default=10)
+    tool_name = fields.Char(
+        string='Tool Name', required=True,
+        help="Delegation tool the router calls (lowercase slug, e.g. "
+             "'marketing'); also the department's identity.",
+    )
+    persona = fields.Text(
+        string='Persona', required=True,
+        help="Child persona: role, duties, and the skills it owns.",
+    )
+    allow_bash = fields.Boolean(string='Allow Bash')
+    allow_web = fields.Boolean(string='Allow Web')
+
+    @api.constrains('tool_name')
+    def _check_tool_name(self):
+        for line in self:
+            if not re.match(r'^[a-z0-9][a-z0-9_-]*$', line.tool_name or ''):
+                raise UserError(_(
+                    "Tool name %s must be a lowercase slug ([a-z0-9_-]).",
+                    line.tool_name))
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        records.mapped('preset_ref')._push_author()
+        return records
+
+    def write(self, vals):
+        result = super().write(vals)
+        self.mapped('preset_ref')._push_author()
+        return result
+
+    def unlink(self):
+        presets = self.mapped('preset_ref')
+        result = super().unlink()
+        presets._push_author()
+        return result
