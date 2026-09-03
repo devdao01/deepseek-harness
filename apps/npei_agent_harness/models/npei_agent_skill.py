@@ -34,7 +34,7 @@ class NpeiAgentSkill(models.Model):
         help="Skill identity as the harness catalog reports it (the "
              "``SkillEntry.name``).",
     )
-    name = fields.Char(string='Name', tracking=True)
+    name = fields.Char(string='Name*:', tracking=True)
     description = fields.Text(
         string='Description', tracking=True,
         help="The skill's catalog description — the hint telling the model "

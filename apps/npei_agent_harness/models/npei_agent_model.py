@@ -32,7 +32,7 @@ class NpeiAgentModel(models.Model):
         copy=False, tracking=True,
         help="Model id owned by the harness (``ModelView.id``).",
     )
-    name = fields.Char(string='Name', tracking=True)
+    name = fields.Char(string='Name*:', tracking=True)
     provider = fields.Char(
         string='Provider ID',
         required=True,

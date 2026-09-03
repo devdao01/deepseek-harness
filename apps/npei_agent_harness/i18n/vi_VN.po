@@ -939,8 +939,8 @@ msgid "Models (optional)"
 msgstr "Mô hình (tùy chọn)"
 
 #. module: npei_agent_harness
-msgid "Name"
-msgstr "Tên"
+msgid "Name*:"
+msgstr "Tiêu đề*:"
 
 #. module: npei_agent_harness
 msgid "Namespace"

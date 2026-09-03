@@ -49,7 +49,7 @@ class NpeiAgentProviderModel(models.Model):
         help="Model id sent to the adapter (``models[].id``).",
     )
     name = fields.Char(
-        string='Name', tracking=True,
+        string='Name*:', tracking=True,
         help="Optional display name (``models[].name``); blank omits the key.",
     )
     context_window = fields.Integer(

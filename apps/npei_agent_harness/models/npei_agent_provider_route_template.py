@@ -42,7 +42,7 @@ class NpeiAgentProviderRouteTemplate(models.Model):
     _order = 'seq, sequence, name'
 
     name = fields.Char(
-        string='Name',
+        string='Name*:',
         required=True, tracking=True,
         help="Display name shown in the Add Provider Route wizard.",
     )

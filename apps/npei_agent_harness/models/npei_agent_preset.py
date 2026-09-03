@@ -51,7 +51,7 @@ class NpeiAgentPreset(models.Model):
              "create, Odoo derives it from the name and authors the preset on "
              "the harness; set only by the sync/adopt path.",
     )
-    name = fields.Char(string='Name', required=True, tracking=True)
+    name = fields.Char(string='Name*:', required=True, tracking=True)
     description = fields.Text(
         string='Description', tracking=True,
         help="Harness roster description: sent with agentPresets/copy at "
