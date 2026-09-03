@@ -26,6 +26,11 @@ class NpeiAgentTool(models.Model):
         string='Description', readonly=True,
         help="Model-facing description reported by the harness sync.",
     )
+    is_default = fields.Boolean(
+        string='Default Grant',
+        help="Pre-selected in Granted Tools when a new router sub-agent line "
+             "is created. Local flag — the harness sync never touches it.",
+    )
 
     _sql_constraints = [
         ('name_uniq', 'unique(name)', 'A tool with this name already exists.'),

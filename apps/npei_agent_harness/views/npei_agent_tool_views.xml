@@ -4,9 +4,10 @@
         <field name="name">npei.agent.tool.tree</field>
         <field name="model">npei.agent.tool</field>
         <field name="arch" type="xml">
-            <tree>
+            <tree editable="bottom">
                 <field name="name"/>
                 <field name="description"/>
+                <field name="is_default"/>
             </tree>
         </field>
     </record>

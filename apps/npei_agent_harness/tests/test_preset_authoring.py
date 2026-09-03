@@ -184,6 +184,25 @@ class TestPresetAuthoring(TransactionCase):
             pushes[-1]['request']['subagents'][0]['tools'], ['bash', 'read'])
         self.assertTrue(record.preset_id)
 
+    def test_default_grant_tools_prefill_new_lines(self):
+        Tool = self.env['npei.agent.tool']
+        bash = Tool.create({'name': 'bash', 'is_default': True})
+        Tool.create({'name': 'web_search'})
+        line = self.env['npei.agent.preset.subagent'].with_context(
+            npei_syncing=True).create({
+                'preset_ref': self.Preset.with_context(npei_syncing=True).create(
+                    {'name': 'R', 'preset_id': 'r-default', 'kind': 'router',
+                     'persona': 'R.', 'trust': 'user'}).id,
+                'tool_name': 'x', 'persona': 'X.',
+            })
+        self.assertEqual(line.tool_ids, bash)
+
+    def test_author_push_refreshes_the_composition_snapshot(self):
+        record = self.Preset.create({
+            'name': 'Hồ Sơ Snap', 'kind': 'standalone', 'persona': 'S.'})
+        # _push_author reloads the snapshot from agentPresets/read.
+        self.assertIn('- id: alpha', record.composition)
+
     def test_composition_load_and_raw_push(self):
         record = self.Preset.with_context(npei_syncing=True).create(
             {'name': 'Adopted', 'preset_id': 'adopted', 'trust': 'user'})

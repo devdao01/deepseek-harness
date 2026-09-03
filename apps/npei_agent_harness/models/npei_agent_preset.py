@@ -282,6 +282,11 @@ class NpeiAgentPreset(models.Model):
             if record.kind == 'copy' or not record.preset_id or record.trust != 'user':
                 continue
             client._rpc('agentPresets/author', {'request': record._author_request()})
+        # Keep the Composition tab current: the harness just re-generated the
+        # file, so a stale snapshot would misrepresent what actually runs.
+        self.filtered(
+            lambda r: r.kind in ('standalone', 'router') and r.preset_id
+            and r.trust == 'user').action_load_composition()
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -473,9 +478,12 @@ class NpeiAgentPresetSubagent(models.Model):
     allow_web = fields.Boolean(string='Allow Web')
     tool_ids = fields.Many2many(
         'npei.agent.tool', string='Granted Tools',
-        help="Explicit tool grant for this sub-agent. Set, it REPLACES the "
-             "bash/web flag derivation; empty falls back to the flags plus "
-             "the standard file/skill/job tool set.",
+        default=lambda self: self.env['npei.agent.tool'].search(
+            [('is_default', '=', True)]).ids,
+        help="Explicit tool grant for this sub-agent (pre-filled with the "
+             "catalog's Default Grant tools). Set, it REPLACES the bash/web "
+             "flag derivation; empty falls back to the flags plus the "
+             "standard file/skill/job tool set.",
     )
 
     @api.constrains('tool_name')
