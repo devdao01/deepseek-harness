@@ -7,6 +7,8 @@ from a list instead of memorizing names. Sync is manager-gated; records are
 upserted by ``name`` and never deleted (a tool gone from the harness merely
 stops matching new grants).
 """
+import uuid
+
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
 
