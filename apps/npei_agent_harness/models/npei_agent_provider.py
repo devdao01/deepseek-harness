@@ -60,9 +60,9 @@ class NpeiAgentProvider(models.Model):
         help="Whether the provider is explicitly declared in settings.",
     )
     active = fields.Boolean(default=True, tracking=True)
-    seq = fields.Integer('Trình tự*:', default=1)
-    is_locked = fields.Boolean('Đã Khóa*:', tracking=True)
-    uuid = fields.Char('Mã Chuỗi Ngẫu nhiên*:', copy=False, tracking=True,
+    seq = fields.Integer('Sequence*:', default=1)
+    is_locked = fields.Boolean('Locked*:', tracking=True)
+    uuid = fields.Char('Random Code*:', copy=False, tracking=True,
                        default=lambda self: str(uuid.uuid4()))
     model_ids = fields.One2many(
         'npei.agent.provider.model',

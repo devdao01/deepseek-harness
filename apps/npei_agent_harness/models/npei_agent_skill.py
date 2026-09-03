@@ -45,9 +45,9 @@ class NpeiAgentSkill(models.Model):
         help="Whether the harness lets the model invoke this skill directly.",
     )
     active = fields.Boolean(default=True, tracking=True)
-    seq = fields.Integer('Trình tự*:', default=1)
-    is_locked = fields.Boolean('Đã Khóa*:', tracking=True)
-    uuid = fields.Char('Mã Chuỗi Ngẫu nhiên*:', copy=False, tracking=True,
+    seq = fields.Integer('Sequence*:', default=1)
+    is_locked = fields.Boolean('Locked*:', tracking=True)
+    uuid = fields.Char('Random Code*:', copy=False, tracking=True,
                        default=lambda self: str(uuid.uuid4()))
 
     _sql_constraints = [

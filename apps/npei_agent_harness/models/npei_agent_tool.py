@@ -31,6 +31,11 @@ class NpeiAgentTool(models.Model):
         help="Pre-selected in Granted Tools when a new router sub-agent line "
              "is created. Local flag — the harness sync never touches it.",
     )
+    active = fields.Boolean(default=True, tracking=True)
+    seq = fields.Integer('Sequence*:', default=1)
+    is_locked = fields.Boolean('Locked*:', tracking=True)
+    uuid = fields.Char('Random Code*:', copy=False, tracking=True,
+                       default=lambda self: str(uuid.uuid4()))
 
     _sql_constraints = [
         ('name_uniq', 'unique(name)', 'A tool with this name already exists.'),
@@ -66,3 +71,9 @@ class NpeiAgentTool(models.Model):
                 'sticky': False,
             },
         }
+
+    def act_lock(self):
+        self.write({'is_locked': True})
+
+    def act_unlock(self):
+        self.write({'is_locked': False})

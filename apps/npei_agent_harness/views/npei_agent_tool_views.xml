@@ -5,9 +5,18 @@
         <field name="model">npei.agent.tool</field>
         <field name="arch" type="xml">
             <tree editable="bottom">
+                <field name="seq" widget='handle'/>
+                <field name="seq" optional="show"/>
+                <field name="id" optional="show"/>
                 <field name="name"/>
                 <field name="description"/>
                 <field name="is_default"/>
+                <field name="is_locked" optional="show"/>
+                <field name="active" optional="show"/>
+                <field name="create_uid" optional="show"/>
+                <field name="write_uid" optional="show"/>
+                <field name="create_date" optional="show"/>
+                <field name="write_date" optional="show"/>
             </tree>
         </field>
     </record>
