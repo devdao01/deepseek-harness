@@ -7,35 +7,35 @@
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
                 <app data-string="MTIL Agent" string="MTIL Agent" name="npei_agent_harness">
-                    <block title="Harness Connection"
+                    <block title="Kết nối Harness"
                            name="npei_harness_connection">
-                        <setting string="Base URL"
-                                 help="Base URL of the DeepSeek Harness. The gateway appends /api/&lt;method&gt;.">
+                        <setting string="URL Cơ sở"
+                                 help="URL cơ sở của DeepSeek Harness. Gateway sẽ nối thêm /api/&lt;method&gt;.">
                             <field name="npei_harness_base_url"/>
                         </setting>
-                        <setting string="API Token"
-                                 help="Bearer token for the harness (~/.dsh/api-token on the harness host). Never exposed to the browser.">
+                        <setting string="Token API"
+                                 help="Bearer token cho harness (~/.dsh/api-token trên máy chủ harness). Không bao giờ lộ ra trình duyệt.">
                             <field name="npei_harness_api_token" password="True"/>
                         </setting>
-                        <setting string="Ticket Secret"
-                                 help="Shared HMAC-SHA256 secret (>= 32 chars) the MTIL Flask API signs per-user tickets with; must equal the harness DSH_TICKET_SECRET. Never exposed to the browser.">
+                        <setting string="Khóa bí mật Ticket"
+                                 help="Khóa bí mật HMAC-SHA256 chung (>= 32 ký tự) mà Flask API của MTIL dùng để ký ticket theo người dùng; phải khớp với DSH_TICKET_SECRET của harness. Không bao giờ lộ ra trình duyệt.">
                             <field name="npei_harness_ticket_secret" password="True"/>
                         </setting>
-                        <setting string="Connection"
-                                 help="Ping the harness (host.describe) with the saved URL and token.">
+                        <setting string="Kết nối"
+                                 help="Ping harness (host.describe) bằng URL và token đã lưu.">
                             <button name="action_test_harness_connection"
                                     type="object"
-                                    string="Test Connection"
+                                    string="Kiểm tra kết nối"
                                     class="btn-secondary"/>
                         </setting>
-                        <setting string="Clear Data"
+                        <setting string="Xóa dữ liệu"
                                  groups="base.group_system"
-                                 help="Delete every MTIL Agent record (sessions, presets, skills, credentials, providers, models, settings) except the seeded provider route templates. Does not touch the harness. Irreversible.">
+                                 help="Xóa toàn bộ bản ghi MTIL Agent (phiên, preset, kỹ năng, thông tin xác thực, nhà cung cấp, mô hình, cài đặt), trừ các mẫu tuyến đã gieo. Không ảnh hưởng harness. Không thể hoàn tác.">
                             <button name="action_clear_data"
                                     type="object"
-                                    string="Clear Data"
+                                    string="Xóa dữ liệu"
                                     class="btn-danger"
-                                    confirm="This permanently deletes all MTIL Agent data in Odoo (except seeded route templates). The harness is not affected. Continue?"/>
+                                    confirm="Thao tác này sẽ xóa vĩnh viễn toàn bộ dữ liệu MTIL Agent trong Odoo (trừ các mẫu tuyến đã gieo). Harness không bị ảnh hưởng. Tiếp tục?"/>
                         </setting>
                     </block>
                 </app>
@@ -44,7 +44,7 @@
     </record>
 
     <record id="action_npei_agent_config_settings" model="ir.actions.act_window">
-        <field name="name">Settings</field>
+        <field name="name">Cài đặt</field>
         <field name="res_model">res.config.settings</field>
         <field name="view_mode">form</field>
         <field name="target">inline</field>

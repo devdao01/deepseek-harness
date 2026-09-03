@@ -2,24 +2,22 @@
 {
     'name': 'NPEI Agent Harness',
     'version': '17.0.1.2.0',
-    'summary': 'Odoo gateway and session ACL for the DeepSeek Harness backend',
+    'summary': 'Cổng Odoo và ACL phiên làm việc cho backend DeepSeek Harness',
     'description': """
 NPEI Agent Harness
 ==================
 
-Odoo is the single gateway between the browser SPA and the DeepSeek Harness
-backend. The SPA only ever talks to Odoo; Odoo exchanges the harness launch
-token for the signed session cookie server-side and proxies the request. The
-token never reaches the browser.
+Odoo là cổng kết nối duy nhất giữa SPA trình duyệt và backend DeepSeek Harness.
+SPA chỉ giao tiếp với Odoo; Odoo trao đổi launch token của harness lấy cookie
+phiên đã ký phía máy chủ và proxy yêu cầu. Token không bao giờ đến trình duyệt.
 
-This module provides:
+Module này cung cấp:
 
-* Harness connection settings (base URL + launch token) via ``res.config.settings``.
-* Odoo-side session ACL (``npei.agent.session``) mapping a harness session id to
-  the ``res.users`` allowed to use it.
-* Preset and skill management mirrors with a sync-from-harness action.
-* HTTP proxy controllers for unary RPC and file downloads, enforcing the ACL
-  before forwarding.
+* Cài đặt kết nối Harness (URL cơ sở + launch token) qua ``res.config.settings``.
+* ACL phiên phía Odoo (``npei.agent.session``) ánh xạ mã phiên harness với
+  ``res.users`` được phép sử dụng.
+* Phản chiếu quản lý preset và kỹ năng với action đồng bộ từ harness.
+* Controller proxy HTTP cho RPC unary và tải file, thực thi ACL trước khi chuyển tiếp.
 """,
     'author': 'NPEI / MTIL',
     'website': 'https://mtil.mtil.vn',

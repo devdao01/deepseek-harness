@@ -4,7 +4,7 @@
         <field name="name">npei.agent.skill.tree</field>
         <field name="model">npei.agent.skill</field>
         <field name="arch" type="xml">
-            <tree string="Agent Skills">
+            <tree string="Danh sách Kỹ năng Agent">
                 <field name="seq" widget='handle'/>
                 <field name="seq" optional="show"/>
                 <field name="id" optional="show"/>
@@ -26,10 +26,10 @@
         <field name="name">npei.agent.skill.form</field>
         <field name="model">npei.agent.skill</field>
         <field name="arch" type="xml">
-            <form string="Agent Skill">
+            <form string="Kỹ năng Agent">
                 <header>
                     <button name="action_sync_from_harness" type="object"
-                            string="Sync from Harness" class="btn-primary"/>
+                            string="Đồng bộ từ Harness" class="btn-primary"/>
                     <button name="act_lock" string="Khóa" type="object" groups="npei_base.npei_group_lock" invisible="is_locked"/>
                     <button name="act_unlock" string="Mở Khóa" type="object" groups="npei_base.npei_group_lock" invisible="not is_locked"/>
                 </header>
@@ -46,7 +46,7 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Description">
+                        <page string="Mô tả">
                             <field name="description" nolabel="1" readonly="is_locked"/>
                         </page>
                         <page string="Quản lý Hệ thống*">
@@ -86,14 +86,14 @@
     </record>
 
     <record id="action_npei_agent_skill" model="ir.actions.act_window">
-        <field name="name">Skills</field>
+        <field name="name">Kỹ năng</field>
         <field name="res_model">npei.agent.skill</field>
         <field name="view_mode">tree,form</field>
     </record>
 
     <!-- Server action so the sync can run from a menu when the list is empty. -->
     <record id="action_npei_sync_skills" model="ir.actions.server">
-        <field name="name">Sync Skills from Harness</field>
+        <field name="name">Đồng bộ Kỹ năng từ Harness</field>
         <field name="model_id" ref="model_npei_agent_skill"/>
         <field name="state">code</field>
         <field name="code">action = model.action_sync_from_harness()</field>

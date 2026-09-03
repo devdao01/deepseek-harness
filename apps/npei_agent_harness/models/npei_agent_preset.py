@@ -44,97 +44,93 @@ class NpeiAgentPreset(models.Model):
     _order = 'seq, name'
 
     preset_id = fields.Char(
-        string='Harness Preset ID',
+        string='Mã Preset Harness',
         index=True,
         copy=False, tracking=True,
-        help="Preset id owned by the harness (roster entry id). Left blank on "
-             "create, Odoo derives it from the name and authors the preset on "
-             "the harness; set only by the sync/adopt path.",
+        help="Mã preset do harness sở hữu (id mục roster). Để trống khi tạo, "
+             "Odoo sẽ tự sinh từ tên và đăng ký preset lên harness; chỉ được "
+             "điền bởi đường dẫn sync/adopt.",
     )
-    name = fields.Char(string='Name', required=True, tracking=True)
+    name = fields.Char(string='Tên', required=True, tracking=True)
     description = fields.Text(
-        string='Description', tracking=True,
-        help="Harness roster description: sent with agentPresets/copy at "
-             "authoring and pushed via agentPresets/rename on edit "
-             "(user-trust presets only).",
+        string='Mô tả', tracking=True,
+        help="Mô tả trong roster harness: gửi kèm agentPresets/copy khi đăng ký "
+             "và đẩy qua agentPresets/rename khi chỉnh sửa (chỉ preset trust user).",
     )
     kind = fields.Selection(
         [('copy', 'Copy of default'),
          ('standalone', 'Standalone Agent'),
          ('router', 'Router (multi-agent)')],
-        string='Kind', default='copy', required=True, tracking=True,
-        help="copy: plain duplicate of the harness default preset. "
-             "standalone: generated agent with its own persona and bash/web "
-             "capability flags. router: generated coordinator delegating to "
-             "the department sub-agents below. standalone/router presets are "
-             "re-generated on the harness whenever these fields change.",
+        string='Loại', default='copy', required=True, tracking=True,
+        help="copy: bản sao đơn giản của preset mặc định harness. "
+             "standalone: agent được sinh với persona và cờ khả năng bash/web riêng. "
+             "router: coordinator được sinh, ủy quyền cho các agent phụ theo nhóm bên dưới. "
+             "Preset standalone/router được sinh lại trên harness mỗi khi các trường này thay đổi.",
     )
     persona = fields.Text(
         string='Persona', tracking=True,
-        help="The agent's own persona (role, duties, owned skills). Required "
-             "for standalone/router kinds; pushed via agentPresets/author.",
+        help="Persona riêng của agent (vai trò, nhiệm vụ, kỹ năng sở hữu). Bắt buộc "
+             "cho loại standalone/router; đẩy qua agentPresets/author.",
     )
     allow_bash = fields.Boolean(
-        string='Allow Bash', tracking=True,
-        help="Whether this agent may run shell commands (standalone/router).",
+        string='Cho phép Bash', tracking=True,
+        help="Agent này có được chạy lệnh shell không (standalone/router).",
     )
     allow_web = fields.Boolean(
-        string='Allow Web', default=True, tracking=True,
-        help="Whether this agent may search/fetch the web (standalone/router).",
+        string='Cho phép Web', default=True, tracking=True,
+        help="Agent này có được tìm kiếm/tải trang web không (standalone/router).",
     )
     subagent_ids = fields.One2many(
         'npei.agent.preset.subagent', 'preset_ref',
-        string='Department Sub-agents',
-        help="Router departments: each line becomes one delegation tool the "
-             "router calls (spawns a child agent with the line's persona and "
-             "capability flags).",
+        string='Agent phụ theo nhóm',
+        help="Các nhóm của router: mỗi dòng trở thành một công cụ ủy quyền mà "
+             "router gọi (sinh agent con với persona và cờ khả năng của dòng đó).",
     )
     composition = fields.Text(
-        string='Composition (agent.cordis.yml)', copy=False,
-        help="Snapshot of the harness composition, loaded on demand via "
-             "agentPresets/read. The view keeps it read-only; the raw push "
-             "action (agentPresets/writeRaw, wildcard-gated) is wired for "
-             "when editing is enabled later.",
+        string='Cấu trúc (agent.cordis.yml)', copy=False,
+        help="Ảnh chụp nhanh cấu trúc harness, tải theo yêu cầu qua "
+             "agentPresets/read. Giao diện giữ chỉ đọc; action đẩy thô "
+             "(agentPresets/writeRaw, cần vé quản trị '*') đã nối sẵn "
+             "cho khi bật chỉnh sửa.",
     )
     is_default = fields.Boolean(
-        string='Harness Default', readonly=True, copy=False, tracking=True,
-        help="Whether the harness reports this roster entry as the default "
-             "preset for new sessions.",
+        string='Mặc định Harness', readonly=True, copy=False, tracking=True,
+        help="Harness có báo mục roster này là preset mặc định cho phiên mới không.",
     )
     workspace_path = fields.Char(
-        string='Default Workspace Path', tracking=True,
-        help="The cwd new sessions of this preset land in. The harness "
-             "derives it as <presetWorkspaceRoot>/<preset id> (deployment "
-             "default ~/workspace/<preset id>); renames never change it "
-             "because the preset id is fixed.",
+        string='Đường dẫn Workspace mặc định', tracking=True,
+        help="Thư mục làm việc mặc định của phiên mới theo preset này. "
+             "Harness tự sinh là <presetWorkspaceRoot>/<preset id> "
+             "(mặc định triển khai ~/workspace/<preset id>); đổi tên không thay đổi "
+             "vì mã preset là cố định.",
     )
     workspace_id = fields.Char(
-        string='Harness Workspace ID',
+        string='ID Workspace Harness',
         copy=False, tracking=True,
-        help="Manual annotation of the harness workspace this preset groups "
-             "sessions under.",
+        help="Chú thích thủ công về workspace harness mà preset này nhóm "
+             "các phiên vào.",
     )
     trust = fields.Selection(
         [('system', 'System'), ('user', 'User')],
-        string='Trust',
+        string='Mức tin tưởng',
         default='user', tracking=True,
-        help="System presets ship with the harness and are read-only there; "
-             "only user presets can be authored or deleted from Odoo.",
+        help="Preset hệ thống đi kèm harness và chỉ đọc ở đó; "
+             "chỉ preset user mới có thể được đăng ký hoặc xóa từ Odoo.",
     )
     active = fields.Boolean(
         default=True, tracking=True,
-        help="Mirrors the harness roster's active state. Toggling pushes "
-             "agentPresets/setActive: an inactive preset is withheld from "
-             "pickers and new selection while its running sessions continue.",
+        help="Phản chiếu trạng thái active trong roster harness. Thay đổi sẽ đẩy "
+             "agentPresets/setActive: preset không active bị ẩn khỏi bộ chọn và "
+             "lựa chọn mới trong khi các phiên đang chạy tiếp tục.",
     )
     session_ids = fields.One2many(
         'npei.agent.session',
         'preset_id',
-        string='Sessions',
-        help="Sessions running under this preset.", tracking=True
+        string='Phiên làm việc',
+        help="Các phiên đang chạy theo preset này.", tracking=True
     )
     session_count = fields.Integer(
-        string='Session Count',
+        string='Số phiên làm việc',
         compute='_compute_session_count', tracking=True
     )
     seq = fields.Integer('Trình tự*:', default=1)
@@ -153,7 +149,7 @@ class NpeiAgentPreset(models.Model):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': _("Sessions"),
+            'name': _("Phiên làm việc"),
             'res_model': 'npei.agent.session',
             'view_mode': 'tree,form',
             'domain': [('preset_id', '=', self.id)],
@@ -164,7 +160,7 @@ class NpeiAgentPreset(models.Model):
         (
             'preset_id_uniq',
             'unique(preset_id)',
-            'A preset with this harness preset id already exists.',
+            'Đã tồn tại một preset với mã harness preset này.',
         ),
     ]
 
@@ -172,7 +168,7 @@ class NpeiAgentPreset(models.Model):
         """Raise unless the current user is an NPEI Agent Manager."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Only NPEI Agent Managers can sync presets from the harness."))
+                _("Chỉ Quản trị Agent NPEI mới có thể đồng bộ presets từ harness."))
 
     # ------------------------------------------------------------------
     # Authoring (create a preset on the harness)
@@ -209,22 +205,21 @@ class NpeiAgentPreset(models.Model):
         """
         name = (vals.get('name') or '').strip()
         if not name:
-            raise UserError(_("A preset name is required to create one."))
+            raise UserError(_("Phải nhập tên preset để tạo mới."))
         slug = self._slugify(name)
         if not slug:
-            raise UserError(_("Cannot derive a preset id from the name %s.", name))
+            raise UserError(_("Không thể tạo mã preset từ tên %s.", name))
         if self.with_context(active_test=False).search_count([('preset_id', '=', slug)]):
-            raise UserError(_("A preset with id %s already exists in Odoo.", slug))
+            raise UserError(_("Đã tồn tại một preset với mã %s trong Odoo.", slug))
         presets = self._harness_presets()
         if any(entry.get('id') == slug for entry in presets):
             raise UserError(_(
-                "A preset '%(slug)s' already exists on the harness (from the "
-                "name '%(name)s'). Pick a different name, or use 'Sync from "
-                "Harness' to adopt it into Odoo.",
+                "Đã tồn tại một preset '%(slug)s' trên harness (từ tên '%(name)s'). "
+                "Chọn tên khác, hoặc dùng 'Đồng bộ từ Harness' để nhận vào Odoo.",
                 slug=slug, name=name))
         default_id = next((entry.get('id') for entry in presets if entry.get('isDefault')), None)
         if not default_id:
-            raise UserError(_("The harness reports no default preset to copy from."))
+            raise UserError(_("Harness không báo cáo preset mặc định nào để sao chép."))
         copy_args = {
             'from': default_id,
             'id': slug,
@@ -244,7 +239,7 @@ class NpeiAgentPreset(models.Model):
         self.ensure_one()
         if not (self.persona or '').strip():
             raise UserError(_(
-                "Preset %s needs a Persona for the %s kind.", self.name, self.kind))
+                "Preset %s cần có Persona cho loại %s.", self.name, self.kind))
         request = {
             'agentPreset': self.preset_id,
             'name': self.name,
@@ -258,7 +253,7 @@ class NpeiAgentPreset(models.Model):
         if self.kind == 'router':
             if not self.subagent_ids:
                 raise UserError(_(
-                    "Router preset %s needs at least one department sub-agent.",
+                    "Preset router %s cần ít nhất một agent phụ theo nhóm.",
                     self.name))
             request['subagents'] = [{
                 'toolName': line.tool_name,
@@ -301,12 +296,12 @@ class NpeiAgentPreset(models.Model):
                 name = (vals.get('name') or '').strip()
                 slug = self._slugify(name)
                 if not slug:
-                    raise UserError(_("Cannot derive a preset id from the name %s.", name))
+                    raise UserError(_("Không thể tạo mã preset từ tên %s.", name))
                 if self.with_context(active_test=False).search_count([('preset_id', '=', slug)]):
-                    raise UserError(_("A preset with id %s already exists in Odoo.", slug))
+                    raise UserError(_("Đã tồn tại một preset với mã %s trong Odoo.", slug))
                 if any(e.get('id') == slug for e in self._harness_presets()):
                     raise UserError(_(
-                        "A preset '%(slug)s' already exists on the harness.", slug=slug))
+                        "Đã tồn tại một preset '%(slug)s' trên harness.", slug=slug))
                 vals['preset_id'] = slug
                 vals.setdefault('trust', 'user')
                 if not vals.get('workspace_path'):
@@ -408,8 +403,8 @@ class NpeiAgentPreset(models.Model):
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': _("Presets synced"),
-                'message': _("%s preset(s) synced from the harness.", synced),
+                'title': _("Đồng bộ presets thành công"),
+                'message': _("Đã đồng bộ %s preset từ harness.", synced),
                 'type': 'success',
                 'sticky': False,
             },
@@ -437,7 +432,7 @@ class NpeiAgentPreset(models.Model):
         for record in self:
             if not record.preset_id or not (record.composition or '').strip():
                 raise UserError(_(
-                    "Load (and edit) the composition before pushing it."))
+                    "Hãy tải (và chỉnh sửa) cấu trúc trước khi gửi."))
             client._rpc('agentPresets/writeRaw', {'request': {
                 'agentPreset': record.preset_id,
                 'name': record.name,
@@ -461,29 +456,28 @@ class NpeiAgentPresetSubagent(models.Model):
     _order = 'seq, id'
 
     preset_ref = fields.Many2one(
-        'npei.agent.preset', string='Router Preset',
+        'npei.agent.preset', string='Preset Router',
         required=True, ondelete='cascade', index=True,
     )
-    seq = fields.Integer(string='Sequence', default=10)
+    seq = fields.Integer(string='Thứ tự', default=10)
     tool_name = fields.Char(
-        string='Tool Name', required=True,
-        help="Delegation tool the router calls (lowercase slug, e.g. "
-             "'marketing'); also the department's identity.",
+        string='Tên Công cụ', required=True,
+        help="Công cụ ủy quyền mà router gọi (slug chữ thường, ví dụ "
+             "'marketing'); cũng là danh tính của nhóm.",
     )
     persona = fields.Text(
         string='Persona', required=True,
-        help="Child persona: role, duties, and the skills it owns.",
+        help="Persona của agent con: vai trò, nhiệm vụ và kỹ năng sở hữu.",
     )
-    allow_bash = fields.Boolean(string='Allow Bash')
-    allow_web = fields.Boolean(string='Allow Web')
+    allow_bash = fields.Boolean(string='Cho phép Bash')
+    allow_web = fields.Boolean(string='Cho phép Web')
     tool_ids = fields.Many2many(
-        'npei.agent.tool', string='Granted Tools',
+        'npei.agent.tool', string='Công cụ được cấp',
         default=lambda self: self.env['npei.agent.tool'].search(
             [('is_default', '=', True)]).ids,
-        help="Explicit tool grant for this sub-agent (pre-filled with the "
-             "catalog's Default Grant tools). Set, it REPLACES the bash/web "
-             "flag derivation; empty falls back to the flags plus the "
-             "standard file/skill/job tool set.",
+        help="Cấp công cụ rõ ràng cho agent phụ này (được điền sẵn với các "
+             "công cụ Default Grant trong danh mục). Khi đặt, THAY THẾ cờ "
+             "bash/web; để trống sẽ dùng cờ cộng bộ công cụ file/skill/job tiêu chuẩn.",
     )
 
     @api.constrains('tool_name')
@@ -491,7 +485,7 @@ class NpeiAgentPresetSubagent(models.Model):
         for line in self:
             if not re.match(r'^[a-z0-9][a-z0-9_-]*$', line.tool_name or ''):
                 raise UserError(_(
-                    "Tool name %s must be a lowercase slug ([a-z0-9_-]).",
+                    "Tên công cụ %s phải là slug chữ thường ([a-z0-9_-]).",
                     line.tool_name))
 
     @api.model_create_multi

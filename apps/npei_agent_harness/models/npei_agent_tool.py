@@ -19,21 +19,21 @@ class NpeiAgentTool(models.Model):
     _order = 'name'
 
     name = fields.Char(
-        string='Tool Name', required=True, index=True,
-        help="Tool name as toolFilter.allow grants it (e.g. bash, web_search).",
+        string='Tên Công cụ', required=True, index=True,
+        help="Tên công cụ theo cách toolFilter.allow cấp (ví dụ bash, web_search).",
     )
     description = fields.Text(
-        string='Description', readonly=True,
-        help="Model-facing description reported by the harness sync.",
+        string='Mô tả', readonly=True,
+        help="Mô tả hướng tới mô hình được báo cáo bởi lần đồng bộ harness.",
     )
     is_default = fields.Boolean(
-        string='Default Grant',
-        help="Pre-selected in Granted Tools when a new router sub-agent line "
-             "is created. Local flag — the harness sync never touches it.",
+        string='Cấp mặc định',
+        help="Được chọn sẵn trong Công cụ được cấp khi tạo dòng agent phụ router mới. "
+             "Cờ cục bộ — lần đồng bộ harness không bao giờ thay đổi nó.",
     )
 
     _sql_constraints = [
-        ('name_uniq', 'unique(name)', 'A tool with this name already exists.'),
+        ('name_uniq', 'unique(name)', 'Đã tồn tại một công cụ với tên này.'),
     ]
 
     @api.model
@@ -41,7 +41,7 @@ class NpeiAgentTool(models.Model):
         """Upsert the catalog from ``agentPresets/toolCatalog``."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Only NPEI Agent Managers can sync tools from the harness."))
+                _("Chỉ Quản trị Agent NPEI mới có thể đồng bộ công cụ từ harness."))
         value = self.env['npei.agent.harness.client']._rpc('agentPresets/toolCatalog', {})
         entries = (value or {}).get('tools') or []
         synced = 0
@@ -60,8 +60,8 @@ class NpeiAgentTool(models.Model):
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': _("Tools synced"),
-                'message': _("%s tool(s) synced from the harness.", synced),
+                'title': _("Đồng bộ công cụ thành công"),
+                'message': _("Đã đồng bộ %s công cụ từ harness.", synced),
                 'type': 'success',
                 'sticky': False,
             },

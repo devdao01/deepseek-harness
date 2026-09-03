@@ -27,38 +27,37 @@ class NpeiAgentSetting(models.Model):
     _order = 'seq, ns'
 
     ns = fields.Char(
-        string='Namespace',
+        string='Không gian tên',
         required=True,
         index=True,
         copy=False, tracking=True,
-        help="Settings namespace key owned by the harness.",
+        help="Khóa không gian tên cài đặt do harness sở hữu.",
     )
     applies = fields.Selection(
         [('live', 'Live'), ('restart', 'Restart')],
-        string='Applies',
+        string='Áp dụng',
         readonly=True, tracking=True,
-        help="Whether a change takes effect live or needs a harness restart.",
+        help="Thay đổi có hiệu lực ngay (live) hay cần khởi động lại harness (restart).",
     )
     has_document = fields.Boolean(
-        string='Has Document',
+        string='Có tài liệu',
         readonly=True, tracking=True,
-        help="Whether the harness has a persisted settings document.",
+        help="Harness có tài liệu cài đặt được lưu lại không.",
     )
     revision = fields.Integer(
-        string='Revision',
+        string='Phiên bản',
         readonly=True, tracking=True,
-        help="Namespace revision echoed as ``expectedRevision`` on save so a "
-             "concurrent change is refused.",
+        help="Phiên bản namespace được dùng làm ``expectedRevision`` khi lưu "
+             "để từ chối thay đổi đồng thời.",
     )
     value_json = fields.Text(
-        string='Resolved Value',
+        string='Giá trị đã phân giải',
         readonly=True,
-        help="Pretty-printed redacted resolved value (base + user), read-only.",
+        help="Giá trị đã phân giải được làm mờ (base + user), chỉ đọc.",
     )
     user_json = fields.Text(
-        string='User Section',
-        help="Pretty-printed raw user section. Edit and Save to replace it on "
-             "the harness.",
+        string='Phần người dùng',
+        help="Phần user thô. Chỉnh sửa và Lưu để thay thế trên harness.",
     )
     active = fields.Boolean(default=True, tracking=True)
     seq = fields.Integer('Trình tự*:', default=1)
@@ -68,16 +67,15 @@ class NpeiAgentSetting(models.Model):
     provider_ids = fields.One2many(
         'npei.agent.provider',
         'settings_id',
-        string='Providers',
-        help="Provider routes that read their configuration from this "
-             "namespace.",
+        string='Nhà cung cấp',
+        help="Các tuyến nhà cung cấp đọc cấu hình từ namespace này.",
     )
 
     _sql_constraints = [
         (
             'ns_uniq',
             'unique(ns)',
-            'A settings namespace with this key already exists.',
+            'Đã tồn tại một không gian tên cài đặt với khóa này.',
         ),
     ]
 
@@ -85,7 +83,7 @@ class NpeiAgentSetting(models.Model):
         """Raise unless the current user is an NPEI Agent Manager."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Only NPEI Agent Managers can manage harness settings."))
+                _("Chỉ Quản trị Agent NPEI mới có thể quản lý cài đặt harness."))
 
     def _notify(self, message):
         """Build a success ``display_notification`` client action."""
@@ -156,7 +154,7 @@ class NpeiAgentSetting(models.Model):
             ]).write({'settings_id': record.id})
             synced += 1
         return self._notify(
-            _("%s settings namespace(s) synced from the harness.", synced))
+            _("Đã đồng bộ %s không gian tên cài đặt từ harness.", synced))
 
     def action_save(self):
         """Replace this namespace's user section on the harness.
@@ -176,11 +174,11 @@ class NpeiAgentSetting(models.Model):
             section = json.loads(self.user_json or '{}')
         except (ValueError, TypeError) as exc:
             raise UserError(_(
-                "The user section for %(ns)s is not valid JSON: %(error)s",
+                "Phần người dùng cho %(ns)s không phải JSON hợp lệ: %(error)s",
                 ns=self.ns, error=exc))
         if not isinstance(section, dict):
             raise UserError(_(
-                "The user section for %s must be a JSON object.", self.ns))
+                "Phần người dùng cho %s phải là một JSON object.", self.ns))
         try:
             view = self.env['npei.agent.harness.client'].sudo()._rpc(
                 'settings/replace', {
@@ -190,13 +188,13 @@ class NpeiAgentSetting(models.Model):
                 })
         except UserError as exc:
             raise UserError(_(
-                "Saving settings namespace %(ns)s failed: %(error)s\n"
-                "If another client changed it, use 'Sync from Harness' to reload "
-                "the current revision, then reapply your edit.",
+                "Lưu không gian tên cài đặt %(ns)s thất bại: %(error)s\n"
+                "Nếu client khác đã thay đổi, dùng 'Đồng bộ từ Harness' để tải lại "
+                "phiên bản hiện tại, rồi áp lại chỉnh sửa của bạn.",
                 ns=self.ns, error=exc))
         self.write(self._vals_from_view(view))
         return self._notify(
-            _("Settings namespace %(ns)s saved (revision %(rev)s).",
+            _("Đã lưu không gian tên cài đặt %(ns)s (phiên bản %(rev)s).",
               ns=self.ns, rev=self.revision))
 
     def act_lock(self):

@@ -4,7 +4,7 @@
         <field name="name">npei.agent.provider.route.template.tree</field>
         <field name="model">npei.agent.provider.route.template</field>
         <field name="arch" type="xml">
-            <tree string="Provider Route Templates">
+            <tree string="Danh sách Mẫu tuyến Nhà cung cấp">
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
                 <field name="route_key"/>
@@ -28,7 +28,7 @@
         <field name="name">npei.agent.provider.route.template.form</field>
         <field name="model">npei.agent.provider.route.template</field>
         <field name="arch" type="xml">
-            <form string="Provider Route Template">
+            <form string="Mẫu tuyến Nhà cung cấp">
                 <header>
                     <button name="act_lock" string="Khóa" type="object" groups="npei_base.npei_group_lock" invisible="is_locked"/>
                     <button name="act_unlock" string="Mở Khóa" type="object" groups="npei_base.npei_group_lock" invisible="not is_locked"/>
@@ -88,7 +88,7 @@
     </record>
 
     <record id="action_npei_route_template" model="ir.actions.act_window">
-        <field name="name">Provider Route Templates</field>
+        <field name="name">Mẫu tuyến Nhà cung cấp</field>
         <field name="res_model">npei.agent.provider.route.template</field>
         <field name="view_mode">tree,form</field>
     </record>

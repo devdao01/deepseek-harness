@@ -17,23 +17,23 @@ class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
     npei_harness_base_url = fields.Char(
-        string='Harness Base URL',
+        string='URL Cơ sở Harness',
         config_parameter='npei_agent_harness.base_url',
-        help="Base URL of the DeepSeek Harness, e.g. https://harness.internal:8787. "
-             "The gateway appends /api/<method>.",
+        help="URL cơ sở của DeepSeek Harness, ví dụ https://harness.internal:8787. "
+             "Cổng kết nối sẽ thêm /api/<method>.",
     )
     npei_harness_api_token = fields.Char(
-        string='Harness API Token',
+        string='Token API Harness',
         config_parameter='npei_agent_harness.api_token',
-        help="Bearer token for the harness. On the harness host it lives at "
-             "~/.dsh/api-token. Never exposed to the browser.",
+        help="Bearer token cho harness. Trên máy chủ harness lưu tại "
+             "~/.dsh/api-token. Không bao giờ lộ ra trình duyệt.",
     )
     npei_harness_ticket_secret = fields.Char(
-        string='Ticket Secret',
+        string='Khóa bí mật Ticket',
         config_parameter='npei_agent_harness.ticket_secret',
-        help="Shared HMAC-SHA256 secret (>= 32 chars) the MTIL Flask API signs "
-             "per-user tickets with; MUST equal the harness DSH_TICKET_SECRET. "
-             "The Flask API reads it from this parameter. Never exposed to the browser.",
+        help="Khóa bí mật HMAC-SHA256 dùng chung (>= 32 ký tự) mà MTIL Flask API "
+             "ký vé per-user; PHẢI bằng DSH_TICKET_SECRET của harness. "
+             "Flask API đọc từ tham số này. Không bao giờ lộ ra trình duyệt.",
     )
 
     def action_test_harness_connection(self):
@@ -48,7 +48,7 @@ class ResConfigSettings(models.TransientModel):
         self.ensure_one()
         value = self.env['npei.agent.harness.client']._rpc('settings/describe', {}) or {}
         message = _(
-            "Connected. Settings namespaces: %(count)s · writable: %(writable)s"
+            "Đã kết nối. Số namespace cài đặt: %(count)s · có thể ghi: %(writable)s"
         ) % {
             'count': len(value.get('namespaces') or []),
             'writable': value.get('writable', False),
@@ -82,7 +82,7 @@ class ResConfigSettings(models.TransientModel):
         self.ensure_one()
         if not self.env.user.has_group('base.group_system'):
             raise AccessError(_(
-                "Only the system administrator can clear MTIL Agent data."))
+                "Chỉ quản trị viên hệ thống mới có thể xóa dữ liệu MTIL Agent."))
 
         kept_template_ids = set(self.env['ir.model.data'].sudo().search([
             ('module', '=', TEMPLATE_DATA_MODULE),
@@ -109,7 +109,7 @@ class ResConfigSettings(models.TransientModel):
             'tag': 'display_notification',
             'params': {
                 'title': _("MTIL Agent"),
-                'message': _("Cleared %s record(s); route templates kept.", deleted),
+                'message': _("Đã xóa %s bản ghi; các mẫu tuyến được giữ lại.", deleted),
                 'type': 'success',
                 'sticky': False,
             },

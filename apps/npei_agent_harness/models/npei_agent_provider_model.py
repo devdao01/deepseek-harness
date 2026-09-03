@@ -32,35 +32,35 @@ class NpeiAgentProviderModel(models.Model):
 
     provider_id = fields.Many2one(
         'npei.agent.provider',
-        string='Provider',
+        string='Nhà cung cấp',
         required=True,
         index=True,
         ondelete='cascade', tracking=True,
-        help="The provider whose settings-namespace models array owns this row.",
+        help="Nhà cung cấp có mảng models trong không gian tên cài đặt sở hữu dòng này.",
     )
     sequence = fields.Integer(
-        string='Sequence',
+        string='Thứ tự',
         default=10,
-        help="Order within the provider's models array.",
+        help="Thứ tự trong mảng models của nhà cung cấp.",
     )
     model_id = fields.Char(
-        string='Model ID',
+        string='Mã Mô hình',
         required=True, tracking=True,
-        help="Model id sent to the adapter (``models[].id``).",
+        help="Mã model gửi đến adapter (``models[].id``).",
     )
     name = fields.Char(
-        string='Name', tracking=True,
-        help="Optional display name (``models[].name``); blank omits the key.",
+        string='Tên', tracking=True,
+        help="Tên hiển thị tùy chọn (``models[].name``); để trống sẽ bỏ qua khóa.",
     )
     context_window = fields.Integer(
-        string='Context Window', tracking=True,
-        help="Optional context capacity (``models[].contextWindow``); 0 omits "
-             "the key so the adapter default applies.",
+        string='Cửa sổ ngữ cảnh', tracking=True,
+        help="Dung lượng ngữ cảnh tùy chọn (``models[].contextWindow``); 0 bỏ qua "
+             "khóa để adapter dùng mặc định.",
     )
     max_tokens = fields.Integer(
-        string='Max Tokens', tracking=True,
-        help="Optional output cap (``models[].maxTokens``); 0 omits the key so "
-             "the adapter default applies.",
+        string='Số token tối đa', tracking=True,
+        help="Giới hạn đầu ra tùy chọn (``models[].maxTokens``); 0 bỏ qua khóa "
+             "để adapter dùng mặc định.",
     )
     active = fields.Boolean(default=True, tracking=True)
     seq = fields.Integer('Trình tự*:', default=1)
@@ -72,7 +72,7 @@ class NpeiAgentProviderModel(models.Model):
         (
             'provider_model_uniq',
             'unique(provider_id, model_id)',
-            'This provider already configures a model with that id.',
+            'Nhà cung cấp này đã cấu hình một mô hình với mã đó.',
         ),
     ]
 
@@ -83,7 +83,7 @@ class NpeiAgentProviderModel(models.Model):
         """Raise unless the current user is an NPEI Agent Manager."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Only NPEI Agent Managers can configure provider models."))
+                _("Chỉ Quản trị Agent NPEI mới có thể cấu hình mô hình nhà cung cấp."))
 
     @api.model
     def _path_segments(self, provider):
@@ -129,8 +129,8 @@ class NpeiAgentProviderModel(models.Model):
         for provider in providers:
             if not provider.settings_ns:
                 raise UserError(_(
-                    "Provider %s has no settings namespace; sync providers from "
-                    "the harness before configuring its models.",
+                    "Nhà cung cấp %s không có không gian tên cài đặt; đồng bộ nhà cung cấp "
+                    "từ harness trước khi cấu hình mô hình của nó.",
                     provider.provider or provider.display_name or provider.id))
             segments = self._path_segments(provider)
             rows = self.search([('provider_id', '=', provider.id)])
@@ -146,8 +146,8 @@ class NpeiAgentProviderModel(models.Model):
                           if row.get('ns') == provider.settings_ns), None)
             if entry is None:
                 raise UserError(_(
-                    "The harness reports no settings namespace %s; sync "
-                    "settings from the harness first.", provider.settings_ns))
+                    "Harness không báo cáo không gian tên cài đặt %s; đồng bộ "
+                    "cài đặt từ harness trước.", provider.settings_ns))
             client._rpc('settings/mutate', {
                 'ns': provider.settings_ns,
                 'ops': [op],
@@ -216,7 +216,7 @@ class NpeiAgentProviderModel(models.Model):
             synced += self.with_context(npei_syncing=True)._sync_provider_rows(
                 provider, models_value or [])
         return self.env['npei.agent.provider']._notify(
-            _("%s provider model(s) synced from the harness.", synced))
+            _("Đã đồng bộ %s mô hình nhà cung cấp từ harness.", synced))
 
     @api.model
     def _sync_provider_rows(self, provider, models_value):

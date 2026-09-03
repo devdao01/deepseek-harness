@@ -26,36 +26,36 @@ class NpeiAgentCredential(models.Model):
     _order = 'seq, ref'
 
     ref = fields.Char(
-        string='Reference',
+        string='Tham chiếu',
         required=True,
         index=True,
         copy=False, tracking=True,
-        help="Credential reference key owned by the harness, e.g. "
+        help="Khóa tham chiếu thông tin xác thực do harness sở hữu, ví dụ "
              "``DEEPSEEK_API_KEY``.",
     )
     configured = fields.Boolean(
-        string='Configured',
+        string='Đã cấu hình',
         readonly=True, tracking=True,
-        help="Whether the harness holds a value for this ref (reported by "
+        help="Harness có đang giữ giá trị cho tham chiếu này không (báo cáo bởi "
              "``credentials/describe``).",
     )
     source = fields.Char(
-        string='Source',
+        string='Nguồn',
         readonly=True, tracking=True,
-        help="Where the harness resolves this credential from (e.g. env, "
-             ".env). Reported by ``credentials/describe``.",
+        help="Nơi harness phân giải thông tin xác thực này (ví dụ env, "
+             ".env). Báo cáo bởi ``credentials/describe``.",
     )
     writable = fields.Boolean(
-        string='Writable',
+        string='Có thể ghi',
         readonly=True, tracking=True,
-        help="Whether the harness lets a full-token client set this ref.",
+        help="Harness có cho phép client full-token đặt tham chiếu này không.",
     )
     value = fields.Char(
-        string='New Value',
+        string='Giá trị mới',
         password=True,
-        help="Write-only secret. On save it is pushed to the harness with "
-             "``credentials/set`` and POPPED before the row is written, so it "
-             "never lands in an Odoo column; the field always reads back blank.",
+        help="Bí mật chỉ ghi. Khi lưu, được đẩy lên harness qua "
+             "``credentials/set`` và XÓA KHỎI vals trước khi ghi dòng, "
+             "nên không bao giờ lưu vào cột Odoo; trường luôn đọc lại rỗng.",
     )
     active = fields.Boolean(default=True, tracking=True)
     seq = fields.Integer('Trình tự*:', default=1)
@@ -67,7 +67,7 @@ class NpeiAgentCredential(models.Model):
         (
             'ref_uniq',
             'unique(ref)',
-            'A credential with this reference already exists.',
+            'Đã tồn tại một thông tin xác thực với tham chiếu này.',
         ),
     ]
 
@@ -75,7 +75,7 @@ class NpeiAgentCredential(models.Model):
         """Raise unless the current user is an NPEI Agent Manager."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Only NPEI Agent Managers can manage harness credentials."))
+                _("Chỉ Quản trị Agent NPEI mới có thể quản lý thông tin xác thực harness."))
 
     def _notify(self, message):
         """Build a success ``display_notification`` client action."""
@@ -134,7 +134,7 @@ class NpeiAgentCredential(models.Model):
         records = self.search([])
         records._sync_from_harness()
         return self._notify(
-            _("%s credential(s) synced from the harness.", len(records)))
+            _("Đã đồng bộ %s thông tin xác thực từ harness.", len(records)))
 
     def _push_secret(self, value):
         """Push one secret to the harness (``credentials/set``) and re-describe.
@@ -186,7 +186,7 @@ class NpeiAgentCredential(models.Model):
         self.env['npei.agent.harness.client'].sudo()._rpc(
             'credentials/unset', {'ref': self.ref})
         self._apply_describe(self._describe([self.ref]))
-        return self._notify(_("Credential %s unset on the harness.", self.ref))
+        return self._notify(_("Đã xóa giá trị thông tin xác thực %s trên harness.", self.ref))
 
     def act_lock(self):
         self.write({'is_locked': True})

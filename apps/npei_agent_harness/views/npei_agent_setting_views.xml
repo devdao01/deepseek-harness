@@ -4,7 +4,7 @@
         <field name="name">npei.agent.setting.tree</field>
         <field name="model">npei.agent.setting</field>
         <field name="arch" type="xml">
-            <tree string="Settings Namespaces">
+            <tree string="Danh sách Namespace Cài đặt">
                 <field name="seq" widget='handle'/>
                 <field name="seq" optional="show"/>
                 <field name="id" optional="show"/>
@@ -27,12 +27,12 @@
         <field name="name">npei.agent.setting.form</field>
         <field name="model">npei.agent.setting</field>
         <field name="arch" type="xml">
-            <form string="Settings Namespace">
+            <form string="Namespace Cài đặt">
                 <header>
                     <button name="action_save" type="object"
-                            string="Save to Harness" class="btn-primary"/>
+                            string="Lưu lên Harness" class="btn-primary"/>
                     <button name="action_sync_from_harness" type="object"
-                            string="Sync from Harness"/>
+                            string="Đồng bộ từ Harness"/>
                     <button name="act_lock" string="Khóa" type="object" groups="npei_base.npei_group_lock" invisible="is_locked"/>
                     <button name="act_unlock" string="Mở Khóa" type="object" groups="npei_base.npei_group_lock" invisible="not is_locked"/>
                 </header>
@@ -49,7 +49,7 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Providers using this namespace">
+                        <page string="Nhà cung cấp dùng namespace này">
                             <field name="provider_ids" nolabel="1" readonly="1">
                                 <tree>
                                     <field name="provider"/>
@@ -59,10 +59,10 @@
                                 </tree>
                             </field>
                         </page>
-                        <page string="User Section (editable)">
+                        <page string="Phần người dùng (có thể chỉnh)">
                             <field name="user_json" nolabel="1" placeholder="{ }" readonly="is_locked"/>
                         </page>
-                        <page string="Resolved Value (read-only)">
+                        <page string="Giá trị đã phân giải (chỉ đọc)">
                             <field name="value_json" nolabel="1" readonly="1"/>
                         </page>
                         <page string="Quản lý Hệ thống*">
@@ -102,14 +102,14 @@
     </record>
 
     <record id="action_npei_agent_setting" model="ir.actions.act_window">
-        <field name="name">Harness Settings</field>
+        <field name="name">Cài đặt Namespace</field>
         <field name="res_model">npei.agent.setting</field>
         <field name="view_mode">tree,form</field>
     </record>
 
     <!-- Server action so the sync can run from a menu when the list is empty. -->
     <record id="action_npei_sync_settings" model="ir.actions.server">
-        <field name="name">Sync Settings from Harness</field>
+        <field name="name">Đồng bộ Cài đặt từ Harness</field>
         <field name="model_id" ref="model_npei_agent_setting"/>
         <field name="state">code</field>
         <field name="code">action = model.action_sync_from_harness()</field>

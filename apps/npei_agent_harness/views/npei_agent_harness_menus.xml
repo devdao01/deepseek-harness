@@ -6,7 +6,7 @@
               groups="npei_agent_harness.group_npei_agent_user"/>
 
     <menuitem id="menu_npei_agent_session"
-              name="Sessions"
+              name="Phiên làm việc"
               parent="menu_npei_agent_root"
               action="action_npei_agent_session"
               sequence="10"/>
@@ -18,116 +18,122 @@
               sequence="20"/>
 
     <menuitem id="menu_npei_agent_tool"
-              name="Tools"
+              name="Công cụ"
               parent="menu_npei_agent_root"
               action="action_npei_agent_tool"
               sequence="17"/>
     <menuitem id="menu_npei_agent_skill"
-              name="Skills"
+              name="Kỹ năng"
               parent="menu_npei_agent_root"
               action="action_npei_agent_skill"
               sequence="30"/>
 
     <menuitem id="menu_npei_agent_provider"
-              name="Providers"
+              name="Nhà cung cấp"
               parent="menu_npei_agent_root"
               action="action_npei_agent_provider"
               sequence="40"/>
 
     <menuitem id="menu_npei_agent_model"
-              name="Models"
+              name="Mô hình"
               parent="menu_npei_agent_root"
               action="action_npei_agent_model"
               sequence="50"/>
 
     <menuitem id="menu_npei_agent_credential"
-              name="Credentials"
+              name="Thông tin xác thực"
               parent="menu_npei_agent_root"
               action="action_npei_agent_credential"
               sequence="60"
               groups="npei_agent_harness.group_npei_agent_manager"/>
 
     <menuitem id="menu_npei_agent_setting"
-              name="Settings"
+              name="Cài đặt Namespace"
               parent="menu_npei_agent_root"
               action="action_npei_agent_setting"
               sequence="70"
               groups="npei_agent_harness.group_npei_agent_manager"/>
 
     <menuitem id="menu_npei_agent_config"
-              name="Configuration"
+              name="Cấu hình"
               parent="menu_npei_agent_root"
               sequence="90"
               groups="npei_agent_harness.group_npei_agent_manager"/>
 
     <menuitem id="menu_npei_agent_settings"
-              name="Connection Settings"
+              name="Cài đặt kết nối"
               parent="menu_npei_agent_config"
               action="action_npei_agent_config_settings"
               sequence="10"/>
 
     <menuitem id="menu_npei_host_status"
-              name="Harness Host Status"
+              name="Trạng thái máy chủ Harness"
               parent="menu_npei_agent_config"
               action="action_npei_host_status"
               sequence="12"/>
 
     <menuitem id="menu_npei_provider_route"
-              name="Add Provider Route"
+              name="Thêm tuyến Nhà cung cấp"
               parent="menu_npei_agent_config"
               action="action_npei_provider_route"
               sequence="14"/>
 
     <menuitem id="menu_npei_route_template"
-              name="Provider Route Templates"
+              name="Mẫu tuyến Nhà cung cấp"
               parent="menu_npei_agent_config"
               action="action_npei_route_template"
               sequence="16"/>
 
     <menuitem id="menu_npei_discover_models"
-              name="Discover Models"
+              name="Khám phá Mô hình"
               parent="menu_npei_agent_config"
               action="action_npei_discover_models"
               sequence="15"/>
 
     <menuitem id="menu_npei_sync_presets"
-              name="Sync Presets from Harness"
+              name="Đồng bộ Presets từ Harness"
               parent="menu_npei_agent_config"
               action="action_npei_sync_presets"
               sequence="20"/>
 
+    <menuitem id="menu_npei_sync_tools"
+              name="Đồng bộ Công cụ từ Harness"
+              parent="menu_npei_agent_config"
+              action="action_npei_sync_tools"
+              sequence="25"/>
+
     <menuitem id="menu_npei_sync_skills"
-              name="Sync Skills from Harness"
+              name="Đồng bộ Kỹ năng từ Harness"
               parent="menu_npei_agent_config"
               action="action_npei_sync_skills"
               sequence="30"/>
 
     <menuitem id="menu_npei_sync_providers"
-              name="Sync Providers from Harness"
+              name="Đồng bộ Nhà cung cấp từ Harness"
               parent="menu_npei_agent_config"
               action="action_npei_sync_providers"
               sequence="40"/>
 
     <menuitem id="menu_npei_sync_models"
-              name="Sync Models from Harness"
+              name="Đồng bộ Mô hình từ Harness"
               parent="menu_npei_agent_config"
               action="action_npei_sync_models"
               sequence="50"/>
 
     <menuitem id="menu_npei_sync_provider_models"
-              name="Sync Provider Models from Harness"
+              name="Đồng bộ Mô hình Nhà cung cấp từ Harness"
               parent="menu_npei_agent_config"
               action="action_npei_sync_provider_models"
               sequence="55"/>
 
     <menuitem id="menu_npei_sync_credentials"
-              name="Sync Credentials from Harness"
+              name="Đồng bộ Thông tin xác thực từ Harness"
               parent="menu_npei_agent_config"
               action="action_npei_sync_credentials"
               sequence="60"/>
 
     <menuitem id="menu_npei_sync_settings"
-              name="Sync Settings from Harness"
+              name="Đồng bộ Cài đặt từ Harness"
               parent="menu_npei_agent_config"
               action="action_npei_sync_settings"
               sequence="70"/>
