@@ -21,50 +21,51 @@ class NpeiDiscoverModels(models.TransientModel):
     _description = 'DeepSeek Harness Discover Models'
 
     settings_ns = fields.Char(
-        string='Không gian tên cài đặt',
+        string='Settings Namespace',
         required=True,
-        help="Không gian tên cài đặt có mặc định nhà cung cấp làm hạt giống thăm dò.",
+        help="Settings namespace whose provider defaults seed the probe.",
     )
     provider = fields.Char(
-        string='Nhà cung cấp',
-        help="Ghi đè mã nhà cung cấp tùy chọn.",
+        string='Provider',
+        help="Optional provider id override.",
     )
     base_url = fields.Char(
-        string='URL cơ sở',
-        help="Ghi đè URL cơ sở tùy chọn cho điểm cuối thăm dò.",
+        string='Base URL',
+        help="Optional base URL override for the probe endpoint.",
     )
     api_type = fields.Char(
         string='API',
-        help="Ghi đè loại API nhà cung cấp tùy chọn (gửi dưới dạng tham số `api`). "
-             "Đặt là api_type để không che khuất module odoo `api`.",
+        help="Optional provider API flavour override (sent as the `api` param). "
+             "Named api_type so it does not shadow the odoo `api` module.",
     )
     api_key = fields.Char(
-        string='Khóa API',
-        help="Khóa API tùy chọn chỉ dùng cho thăm dò này; không bao giờ được lưu.",
+        string='API Key',
+        help="Optional API key used only for this probe; never persisted.",
     )
     result_text = fields.Text(
-        string='Mô hình đã khám phá',
+        string='Discovered Models',
         readonly=True,
-        help="Một dòng mỗi mô hình: id, tên, cửa sổ ngữ cảnh, số token tối đa.",
+        help="One line per discovered model: id, name, context window, max "
+             "tokens.",
     )
     result_json = fields.Text(
-        string='Mô hình đã khám phá (thô)',
+        string='Discovered Models (raw)',
         readonly=True,
-        help="Danh sách mô hình đã khám phá thô, được giữ để Nhận vào có thể "
-             "thêm chúng vào danh mục có thể cấu hình của nhà cung cấp.",
+        help="The raw discovered models list, kept so Adopt can append them "
+             "into a provider's configurable catalog.",
     )
     target_provider_id = fields.Many2one(
         'npei.agent.provider',
-        string='Nhận vào Nhà cung cấp',
-        help="Nhà cung cấp có mô hình có thể cấu hình được thêm các mục đã khám phá "
-             "khi Nhận vào chạy.",
+        string='Adopt Into Provider',
+        help="Provider whose configurable models the discovered entries are "
+             "appended to when Adopt runs.",
     )
 
     def _check_manager(self):
         """Raise unless the current user is an NPEI Agent Manager."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Chỉ Quản trị Agent NPEI mới có thể khám phá mô hình."))
+                _("Only NPEI Agent Managers can discover models."))
 
     @api.model
     def _format_models(self, discovered):
@@ -74,7 +75,7 @@ class NpeiDiscoverModels(models.TransientModel):
         :rtype: str
         """
         if not discovered:
-            return _("Không có mô hình nào được trả về.")
+            return _("No models returned.")
         lines = []
         for model in discovered:
             parts = [model.get('id') or '']
@@ -132,13 +133,13 @@ class NpeiDiscoverModels(models.TransientModel):
         self.ensure_one()
         self._check_manager()
         if not self.target_provider_id:
-            raise UserError(_("Hãy chọn một nhà cung cấp để nhận mô hình vào."))
+            raise UserError(_("Choose a provider to adopt the models into."))
         try:
             discovered = json.loads(self.result_json or '[]')
         except (ValueError, TypeError):
             discovered = []
         if not discovered:
-            raise UserError(_("Hãy khám phá mô hình trước, rồi mới Nhận vào."))
+            raise UserError(_("Discover models first, then Adopt."))
         ProviderModel = self.env['npei.agent.provider.model']
         existing_ids = set(ProviderModel.search([
             ('provider_id', '=', self.target_provider_id.id)]).mapped('model_id'))

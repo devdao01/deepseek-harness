@@ -4,7 +4,7 @@
         <field name="name">npei.agent.discover.models.form</field>
         <field name="model">npei.agent.discover.models</field>
         <field name="arch" type="xml">
-            <form string="Khám phá Mô hình">
+            <form string="Discover Models">
                 <sheet>
                     <group>
                         <group>
@@ -17,28 +17,28 @@
                             <field name="api_key" password="True"/>
                         </group>
                     </group>
-                    <group string="Mô hình đã khám phá">
+                    <group string="Discovered Models">
                         <field name="result_json" invisible="1"/>
                         <field name="result_text" nolabel="1" readonly="1"/>
                     </group>
-                    <group string="Nhận vào">
+                    <group string="Adopt">
                         <field name="target_provider_id" options="{'no_create': True, 'no_quick_create': True, 'no_open': True}"/>
                     </group>
                 </sheet>
                 <footer>
                     <button name="action_discover" type="object"
-                            string="Khám phá" class="btn-primary"/>
+                            string="Discover" class="btn-primary"/>
                     <button name="action_adopt" type="object"
-                            string="Nhận vào Nhà cung cấp"
+                            string="Adopt Into Provider"
                             invisible="not result_json or not target_provider_id"/>
-                    <button string="Đóng" special="cancel"/>
+                    <button string="Close" special="cancel"/>
                 </footer>
             </form>
         </field>
     </record>
 
     <record id="action_npei_discover_models" model="ir.actions.act_window">
-        <field name="name">Khám phá Mô hình</field>
+        <field name="name">Discover Models</field>
         <field name="res_model">npei.agent.discover.models</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>

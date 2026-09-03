@@ -41,45 +41,45 @@ class NpeiAgentSession(models.Model):
     _order = 'seq, write_date desc'
 
     session_id = fields.Char(
-        string='Mã Phiên Harness',
+        string='Harness Session ID',
         index=True,
         copy=False,
-        help="Mã phiên bất minh do harness sở hữu. Để trống khi tạo, "
-             "Odoo gọi session/create và điền vào; chỉ nhập thủ công để "
-             "nhận một phiên harness hiện có.", tracking=True
+        help="Opaque session id owned by the harness. Left blank on create, "
+             "Odoo calls session/create and fills it; set it by hand only to "
+             "adopt an existing harness session.", tracking=True
     )
     name = fields.Char(
-        string='Tiêu đề', tracking=True,
-        help="Đẩy lên tiêu đề phiên harness khi thay đổi (session/rename).",
+        string='Title', tracking=True,
+        help="Pushed to the harness session title on change (session/rename).",
     )
     user_ids = fields.Many2many(
         'res.users',
         'npei_agent_session_user_rel',
         'session_id',
         'user_id',
-        string='Người dùng được phép',
-        help="Người dùng được phép truy cập phiên này qua proxy Odoo. "
-             "Người tạo bản ghi (create_uid) luôn được phép dù không có trong danh sách. "
-             "Để trống để công khai phiên.",
+        string='Allowed Users',
+        help="Users allowed to access this session through the Odoo proxy. "
+             "The record creator (create_uid) is always allowed even when "
+             "absent from this list. Leave empty to make the session public.",
         tracking=True
     )
     preset_id = fields.Many2one(
         'npei.agent.preset',
-        string='Preset Agent',
+        string='Agent Preset',
         ondelete='set null', tracking=True
     )
-    workspace_path = fields.Char(string='Đường dẫn Workspace', tracking=True)
+    workspace_path = fields.Char(string='Workspace Path', tracking=True)
     running = fields.Boolean(
-        string='Đang chạy', readonly=True, copy=False,
-        help="Trạng thái trực tiếp được báo cáo bởi lần đồng bộ harness gần nhất.",
+        string='Running', readonly=True, copy=False,
+        help="Live state reported by the last harness sync.",
     )
     blank = fields.Boolean(
-        string='Trống', readonly=True, copy=False,
-        help="Harness có báo phiên này chưa được nhập lệnh bao giờ không.",
+        string='Blank', readonly=True, copy=False,
+        help="Whether the harness reports this session as never prompted.",
     )
     harness_updated_at = fields.Datetime(
-        string='Cập nhật Harness lúc', readonly=True, copy=False,
-        help="Dấu thời gian hoạt động cuối cùng được báo cáo bởi lần đồng bộ harness.",
+        string='Harness Updated At', readonly=True, copy=False,
+        help="Last activity timestamp reported by the harness sync.",
     )
     active = fields.Boolean(default=True, tracking=True)
     seq = fields.Integer('Trình tự*:', default=1)
@@ -91,7 +91,7 @@ class NpeiAgentSession(models.Model):
         (
             'session_id_uniq',
             'unique(session_id)',
-            'Đã tồn tại một ánh xạ cho mã phiên harness này.',
+            'A mapping for this harness session id already exists.',
         ),
     ]
 
@@ -196,7 +196,7 @@ class NpeiAgentSession(models.Model):
             'session/create', {'request': request})
         session_id = (value or {}).get('sessionId')
         if not session_id:
-            raise UserError(_("Harness session/create không trả về sessionId."))
+            raise UserError(_("The harness session/create returned no sessionId."))
         return session_id
 
     @api.model_create_multi
@@ -233,7 +233,7 @@ class NpeiAgentSession(models.Model):
         """
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Chỉ Quản trị Agent NPEI mới có thể đồng bộ phiên từ harness."))
+                _("Only NPEI Agent Managers can sync sessions from the harness."))
         value = self.env['npei.agent.harness.client']._rpc('session/list', {'_request': {}})
         items = (value or {}).get('items') or []
         model = self.with_context(npei_syncing=True)
@@ -284,8 +284,8 @@ class NpeiAgentSession(models.Model):
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': _("Đồng bộ phiên thành công"),
-                'message': _("Đã đồng bộ %s phiên từ harness.", synced),
+                'title': _("Sessions synced"),
+                'message': _("%s session(s) synced from the harness.", synced),
                 'type': 'success',
                 'sticky': False,
             },

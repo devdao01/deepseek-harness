@@ -26,30 +26,30 @@ class NpeiAgentModel(models.Model):
     _order = 'seq, provider, model_id'
 
     model_id = fields.Char(
-        string='Mã Mô hình',
+        string='Model ID',
         required=True,
         index=True,
         copy=False, tracking=True,
-        help="Mã model do harness sở hữu (``ModelView.id``).",
+        help="Model id owned by the harness (``ModelView.id``).",
     )
-    name = fields.Char(string='Tên', tracking=True)
+    name = fields.Char(string='Name', tracking=True)
     provider = fields.Char(
-        string='Mã Nhà cung cấp',
+        string='Provider ID',
         required=True,
         index=True, tracking=True,
-        help="Mã nhóm nhà cung cấp mà model này thuộc về (``group.id``); "
-             "khóa thô từ llm.models và đối tác unique-constraint.",
+        help="Provider group id this model belongs to (``group.id``); the raw "
+             "key from llm.models and the unique-constraint partner.",
     )
     provider_id = fields.Many2one(
         'npei.agent.provider',
-        string='Tuyến Nhà cung cấp',
+        string='Provider Route',
         index=True,
         ondelete='set null', tracking=True,
-        help="Tuyến nhà cung cấp mà nhóm của model này ánh xạ tới (khớp theo "
-             "group id == provider id); để trống khi chưa có nhà cung cấp phản chiếu nào khớp. "
-             "Được phân giải bởi bất kỳ lần đồng bộ nào.",
+        help="The provider route this model's group maps to (matched by "
+             "group id == provider id); blank when no provider mirror matches "
+             "yet. Resolved by either sync.",
     )
-    description = fields.Text(string='Mô tả', tracking=True)
+    description = fields.Text(string='Description', tracking=True)
     active = fields.Boolean(default=True, tracking=True)
     seq = fields.Integer('Trình tự*:', default=1)
     is_locked = fields.Boolean('Đã Khóa*:', tracking=True)
@@ -60,7 +60,7 @@ class NpeiAgentModel(models.Model):
         (
             'provider_model_uniq',
             'unique(provider, model_id)',
-            'Đã tồn tại một mô hình với mã này cho nhà cung cấp này.',
+            'A model with this id already exists for this provider.',
         ),
     ]
 
@@ -68,7 +68,7 @@ class NpeiAgentModel(models.Model):
         """Raise unless the current user is an NPEI Agent Manager."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Chỉ Quản trị Agent NPEI mới có thể đồng bộ mô hình từ harness."))
+                _("Only NPEI Agent Managers can sync models from the harness."))
 
     def _notify(self, message):
         """Build a success ``display_notification`` client action."""
@@ -129,7 +129,7 @@ class NpeiAgentModel(models.Model):
                     '%s (%s)' % (failure.get('id'), failure.get('message'))
                     for failure in failures),
             )
-        return self._notify(_("Đã đồng bộ %s mô hình từ harness.", synced))
+        return self._notify(_("%s model(s) synced from the harness.", synced))
 
     def act_lock(self):
         self.write({'is_locked': True})

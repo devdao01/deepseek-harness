@@ -24,59 +24,61 @@ class NpeiHostStatus(models.TransientModel):
     _description = 'DeepSeek Harness Host Status'
 
     reachable = fields.Boolean(
-        string='Có thể truy cập',
+        string='Reachable',
         readonly=True,
-        help="Harness có trả lời thăm dò boot-payload xác thực với HTTP 200 không.",
+        help="Whether the harness answered the authenticated boot-payload "
+             "probe with HTTP 200.",
     )
     http_status = fields.Integer(
-        string='Trạng thái HTTP',
+        string='HTTP Status',
         readonly=True,
-        help="Trạng thái GET /api/boot.payload (200 = có thể truy cập và xác thực; "
-             "401 = token API sai/hết hạn; 403 = harness không tin tưởng domain này).",
+        help="Status of GET /api/boot.payload (200 = reachable and "
+             "authenticated; 401 = bad/stale API token; 403 = the harness "
+             "does not trust this domain).",
     )
     injection_rows = fields.Integer(
-        string='Số dòng Boot Injection',
+        string='Boot Injection Rows',
         readonly=True,
-        help="Số dòng trong bảng boot injection — bề mặt plugin client "
-             "mà harness hiện đang phục vụ.",
+        help="Rows in the boot injection table — the client plugin surface "
+             "the harness currently serves.",
     )
     provider = fields.Char(
-        string='Nhà cung cấp mặc định',
+        string='Default Provider',
         readonly=True,
-        help="Nhà cung cấp áp dụng cho phiên mới (agent-default-model).",
+        help="Provider applied to a new session (agent-default-model).",
     )
     model = fields.Char(
-        string='Mô hình mặc định',
+        string='Default Model',
         readonly=True,
-        help="Mô hình áp dụng cho phiên mới (agent-default-model).",
+        help="Model applied to a new session (agent-default-model).",
     )
     reasoning_effort = fields.Char(
-        string='Mức suy luận mặc định',
+        string='Default Reasoning Effort',
         readonly=True,
-        help="Mức suy luận áp dụng cho phiên mới (agent-default-model).",
+        help="Reasoning effort applied to a new session (agent-default-model).",
     )
     session_count = fields.Integer(
-        string='Phiên làm việc',
+        string='Sessions',
         readonly=True,
-        help="Số phiên mà harness hiện liệt kê.",
+        help="Sessions the harness currently lists.",
     )
     running_sessions = fields.Integer(
-        string='Phiên đang chạy',
+        string='Running Sessions',
         readonly=True,
-        help="Số phiên có agent đang chạy.",
+        help="Sessions whose agent is currently running.",
     )
     can_open_path = fields.Boolean(
-        string='Có thể mở đường dẫn bản địa',
+        string='Can Open Native Path',
         readonly=True,
-        help="Triển khai này có thể chuyển đường dẫn tới desktop bản địa hiển thị "
-             "cho người dùng không (false trên backend headless).",
+        help="Whether this deployment can hand a path to a user-visible "
+             "native desktop (false on a headless backend).",
     )
 
     def _check_manager(self):
         """Raise unless the current user is an NPEI Agent Manager."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Chỉ Quản trị Agent NPEI mới có thể xem trạng thái máy chủ harness."))
+                _("Only NPEI Agent Managers can view the harness host status."))
 
     @api.model
     def _snapshot(self):

@@ -4,7 +4,7 @@
         <field name="name">npei.agent.model.tree</field>
         <field name="model">npei.agent.model</field>
         <field name="arch" type="xml">
-            <tree string="Danh sách Mô hình">
+            <tree string="Models">
                 <field name="seq" widget='handle'/>
                 <field name="seq" optional="show"/>
                 <field name="id" optional="show"/>
@@ -27,10 +27,10 @@
         <field name="name">npei.agent.model.form</field>
         <field name="model">npei.agent.model</field>
         <field name="arch" type="xml">
-            <form string="Mô hình">
+            <form string="Model">
                 <header>
                     <button name="action_sync_from_harness" type="object"
-                            string="Đồng bộ từ Harness" class="btn-primary"/>
+                            string="Sync from Harness" class="btn-primary"/>
                     <button name="act_lock" string="Khóa" type="object" groups="npei_base.npei_group_lock" invisible="is_locked"/>
                     <button name="act_unlock" string="Mở Khóa" type="object" groups="npei_base.npei_group_lock" invisible="not is_locked"/>
                 </header>
@@ -48,7 +48,7 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Mô tả">
+                        <page string="Description">
                             <field name="description" nolabel="1" readonly="1"/>
                         </page>
                         <page string="Quản lý Hệ thống*">
@@ -88,14 +88,14 @@
     </record>
 
     <record id="action_npei_agent_model" model="ir.actions.act_window">
-        <field name="name">Mô hình</field>
+        <field name="name">Models</field>
         <field name="res_model">npei.agent.model</field>
         <field name="view_mode">tree,form</field>
     </record>
 
     <!-- Server action so the sync can run from a menu when the list is empty. -->
     <record id="action_npei_sync_models" model="ir.actions.server">
-        <field name="name">Đồng bộ Mô hình từ Harness</field>
+        <field name="name">Sync Models from Harness</field>
         <field name="model_id" ref="model_npei_agent_model"/>
         <field name="state">code</field>
         <field name="code">action = model.action_sync_from_harness()</field>

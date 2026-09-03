@@ -24,40 +24,40 @@ class NpeiAgentProvider(models.Model):
     _order = 'seq, provider'
 
     provider = fields.Char(
-        string='Nhà cung cấp',
+        string='Provider',
         required=True,
         index=True,
         copy=False, tracking=True,
-        help="Mã nhà cung cấp do harness sở hữu (``ProviderView.provider``).",
+        help="Provider id owned by the harness (``ProviderView.provider``).",
     )
     display_name = fields.Char(
-        string='Tên hiển thị', tracking=True,
-        help="Tên nhà cung cấp dễ đọc từ ``llm/listConfigurableProviders``.",
+        string='Display Name', tracking=True,
+        help="Human-readable provider name from ``llm/listConfigurableProviders``.",
     )
     settings_ns = fields.Char(
-        string='Không gian tên cài đặt', tracking=True,
-        help="Không gian tên cài đặt mà nhà cung cấp này đọc cấu hình từ đó "
-             "(khóa thô; đối tác khớp settings_id).",
+        string='Settings Namespace', tracking=True,
+        help="Settings namespace this provider reads its configuration from "
+             "(raw key; the settings_id match partner).",
     )
     settings_id = fields.Many2one(
         'npei.agent.setting',
-        string='Bản ghi không gian tên cài đặt',
+        string='Settings Namespace Record',
         index=True,
         ondelete='set null', tracking=True,
-        help="Bản ghi phản chiếu không gian tên khớp với settings_ns; để trống "
-             "cho đến khi cài đặt được đồng bộ. Nhiều nhà cung cấp có thể dùng chung một namespace.",
+        help="The settings-namespace mirror matching settings_ns; blank until "
+             "settings are synced. Many providers may share one namespace.",
     )
     settings_path = fields.Char(
-        string='Đường dẫn cài đặt', tracking=True,
-        help="Các đoạn ``settingsPath`` của harness nối với ``/``.",
+        string='Settings Path', tracking=True,
+        help="The harness ``settingsPath`` segments joined with ``/``.",
     )
     route_active = fields.Boolean(
-        string='Tuyến đang hoạt động', tracking=True,
-        help="Harness có báo tuyến của nhà cung cấp này đang hoạt động không.",
+        string='Route Active', tracking=True,
+        help="Whether the harness reports this provider's route as active.",
     )
     declared = fields.Boolean(
-        string='Đã khai báo', tracking=True,
-        help="Nhà cung cấp có được khai báo rõ ràng trong cài đặt không.",
+        string='Declared', tracking=True,
+        help="Whether the provider is explicitly declared in settings.",
     )
     active = fields.Boolean(default=True, tracking=True)
     seq = fields.Integer('Trình tự*:', default=1)
@@ -67,19 +67,19 @@ class NpeiAgentProvider(models.Model):
     model_ids = fields.One2many(
         'npei.agent.provider.model',
         'provider_id',
-        string='Mô hình đã cấu hình',
-        help="Mảng mô hình có thể chỉnh sửa được đẩy vào không gian tên cài đặt "
-             "của nhà cung cấp này (settings[ns].user[...path].models).",
+        string='Configured Models',
+        help="Editable models array pushed to this provider's settings "
+             "namespace (settings[ns].user[...path].models).",
     )
     catalog_model_ids = fields.One2many(
         'npei.agent.model',
         'provider_id',
-        string='Mô hình danh mục',
-        help="Mô hình danh mục đã phân giải chỉ đọc (llm.models) có group id "
-             "khớp với nhà cung cấp này.",
+        string='Catalog Models',
+        help="Read-only resolved catalog models (llm.models) whose group id "
+             "matches this provider.",
     )
     catalog_model_count = fields.Integer(
-        string='Số mô hình danh mục',
+        string='Catalog Model Count',
         compute='_compute_catalog_model_count',
     )
 
@@ -94,7 +94,7 @@ class NpeiAgentProvider(models.Model):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': _("Mô hình danh mục"),
+            'name': _("Catalog Models"),
             'res_model': 'npei.agent.model',
             'view_mode': 'tree,form',
             'domain': [('provider_id', '=', self.id)],
@@ -105,7 +105,7 @@ class NpeiAgentProvider(models.Model):
         (
             'provider_uniq',
             'unique(provider)',
-            'Đã tồn tại một nhà cung cấp với mã này.',
+            'A provider with this id already exists.',
         ),
     ]
 
@@ -113,7 +113,7 @@ class NpeiAgentProvider(models.Model):
         """Raise unless the current user is an NPEI Agent Manager."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Chỉ Quản trị Agent NPEI mới có thể đồng bộ nhà cung cấp từ harness."))
+                _("Only NPEI Agent Managers can sync providers from the harness."))
 
     def _notify(self, message):
         """Build a success ``display_notification`` client action."""
@@ -171,7 +171,7 @@ class NpeiAgentProvider(models.Model):
                 ('provider_id', '!=', record.id),
             ]).write({'provider_id': record.id})
             synced += 1
-        return self._notify(_("Đã đồng bộ %s nhà cung cấp từ harness.", synced))
+        return self._notify(_("%s provider(s) synced from the harness.", synced))
 
     def action_sync_models(self):
         """Mirror every provider's configured models from the harness.

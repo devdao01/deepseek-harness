@@ -216,9 +216,9 @@ class HarnessClient(models.AbstractModel):
         token = (params.get_param(CONFIG_API_TOKEN) or '').strip()
         if not base_url or not token:
             raise UserError(_(
-                "Kết nối DeepSeek Harness chưa được cấu hình. "
-                "Hãy đặt cả URL Cơ sở và Token API trong "
-                "Cài đặt > MTIL Agent."
+                "The DeepSeek Harness connection is not configured. "
+                "Set both the Base URL and the API Token under "
+                "Settings > MTIL Agent."
             ))
         return base_url, token
 
@@ -294,8 +294,8 @@ class HarnessClient(models.AbstractModel):
                   .get_param(CONFIG_TICKET_SECRET) or '').strip()
         if len(secret) < MIN_TICKET_SECRET_LENGTH:
             raise UserError(_(
-                "Khóa bí mật Ticket của harness chưa được đặt hoặc ngắn hơn %d ký tự. "
-                "Hãy đặt trong Cài đặt > MTIL Agent.", MIN_TICKET_SECRET_LENGTH))
+                "The harness Ticket Secret is unset or shorter than %d characters. "
+                "Set it under Settings > MTIL Agent.", MIN_TICKET_SECRET_LENGTH))
         expires_at = int(time.time()) + int(ttl_seconds)
         payload = json.dumps({'u': str(user_id), 'exp': expires_at}, separators=(',', ':'))
         body = self._b64url_nopad(payload.encode('utf-8'))

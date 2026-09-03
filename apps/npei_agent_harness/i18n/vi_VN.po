@@ -1,14 +1,13 @@
-# Translation of npei_agent_harness (module) into Vietnamese (vi_VN).
-# Covers menus, model names, field labels, selections, view button/page terms,
-# confirm dialogs, and all runtime _() messages. Long field help tooltips are
-# left English; regenerate with Odoo `--i18n-export` to top up full coverage.
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* npei_agent_harness
+#
 msgid ""
 msgstr ""
-"Project-Id-Version: npei_agent_harness 17.0\n"
+"Project-Id-Version: Odoo Server 17.0\n"
 "Report-Msgid-Bugs-To: \n"
-"PO-Revision-Date: 2026-08-24 00:00+0000\n"
 "Last-Translator: \n"
-"Language-Team: Vietnamese\n"
+"Language-Team: \n"
 "Language: vi_VN\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -16,1228 +15,1425 @@ msgstr ""
 "Plural-Forms: nplurals=1; plural=0;\n"
 
 #. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_session
-msgid "DeepSeek Harness Session (Odoo ACL)"
-msgstr "Phiên DeepSeek Harness (ACL Odoo)"
+msgid ""
+"\n"
+"NPEI Agent Harness\n"
+"==================\n"
+"\n"
+"Odoo is the single gateway between the browser SPA and the DeepSeek Harness\n"
+"backend. The SPA only ever talks to Odoo; Odoo exchanges the harness launch\n"
+"token for the signed session cookie server-side and proxies the request. The\n"
+"token never reaches the browser.\n"
+"\n"
+"This module provides:\n"
+"\n"
+"* Harness connection settings (base URL + launch token) via ``res.config.settings``.\n"
+"* Odoo-side session ACL (``npei.agent.session``) mapping a harness session id to\n"
+"  the ``res.users`` allowed to use it.\n"
+"* Preset and skill management mirrors with a sync-from-harness action.\n"
+"* HTTP proxy controllers for unary RPC and file downloads, enforcing the ACL\n"
+"  before forwarding.\n"
+""
+msgstr ""
+"\n"
+"NPEI Agent Harness\n"
+"==================\n"
+"\n"
+"Odoo là cổng kết nối duy nhất giữa SPA trình duyệt và backend DeepSeek Harness.\n"
+"SPA chỉ giao tiếp với Odoo; Odoo trao đổi launch token của harness lấy cookie\n"
+"phiên đã ký phía máy chủ và proxy yêu cầu. Token không bao giờ đến trình duyệt.\n"
+"\n"
+"Module này cung cấp:\n"
+"\n"
+"* Cài đặt kết nối Harness (URL cơ sở + launch token) qua ``res.config.settings``.\n"
+"* ACL phiên phía Odoo (``npei.agent.session``) ánh xạ mã phiên harness với\n"
+"  ``res.users`` được phép sử dụng.\n"
+"* Phản chiếu quản lý preset và kỹ năng với action đồng bộ từ harness.\n"
+"* Controller proxy HTTP cho RPC unary và tải file, thực thi ACL trước khi chuyển tiếp.\n"
+""
 
 #. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_preset
-msgid "DeepSeek Harness Agent Preset"
-msgstr "Preset Agent DeepSeek Harness"
+msgid "%s credential(s) synced from the harness."
+msgstr "Đã đồng bộ %s thông tin xác thực từ harness."
 
 #. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_skill
-msgid "DeepSeek Harness Skill"
-msgstr "Kỹ năng DeepSeek Harness"
+msgid "%s model(s) synced from the harness."
+msgstr "Đã đồng bộ %s mô hình từ harness."
 
 #. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_credential
-msgid "DeepSeek Harness Credential Reference"
-msgstr "Tham chiếu Credential DeepSeek Harness"
+msgid "%s preset(s) synced from the harness."
+msgstr "Đã đồng bộ %s preset từ harness."
 
 #. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_provider
-msgid "DeepSeek Harness LLM Provider"
-msgstr "Provider LLM DeepSeek Harness"
+msgid "%s provider model(s) synced from the harness."
+msgstr "Đã đồng bộ %s mô hình nhà cung cấp từ harness."
 
 #. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_provider_model
-msgid "DeepSeek Harness Provider Model (configurable)"
-msgstr "Model của Provider DeepSeek Harness (cấu hình được)"
+msgid "%s provider(s) synced from the harness."
+msgstr "Đã đồng bộ %s nhà cung cấp từ harness."
 
 #. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_model
-msgid "DeepSeek Harness LLM Model"
-msgstr "Model LLM DeepSeek Harness"
+msgid "%s session(s) synced from the harness."
+msgstr "Đã đồng bộ %s phiên từ harness."
 
 #. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_setting
-msgid "DeepSeek Harness Settings Namespace"
-msgstr "Namespace Cấu hình DeepSeek Harness"
+msgid "%s settings namespace(s) synced from the harness."
+msgstr "Đã đồng bộ %s không gian tên cài đặt từ harness."
 
 #. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_provider_route_template
-msgid "DeepSeek Harness Provider Route Template"
-msgstr "Mẫu Route Provider DeepSeek Harness"
+msgid "%s skill(s) synced from the harness."
+msgstr "Đã đồng bộ %s kỹ năng từ harness."
 
 #. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_provider_route
-msgid "DeepSeek Harness Add Provider Route"
-msgstr "Thêm Route Provider DeepSeek Harness"
+msgid "%s tool(s) synced from the harness."
+msgstr "Đã đồng bộ %s công cụ từ harness."
 
 #. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_discover_models
-msgid "DeepSeek Harness Discover Models"
-msgstr "Dò tìm Model DeepSeek Harness"
+msgid "A credential with this reference already exists."
+msgstr "Đã tồn tại một thông tin xác thực với tham chiếu này."
 
 #. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_host_status
-msgid "DeepSeek Harness Host Status"
-msgstr "Trạng thái Host DeepSeek Harness"
+msgid "A mapping for this harness session id already exists."
+msgstr "Đã tồn tại một ánh xạ cho mã phiên harness này."
 
 #. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_harness_client
-msgid "DeepSeek Harness HTTP Client"
-msgstr "HTTP Client DeepSeek Harness"
+msgid "A model with this id already exists for this provider."
+msgstr "Đã tồn tại một mô hình với mã này cho nhà cung cấp này."
 
 #. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_agent_root
-msgid "MTIL Agent"
-msgstr "MTIL Agent"
+msgid ""
+"A preset '%(slug)s' already exists on the harness (from the name '%(name)s'). Pick a different name, or use 'Sync from Harness' to adopt it into Odoo."
+msgstr ""
+"Đã tồn tại một preset '%(slug)s' trên harness (từ tên '%(name)s'). Chọn tên khác, hoặc dùng 'Đồng bộ từ Harness' để nhận vào Odoo."
 
 #. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_agent_session
-msgid "Sessions"
-msgstr "Phiên"
+msgid "A preset '%(slug)s' already exists on the harness."
+msgstr "Đã tồn tại một preset '%(slug)s' trên harness."
 
 #. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_agent_preset
-msgid "Presets"
-msgstr "Preset"
+msgid "A preset name is required to create one."
+msgstr "Phải nhập tên preset để tạo mới."
 
 #. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_agent_skill
-msgid "Skills"
-msgstr "Kỹ năng"
+msgid "A preset with id %s already exists in Odoo."
+msgstr "Đã tồn tại một preset với mã %s trong Odoo."
 
 #. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_agent_provider
-msgid "Providers"
-msgstr "Providers"
+msgid "A preset with this harness preset id already exists."
+msgstr "Đã tồn tại một preset với mã harness preset này."
 
 #. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_agent_model
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_sync_models
-msgid "Models"
-msgstr "Models"
+msgid "A provider with this id already exists."
+msgstr "Đã tồn tại một nhà cung cấp với mã này."
 
 #. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_agent_credential
-msgid "Credentials"
-msgstr "Credentials"
+msgid "A settings namespace with this key already exists."
+msgstr "Đã tồn tại một không gian tên cài đặt với khóa này."
 
 #. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_agent_setting
-msgid "Settings"
-msgstr "Cấu hình"
+msgid "A skill with this key already exists."
+msgstr "Đã tồn tại một kỹ năng với mã này."
 
 #. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_agent_config
-msgid "Configuration"
-msgstr "Thiết lập"
+msgid "A tool with this name already exists."
+msgstr "Đã tồn tại một công cụ với tên này."
 
 #. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_agent_settings
-msgid "Connection Settings"
-msgstr "Cấu hình Kết nối"
+msgid "API Key"
+msgstr "Khóa API"
 
 #. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_host_status
-msgid "Harness Host Status"
-msgstr "Trạng thái Host Harness"
+msgid "API Token"
+msgstr "Token API"
 
 #. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_provider_route
 msgid "Add Provider Route"
-msgstr "Thêm Route Provider"
+msgstr "Thêm tuyến Nhà cung cấp"
 
 #. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_route_template
-msgid "Provider Route Templates"
-msgstr "Mẫu Route Provider"
+msgid "Add Route"
+msgstr "Thêm tuyến"
 
 #. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_discover_models
-msgid "Discover Models"
-msgstr "Dò tìm Model"
+msgid "Adopt"
+msgstr "Nhận vào"
 
 #. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_sync_presets
-msgid "Sync Presets from Harness"
-msgstr "Đồng bộ Preset từ Harness"
+msgid "Adopt Into Provider"
+msgstr "Nhận vào Nhà cung cấp"
 
 #. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_sync_skills
-msgid "Sync Skills from Harness"
-msgstr "Đồng bộ Kỹ năng từ Harness"
-
-#. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_sync_providers
-msgid "Sync Providers from Harness"
-msgstr "Đồng bộ Providers từ Harness"
-
-#. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_sync_models
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_provider_form
-msgid "Sync Models from Harness"
-msgstr "Đồng bộ Models từ Harness"
-
-#. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_sync_provider_models
-msgid "Sync Provider Models from Harness"
-msgstr "Đồng bộ Model của Provider từ Harness"
-
-#. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_sync_credentials
-msgid "Sync Credentials from Harness"
-msgstr "Đồng bộ Credentials từ Harness"
-
-#. module: npei_agent_harness
-#: model:ir.ui.menu,name:npei_agent_harness.menu_npei_sync_settings
-msgid "Sync Settings from Harness"
-msgstr "Đồng bộ Cấu hình từ Harness"
-
-#. module: npei_agent_harness
-#: model:ir.model.fields.selection,name:npei_agent_harness.selection__npei_agent_preset__trust__system
-msgid "System"
-msgstr "Hệ thống"
-
-#. module: npei_agent_harness
-#: model:ir.model.fields.selection,name:npei_agent_harness.selection__npei_agent_preset__trust__user
-msgid "User"
-msgstr "Người dùng"
-
-#. module: npei_agent_harness
-#: model:ir.model.fields.selection,name:npei_agent_harness.selection__npei_agent_setting__applies__live
-msgid "Live"
-msgstr "Tức thì"
-
-#. module: npei_agent_harness
-#: model:ir.model.fields.selection,name:npei_agent_harness.selection__npei_agent_setting__applies__restart
-msgid "Restart"
-msgstr "Cần khởi động lại"
-
-#. module: npei_agent_harness
-msgid "Name"
-msgstr "Tên"
-
-#. module: npei_agent_harness
-msgid "Description"
-msgstr "Mô tả"
-
-#. module: npei_agent_harness
-msgid "Title"
-msgstr "Tiêu đề"
-
-#. module: npei_agent_harness
-msgid "Provider"
-msgstr "Provider"
-
-#. module: npei_agent_harness
-msgid "Provider ID"
-msgstr "ID Provider"
-
-#. module: npei_agent_harness
-msgid "Provider Route"
-msgstr "Route Provider"
-
-#. module: npei_agent_harness
-msgid "Display Name"
-msgstr "Tên hiển thị"
-
-#. module: npei_agent_harness
-msgid "Model ID"
-msgstr "ID Model"
-
-#. module: npei_agent_harness
-msgid "Sequence"
-msgstr "Thứ tự"
-
-#. module: npei_agent_harness
-msgid "Context Window"
-msgstr "Cửa sổ ngữ cảnh"
-
-#. module: npei_agent_harness
-msgid "Max Tokens"
-msgstr "Token tối đa"
-
-#. module: npei_agent_harness
-msgid "Configured Models"
-msgstr "Model đã cấu hình"
-
-#. module: npei_agent_harness
-msgid "Catalog Models"
-msgstr "Model trong Catalog"
-
-#. module: npei_agent_harness
-msgid "Catalog Model Count"
-msgstr "Số Model trong Catalog"
-
-#. module: npei_agent_harness
-msgid "Session Count"
-msgstr "Số phiên"
-
-#. module: npei_agent_harness
-msgid "Harness Session ID"
-msgstr "ID Phiên Harness"
-
-#. module: npei_agent_harness
-msgid "Allowed Users"
-msgstr "Người dùng được phép"
+msgid "Agent Manager"
+msgstr "Quản trị Agent"
 
 #. module: npei_agent_harness
 msgid "Agent Preset"
 msgstr "Preset Agent"
 
 #. module: npei_agent_harness
-msgid "Workspace Path"
-msgstr "Đường dẫn Workspace"
+msgid "Agent Presets"
+msgstr "Danh sách Preset Agent"
 
 #. module: npei_agent_harness
-msgid "Default Workspace Path"
-msgstr "Đường dẫn Workspace mặc định"
+msgid "Agent Session"
+msgstr "Phiên Agent"
 
 #. module: npei_agent_harness
-msgid "Harness Preset ID"
-msgstr "ID Preset Harness"
+msgid "Agent Sessions"
+msgstr "Danh sách Phiên Agent"
 
 #. module: npei_agent_harness
-msgid "Trust"
-msgstr "Mức tin cậy"
+msgid "Agent Skill"
+msgstr "Kỹ năng Agent"
 
 #. module: npei_agent_harness
-msgid "Skill Key"
-msgstr "Khóa Kỹ năng"
+msgid "Agent Skills"
+msgstr "Danh sách Kỹ năng Agent"
 
 #. module: npei_agent_harness
-msgid "Source"
-msgstr "Nguồn"
+msgid "Agent User"
+msgstr "Người dùng Agent"
 
 #. module: npei_agent_harness
-msgid "Reference"
-msgstr "Tham chiếu"
+msgid "Allow Bash"
+msgstr "Cho phép Bash"
 
 #. module: npei_agent_harness
-msgid "Configured"
-msgstr "Đã cấu hình"
+msgid "Allow Web"
+msgstr "Cho phép Web"
 
 #. module: npei_agent_harness
-msgid "Writable"
-msgstr "Ghi được"
-
-#. module: npei_agent_harness
-msgid "New Value"
-msgstr "Giá trị mới"
-
-#. module: npei_agent_harness
-msgid "Settings Namespace"
-msgstr "Namespace Cấu hình"
-
-#. module: npei_agent_harness
-msgid "Settings Namespace Record"
-msgstr "Bản ghi Namespace Cấu hình"
-
-#. module: npei_agent_harness
-msgid "Settings Path"
-msgstr "Đường dẫn Cấu hình"
-
-#. module: npei_agent_harness
-msgid "Route Active"
-msgstr "Route đang hoạt động"
-
-#. module: npei_agent_harness
-msgid "Declared"
-msgstr "Được khai báo"
-
-#. module: npei_agent_harness
-msgid "Namespace"
-msgstr "Namespace"
+msgid "Allowed Users"
+msgstr "Người dùng được phép"
 
 #. module: npei_agent_harness
 msgid "Applies"
 msgstr "Áp dụng"
 
 #. module: npei_agent_harness
-msgid "Has Document"
-msgstr "Có tài liệu"
-
-#. module: npei_agent_harness
-msgid "Revision"
-msgstr "Phiên bản"
-
-#. module: npei_agent_harness
-msgid "Resolved Value"
-msgstr "Giá trị đã resolve"
-
-#. module: npei_agent_harness
-msgid "User Section"
-msgstr "Phần người dùng"
-
-#. module: npei_agent_harness
-msgid "Route Key"
-msgstr "Khóa Route"
-
-#. module: npei_agent_harness
-msgid "Wire Protocol"
-msgstr "Giao thức Wire"
+msgid "Archived"
+msgstr "Đã lưu trữ"
 
 #. module: npei_agent_harness
 msgid "Base URL"
-msgstr "Base URL"
+msgstr "URL cơ sở"
 
 #. module: npei_agent_harness
-msgid "Credential Reference"
-msgstr "Tham chiếu Credential"
+msgid ""
+"Base URL of the DeepSeek Harness, e.g. https://harness.internal:8787. The gateway appends /api/<method>."
+msgstr ""
+"URL cơ sở của DeepSeek Harness, ví dụ https://harness.internal:8787. Cổng kết nối sẽ thêm /api/<method>."
 
 #. module: npei_agent_harness
-msgid "API Key"
-msgstr "API Key"
+msgid "Base URL of the DeepSeek Harness. The gateway appends /api/<method>."
+msgstr "URL cơ sở của DeepSeek Harness. Gateway sẽ nối thêm /api/<method>."
 
 #. module: npei_agent_harness
-msgid "API"
-msgstr "API"
+msgid ""
+"Bearer token for the harness (~/.dsh/api-token on the harness host). Never exposed to the browser."
+msgstr ""
+"Bearer token cho harness (~/.dsh/api-token trên máy chủ harness). Không bao giờ lộ ra trình duyệt."
 
 #. module: npei_agent_harness
-msgid "Thinking Format"
-msgstr "Định dạng Thinking"
+msgid ""
+"Bearer token for the harness. On the harness host it lives at ~/.dsh/api-token. Never exposed to the browser."
+msgstr ""
+"Bearer token cho harness. Trên máy chủ harness lưu tại ~/.dsh/api-token. Không bao giờ lộ ra trình duyệt."
 
 #. module: npei_agent_harness
-msgid "Note"
-msgstr "Ghi chú"
+msgid "Blank"
+msgstr "Trống"
 
 #. module: npei_agent_harness
-msgid "From Template"
-msgstr "Từ Mẫu"
+msgid "Boot Injection Rows"
+msgstr "Số dòng Boot Injection"
 
 #. module: npei_agent_harness
-msgid "Discovered Models"
-msgstr "Model đã dò tìm"
-
-#. module: npei_agent_harness
-msgid "Discovered Models (raw)"
-msgstr "Model đã dò tìm (thô)"
-
-#. module: npei_agent_harness
-msgid "Adopt Into Provider"
-msgstr "Nạp vào Provider"
-
-#. module: npei_agent_harness
-msgid "Harness Version"
-msgstr "Phiên bản Harness"
-
-#. module: npei_agent_harness
-msgid "Working Directory"
-msgstr "Thư mục làm việc"
-
-#. module: npei_agent_harness
-msgid "Default Provider"
-msgstr "Provider mặc định"
-
-#. module: npei_agent_harness
-msgid "Default Model"
-msgstr "Model mặc định"
-
-#. module: npei_agent_harness
-msgid "Attached Sessions"
-msgstr "Phiên đang gắn"
+msgid "Bấm Load from Harness để xem agent.cordis.yml của preset này"
+msgstr "Bấm Tải từ Harness để xem agent.cordis.yml của preset này"
 
 #. module: npei_agent_harness
 msgid "Can Open Native Path"
-msgstr "Mở được đường dẫn native"
-
-#. module: npei_agent_harness
-msgid "Harness Base URL"
-msgstr "Base URL Harness"
-
-#. module: npei_agent_harness
-msgid "Harness API Token"
-msgstr "API Token Harness"
-
-#. module: npei_agent_harness
-msgid "Sync from Harness"
-msgstr "Đồng bộ từ Harness"
-
-#. module: npei_agent_harness
-msgid "Test Connection"
-msgstr "Kiểm tra kết nối"
-
-#. module: npei_agent_harness
-msgid "Clear Data"
-msgstr "Xóa dữ liệu"
-
-#. module: npei_agent_harness
-msgid "Save to Harness"
-msgstr "Lưu về Harness"
-
-#. module: npei_agent_harness
-msgid "Push Access to Harness"
-msgstr "Đẩy quyền truy cập về Harness"
-
-#. module: npei_agent_harness
-msgid "Refresh"
-msgstr "Làm mới"
-
-#. module: npei_agent_harness
-msgid "Discover"
-msgstr "Dò tìm"
-
-#. module: npei_agent_harness
-msgid "Adopt"
-msgstr "Nạp"
-
-#. module: npei_agent_harness
-msgid "Add Route"
-msgstr "Thêm Route"
-
-#. module: npei_agent_harness
-msgid "Unset"
-msgstr "Gỡ bỏ"
+msgstr "Có thể mở đường dẫn bản địa"
 
 #. module: npei_agent_harness
 msgid "Cancel"
 msgstr "Hủy"
 
 #. module: npei_agent_harness
+msgid "Cannot derive a preset id from the name %s."
+msgstr "Không thể tạo mã preset từ tên %s."
+
+#. module: npei_agent_harness
+msgid "Catalog Model Count"
+msgstr "Số mô hình danh mục"
+
+#. module: npei_agent_harness
+msgid "Catalog Models"
+msgstr "Mô hình danh mục"
+
+#. module: npei_agent_harness
+msgid "Child persona: role, duties, and the skills it owns."
+msgstr "Persona của agent con: vai trò, nhiệm vụ và kỹ năng sở hữu."
+
+#. module: npei_agent_harness
+msgid "Choose a provider to adopt the models into."
+msgstr "Hãy chọn một nhà cung cấp để nhận mô hình vào."
+
+#. module: npei_agent_harness
+msgid "Clear Data"
+msgstr "Xóa dữ liệu"
+
+#. module: npei_agent_harness
+msgid "Cleared %s record(s); route templates kept."
+msgstr "Đã xóa %s bản ghi; các mẫu tuyến được giữ lại."
+
+#. module: npei_agent_harness
 msgid "Close"
 msgstr "Đóng"
 
 #. module: npei_agent_harness
-msgid "Set a new value"
-msgstr "Đặt giá trị mới"
+msgid "Composition (agent.cordis.yml)"
+msgstr "Cấu trúc (agent.cordis.yml)"
+
+#. module: npei_agent_harness
+msgid "Configuration"
+msgstr "Cấu hình"
+
+#. module: npei_agent_harness
+msgid "Configured"
+msgstr "Đã cấu hình"
+
+#. module: npei_agent_harness
+msgid "Configured Models"
+msgstr "Mô hình đã cấu hình"
 
 #. module: npei_agent_harness
 msgid "Configured Models (override)"
-msgstr "Model đã cấu hình (override)"
+msgstr "Mô hình đã Cấu hình (ghi đè)"
 
 #. module: npei_agent_harness
-msgid "Providers using this namespace"
-msgstr "Các Provider dùng namespace này"
-
-#. module: npei_agent_harness
-msgid "Resolved Value (read-only)"
-msgstr "Giá trị đã resolve (chỉ đọc)"
-
-#. module: npei_agent_harness
-msgid "User Section (editable)"
-msgstr "Phần người dùng (sửa được)"
-
-#. module: npei_agent_harness
-msgid "Models (optional)"
-msgstr "Models (tùy chọn)"
-
-#. module: npei_agent_harness
-msgid "Technical"
-msgstr "Kỹ thuật"
+msgid "Connected. Settings namespaces: %(count)s · writable: %(writable)s"
+msgstr "Đã kết nối. Số namespace cài đặt: %(count)s · có thể ghi: %(writable)s"
 
 #. module: npei_agent_harness
 msgid "Connection"
 msgstr "Kết nối"
 
 #. module: npei_agent_harness
-msgid "API Token"
-msgstr "API Token"
+msgid "Connection Settings"
+msgstr "Cài đặt kết nối"
+
+#. module: npei_agent_harness
+msgid "Context Window"
+msgstr "Cửa sổ ngữ cảnh"
 
 #. module: npei_agent_harness
 msgid "Creator"
 msgstr "Người tạo"
 
 #. module: npei_agent_harness
-msgid "Archived"
-msgstr "Đã lưu trữ"
+msgid "Credential"
+msgstr "Thông tin xác thực"
 
 #. module: npei_agent_harness
-msgid "Remove this credential's value on the harness?"
-msgstr "Gỡ bỏ giá trị của credential này trên harness?"
+msgid "Credential %s unset on the harness."
+msgstr "Đã xóa giá trị thông tin xác thực %s trên harness."
+
+#. module: npei_agent_harness
+msgid "Credential Reference"
+msgstr "Tham chiếu thông tin xác thực"
+
+#. module: npei_agent_harness
+msgid "Credential reference key owned by the harness, e.g. ``DEEPSEEK_API_KEY``."
+msgstr ""
+"Khóa tham chiếu thông tin xác thực do harness sở hữu, ví dụ ``DEEPSEEK_API_KEY``."
 
 #. module: npei_agent_harness
 msgid ""
-"This permanently deletes all MTIL Agent data in Odoo (except seeded route "
-"templates). The harness is not affected. Continue?"
+"Credential-reference name the route resolves its key through (apiKeyEnv). Blank derives <ROUTE_KEY>_API_KEY."
 msgstr ""
-"Thao tác này xóa vĩnh viễn toàn bộ dữ liệu MTIL Agent trong Odoo (trừ các mẫu "
-"route seed). Harness không bị ảnh hưởng. Tiếp tục?"
+"Tên tham chiếu thông tin xác thực mà tuyến phân giải khóa qua đó (apiKeyEnv). Để trống sẽ tạo <ROUTE_KEY>_API_KEY."
 
 #. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_credential.py:0
-msgid "%s credential(s) synced from the harness."
-msgstr "Đã đồng bộ %s credential từ harness."
+msgid "Credentials"
+msgstr "Thông tin xác thực"
 
 #. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_model.py:0
-msgid "%s model(s) synced from the harness."
-msgstr "Đã đồng bộ %s model từ harness."
+msgid "Declared"
+msgstr "Đã khai báo"
 
 #. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_preset.py:0
-msgid "%s preset(s) synced from the harness."
-msgstr "Đã đồng bộ %s preset từ harness."
+msgid "DeepSeek Harness gateway and session ACL"
+msgstr "Cổng kết nối DeepSeek Harness và ACL phiên làm việc"
 
 #. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_provider_model.py:0
-msgid "%s provider model(s) synced from the harness."
-msgstr "Đã đồng bộ %s model của provider từ harness."
+msgid "Default Grant"
+msgstr "Cấp mặc định"
 
 #. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_provider.py:0
-msgid "%s provider(s) synced from the harness."
-msgstr "Đã đồng bộ %s provider từ harness."
+msgid "Default Model"
+msgstr "Mô hình mặc định"
 
 #. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_setting.py:0
-msgid "%s settings namespace(s) synced from the harness."
-msgstr "Đã đồng bộ %s namespace cấu hình từ harness."
+msgid "Default Provider"
+msgstr "Nhà cung cấp mặc định"
 
 #. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_skill.py:0
-msgid "%s skill(s) synced from the harness."
-msgstr "Đã đồng bộ %s kỹ năng từ harness."
+msgid "Default Reasoning Effort"
+msgstr "Mức suy luận mặc định"
 
 #. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_preset.py:0
-msgid "A preset name is required to create one."
-msgstr "Cần có tên preset để tạo mới."
+msgid "Default Workspace Path"
+msgstr "Đường dẫn Workspace mặc định"
 
 #. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_preset.py:0
-msgid "A preset with id %s already exists in Odoo."
-msgstr "Preset với id %s đã tồn tại trong Odoo."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_session.py:0
-msgid "Access pushed to the harness for %s session(s)."
-msgstr "Đã đẩy quyền truy cập về harness cho %s phiên."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_preset.py:0
-msgid "Cannot derive a preset id from the name %s."
-msgstr "Không thể suy ra id preset từ tên %s."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/harness_client.py:0
-msgid "Cannot reach the DeepSeek Harness: %s"
-msgstr "Không kết nối được tới DeepSeek Harness: %s"
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/wizard/npei_discover_models.py:0
-msgid "Choose a provider to adopt the models into."
-msgstr "Hãy chọn provider để nạp model vào."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/res_config_settings.py:0
-msgid "Cleared %s record(s); route templates kept."
-msgstr "Đã xóa %s bản ghi; giữ lại các mẫu route."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/wizard/npei_discover_models.py:0
-msgid "context=%s"
-msgstr "context=%s"
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/wizard/npei_discover_models.py:0
-msgid "maxTokens=%s"
-msgstr "maxTokens=%s"
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_credential.py:0
-msgid "Credential %s unset on the harness."
-msgstr "Đã gỡ credential %s trên harness."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/wizard/npei_discover_models.py:0
-msgid "Discover models first, then Adopt."
-msgstr "Hãy dò tìm model trước, rồi mới Nạp."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/wizard/npei_discover_models.py:0
-msgid "No models returned."
-msgstr "Không có model nào trả về."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/wizard/npei_provider_route.py:0
-msgid "Only NPEI Agent Managers can add provider routes."
-msgstr "Chỉ NPEI Agent Manager mới được thêm route provider."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_provider_model.py:0
-msgid "Only NPEI Agent Managers can configure provider models."
-msgstr "Chỉ NPEI Agent Manager mới được cấu hình model của provider."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/wizard/npei_discover_models.py:0
-msgid "Only NPEI Agent Managers can discover models."
-msgstr "Chỉ NPEI Agent Manager mới được dò tìm model."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_credential.py:0
-msgid "Only NPEI Agent Managers can manage harness credentials."
-msgstr "Chỉ NPEI Agent Manager mới được quản lý credential của harness."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_setting.py:0
-msgid "Only NPEI Agent Managers can manage harness settings."
-msgstr "Chỉ NPEI Agent Manager mới được quản lý cấu hình harness."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_model.py:0
-msgid "Only NPEI Agent Managers can sync models from the harness."
-msgstr "Chỉ NPEI Agent Manager mới được đồng bộ model từ harness."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_preset.py:0
-msgid "Only NPEI Agent Managers can sync presets from the harness."
-msgstr "Chỉ NPEI Agent Manager mới được đồng bộ preset từ harness."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_provider.py:0
-msgid "Only NPEI Agent Managers can sync providers from the harness."
-msgstr "Chỉ NPEI Agent Manager mới được đồng bộ provider từ harness."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_skill.py:0
-msgid "Only NPEI Agent Managers can sync skills from the harness."
-msgstr "Chỉ NPEI Agent Manager mới được đồng bộ kỹ năng từ harness."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/wizard/npei_host_status.py:0
-msgid "Only NPEI Agent Managers can view the harness host status."
-msgstr "Chỉ NPEI Agent Manager mới được xem trạng thái host của harness."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/res_config_settings.py:0
-msgid "Only the system administrator can clear MTIL Agent data."
-msgstr "Chỉ quản trị viên hệ thống mới được xóa dữ liệu MTIL Agent."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_preset.py:0
-msgid "The harness reports no default preset to copy from."
-msgstr "Harness không có preset mặc định nào để sao chép."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_session.py:0
-msgid "The harness session.create returned no sessionId."
-msgstr "session.create của harness không trả về sessionId."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_setting.py:0
-msgid "Settings namespace %(ns)s saved (revision %(rev)s)."
-msgstr "Đã lưu namespace cấu hình %(ns)s (phiên bản %(rev)s)."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_credential__ref
-msgid "Credential reference key owned by the harness, e.g. ``DEEPSEEK_API_KEY``."
-msgstr "Khóa tham chiếu credential do harness sở hữu, ví dụ ``DEEPSEEK_API_KEY``."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_credential__configured
-msgid "Whether the harness holds a value for this ref (reported by ``credentials.describe``)."
-msgstr "Harness có đang giữ giá trị cho ref này không (theo ``credentials.describe``)."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_credential__source
-msgid "Where the harness resolves this credential from (e.g. env, .env). Reported by ``credentials.describe``."
-msgstr "Nơi harness lấy credential này (ví dụ env, .env). Theo ``credentials.describe``."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_credential__writable
-msgid "Whether the harness lets a full-token client set this ref."
-msgstr "Harness có cho client full-token đặt ref này không."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_credential__value
-msgid "Write-only secret. On save it is pushed to the harness with ``credentials.set`` and POPPED before the row is written, so it never lands in an Odoo column; the field always reads back blank."
-msgstr "Bí mật chỉ-ghi. Khi lưu, giá trị được đẩy lên harness bằng ``credentials.set`` và bị POP trước khi ghi bản ghi, nên không bao giờ lưu vào cột Odoo; field luôn đọc ra rỗng."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_model__model_id
-msgid "Model id owned by the harness (``ModelView.id``)."
-msgstr "Id model do harness sở hữu (``ModelView.id``)."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_model__provider
-msgid "Provider group id this model belongs to (``group.id``); the raw key from llm.models and the unique-constraint partner."
-msgstr "Id nhóm provider mà model này thuộc về (``group.id``); khóa thô từ llm.models và là đối tác của ràng buộc unique."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_model__provider_id
-msgid "The provider route this model's group maps to (matched by group id == provider id); blank when no provider mirror matches yet. Resolved by either sync."
-msgstr "Route provider mà nhóm của model này ánh xạ tới (khớp group id == provider id); để trống khi chưa có provider mirror khớp. Được resolve bởi một trong hai lần sync."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_preset__preset_id
-msgid "Preset id owned by the harness (``AgentPresetEntry.id``). Left blank on create, Odoo derives it from the name and authors the preset on the harness; set only by the sync/adopt path."
-msgstr "Id preset do harness sở hữu (``AgentPresetEntry.id``). Để trống khi tạo, Odoo suy ra từ tên và tạo preset trên harness; chỉ được đặt bởi luồng sync/adopt."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_preset__workspace_path
-msgid "Canonical path of the preset's provisioned default workspace (user presets only)."
-msgstr "Đường dẫn chuẩn của workspace mặc định mà preset được cấp (chỉ với preset user)."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_preset__session_ids
-msgid "Sessions running under this preset."
-msgstr "Các phiên chạy dưới preset này."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider__provider
-msgid "Provider id owned by the harness (``ProviderView.provider``)."
-msgstr "Id provider do harness sở hữu (``ProviderView.provider``)."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider__display_name
-msgid "Human-readable provider name from ``llm.providers``."
-msgstr "Tên provider dễ đọc từ ``llm.providers``."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider__settings_ns
-msgid "Settings namespace this provider reads its configuration from (raw key; the settings_id match partner)."
-msgstr "Settings namespace mà provider này đọc cấu hình (khóa thô; đối tác khớp với settings_id)."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider__settings_id
-msgid "The settings-namespace mirror matching settings_ns; blank until settings are synced. Many providers may share one namespace."
-msgstr "Bản mirror settings-namespace khớp settings_ns; để trống cho tới khi đồng bộ settings. Nhiều provider có thể dùng chung một namespace."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider__settings_path
-msgid "The harness ``settingsPath`` segments joined with ``/``."
-msgstr "Các đoạn ``settingsPath`` của harness nối bằng ``/``."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider__route_active
-msgid "Whether the harness reports this provider's route as active."
-msgstr "Harness có báo route của provider này đang hoạt động không."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider__declared
-msgid "Whether the provider is explicitly declared in settings."
-msgstr "Provider có được khai báo tường minh trong settings không."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider__model_ids
-msgid "Editable models array pushed to this provider's settings namespace (settings[ns].user[...path].models)."
-msgstr "Mảng models sửa được, đẩy vào settings namespace của provider (settings[ns].user[...path].models)."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider__catalog_model_ids
-msgid "Read-only resolved catalog models (llm.models) whose group id matches this provider."
-msgstr "Model catalog đã resolve (llm.models), chỉ đọc, có group id khớp provider này."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_model__provider_id
-msgid "The provider whose settings-namespace models array owns this row."
-msgstr "Provider mà mảng models trong settings-namespace của nó sở hữu dòng này."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_model__sequence
-msgid "Order within the provider's models array."
-msgstr "Thứ tự trong mảng models của provider."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_model__model_id
-msgid "Model id sent to the adapter (``models[].id``)."
-msgstr "Id model gửi tới adapter (``models[].id``)."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_model__name
-msgid "Optional display name (``models[].name``); blank omits the key."
-msgstr "Tên hiển thị (tùy chọn, ``models[].name``); để trống thì bỏ key."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_model__context_window
-msgid "Optional context capacity (``models[].contextWindow``); 0 omits the key so the adapter default applies."
-msgstr "Dung lượng ngữ cảnh (tùy chọn, ``models[].contextWindow``); 0 thì bỏ key để dùng mặc định của adapter."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_model__max_tokens
-msgid "Optional output cap (``models[].maxTokens``); 0 omits the key so the adapter default applies."
-msgstr "Giới hạn output (tùy chọn, ``models[].maxTokens``); 0 thì bỏ key để dùng mặc định của adapter."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_route_template__name
-msgid "Display name shown in the Add Provider Route wizard."
-msgstr "Tên hiển thị trong wizard Add Provider Route."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_route_template__route_key
 msgid "Default route id (providers.<key>), e.g. openrouter."
-msgstr "Id route mặc định (providers.<key>), ví dụ openrouter."
+msgstr "Mã tuyến mặc định (providers.<key>), ví dụ openrouter."
 
 #. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_route_template__api_protocol
+msgid "Defaults from the chosen preset"
+msgstr "Mặc định từ preset đã chọn"
+
+#. module: npei_agent_harness
+msgid ""
+"Delegation tool the router calls (lowercase slug, e.g. 'marketing'); also the department's identity."
+msgstr ""
+"Công cụ ủy quyền mà router gọi (slug chữ thường, ví dụ 'marketing'); cũng là danh tính của nhóm."
+
+#. module: npei_agent_harness
+msgid ""
+"Delete every MTIL Agent record (sessions, presets, skills, credentials, providers, models, settings) except the seeded provider route templates. Does not touch the harness. Irreversible."
+msgstr ""
+"Xóa toàn bộ bản ghi MTIL Agent (phiên, preset, kỹ năng, thông tin xác thực, nhà cung cấp, mô hình, cài đặt), trừ các mẫu tuyến đã gieo. Không ảnh hưởng harness. Không thể hoàn tác."
+
+#. module: npei_agent_harness
+msgid "Department Sub-agents"
+msgstr "Agent phụ theo nhóm"
+
+#. module: npei_agent_harness
+msgid "Description"
+msgstr "Mô tả"
+
+#. module: npei_agent_harness
+msgid "Descriptionu"
+msgstr "Mô tả"
+
+#. module: npei_agent_harness
+msgid "Discover"
+msgstr "Khám phá"
+
+#. module: npei_agent_harness
+msgid "Discover Models"
+msgstr "Khám phá Mô hình"
+
+#. module: npei_agent_harness
+msgid "Discover models first, then Adopt."
+msgstr "Hãy khám phá mô hình trước, rồi mới Nhận vào."
+
+#. module: npei_agent_harness
+msgid "Discovered Models"
+msgstr "Mô hình đã khám phá"
+
+#. module: npei_agent_harness
+msgid "Discovered Models (raw)"
+msgstr "Mô hình đã khám phá (thô)"
+
+#. module: npei_agent_harness
+msgid "Display Name"
+msgstr "Tên hiển thị"
+
+#. module: npei_agent_harness
+msgid "Display name shown in the Add Provider Route wizard."
+msgstr "Tên hiển thị trong wizard Thêm tuyến Nhà cung cấp."
+
+#. module: npei_agent_harness
+msgid ""
+"Editable models array pushed to this provider's settings namespace (settings[ns].user[...path].models)."
+msgstr ""
+"Mảng mô hình có thể chỉnh sửa được đẩy vào không gian tên cài đặt của nhà cung cấp này (settings[ns].user[...path].models)."
+
+#. module: npei_agent_harness
+msgid ""
+"Endpoint base, e.g. https://openrouter.ai/api/v1. Blank inherits the pi-ai catalog endpoint for a provider it already ships."
+msgstr ""
+"Điểm cuối cơ sở, ví dụ https://openrouter.ai/api/v1. Để trống kế thừa điểm cuối từ danh mục pi-ai cho nhà cung cấp mà nó đã có sẵn."
+
+#. module: npei_agent_harness
+msgid ""
+"Endpoint base; blank inherits the pi-ai catalog endpoint for a provider it already ships."
+msgstr ""
+"Điểm cuối cơ sở; để trống sẽ kế thừa điểm cuối từ danh mục pi-ai cho nhà cung cấp mà nó đã có sẵn."
+
+#. module: npei_agent_harness
+msgid ""
+"Endpoint wire format (sent as the profile `api` key). OpenRouter and most gateways speak openai-completions. Named api_protocol so it does not shadow the odoo `api` module."
+msgstr ""
+"Định dạng wire điểm cuối (gửi dưới dạng khóa `api` trong profile). OpenRouter và hầu hết cổng kết nối dùng openai-completions. Đặt là api_protocol để không che khuất module odoo `api`."
+
+#. module: npei_agent_harness
 msgid "Endpoint wire format sent as the profile `api` key."
-msgstr "Định dạng wire của endpoint, gửi làm key `api` của profile."
+msgstr "Định dạng wire điểm cuối, gửi dưới dạng khóa `api` trong profile."
 
 #. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_route_template__base_url
-msgid "Endpoint base; blank inherits the pi-ai catalog endpoint for a provider it already ships."
-msgstr "Base của endpoint; để trống thì kế thừa endpoint catalog pi-ai cho provider đã có sẵn."
+msgid ""
+"Explicit tool grant for this sub-agent (pre-filled with the catalog's Default Grant tools). Set, it REPLACES the bash/web flag derivation; empty falls back to the flags plus the standard file/skill/job tool set."
+msgstr ""
+"Cấp công cụ rõ ràng cho agent phụ này (được điền sẵn với các công cụ Default Grant trong danh mục). Khi đặt, THAY THẾ cờ bash/web; để trống sẽ dùng cờ cộng bộ công cụ file/skill/job tiêu chuẩn."
 
 #. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_route_template__thinking_format
-msgid "compat.thinkingFormat for the route's models; blank lets pi-ai guess from the base URL."
-msgstr "compat.thinkingFormat cho model của route; để trống thì pi-ai tự đoán từ base URL."
+msgid "From Template"
+msgstr "Từ mẫu"
 
 #. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_route_template__note
-msgid "Optional hint (where to get the key, model id examples)."
-msgstr "Gợi ý (tùy chọn): nơi lấy key, ví dụ id model."
+msgid "Granted Tools"
+msgstr "Công cụ được cấp"
 
 #. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_session__session_id
-msgid "Opaque session id owned by the harness. Left blank on create, Odoo calls session.create and fills it; set it by hand only to adopt an existing harness session."
-msgstr "Session id mờ do harness sở hữu. Để trống khi tạo, Odoo gọi session.create và điền vào; chỉ nhập tay để nạp một session harness sẵn có."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_session__user_ids
-msgid "Users allowed to access this session. The record creator (create_uid) is always allowed even when absent from this list."
-msgstr "Người dùng được phép truy cập session này. Người tạo bản ghi (create_uid) luôn được phép dù không có trong danh sách."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_setting__ns
-msgid "Settings namespace key owned by the harness."
-msgstr "Khóa settings namespace do harness sở hữu."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_setting__applies
-msgid "Whether a change takes effect live or needs a harness restart."
-msgstr "Thay đổi có hiệu lực tức thì hay cần khởi động lại harness."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_setting__has_document
-msgid "Whether the harness has a persisted settings document."
-msgstr "Harness có tài liệu settings đã lưu không."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_setting__revision
-msgid "Namespace revision echoed as ``expectedRevision`` on save so a concurrent change is refused."
-msgstr "Revision của namespace, gửi lại làm ``expectedRevision`` khi lưu để từ chối thay đổi đồng thời."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_setting__value_json
-msgid "Pretty-printed redacted resolved value (base + user), read-only."
-msgstr "Giá trị đã resolve (base + user), đã ẩn bí mật, in đẹp, chỉ đọc."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_setting__user_json
-msgid "Pretty-printed raw user section. Edit and Save to replace it on the harness."
-msgstr "Phần user thô, in đẹp. Sửa rồi Lưu để thay thế trên harness."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_setting__provider_ids
-msgid "Provider routes that read their configuration from this namespace."
-msgstr "Các route provider đọc cấu hình từ namespace này."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_skill__skill_key
-msgid "Skill identity. The harness ``SkillEntry`` exposes only a ``name``, used here as the key."
-msgstr "Định danh kỹ năng. ``SkillEntry`` của harness chỉ phơi một ``name``, dùng làm khóa ở đây."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_skill__source
-msgid "Provenance of the skill. Not carried on the harness wire; populated from ``whenToUse`` when available."
-msgstr "Nguồn gốc kỹ năng. Không có trên wire harness; lấy từ ``whenToUse`` khi có."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_discover_models__settings_ns
-msgid "Settings namespace whose provider defaults seed the probe."
-msgstr "Settings namespace có provider defaults dùng để khởi tạo phép dò."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_discover_models__provider
-msgid "Optional provider id override."
-msgstr "Ghi đè id provider (tùy chọn)."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_discover_models__base_url
-msgid "Optional base URL override for the probe endpoint."
-msgstr "Ghi đè base URL cho endpoint dò (tùy chọn)."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_discover_models__api_type
-msgid "Optional provider API flavour override (sent as the `api` param). Named api_type so it does not shadow the odoo `api` module."
-msgstr "Ghi đè kiểu API của provider (tùy chọn, gửi làm tham số `api`). Đặt tên api_type để không che module `api` của odoo."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_discover_models__api_key
-msgid "Optional API key used only for this probe; never persisted."
-msgstr "API key (tùy chọn) chỉ dùng cho phép dò này; không bao giờ lưu."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_discover_models__result_text
-msgid "One line per discovered model: id, name, context window, max tokens."
-msgstr "Mỗi model một dòng: id, name, context window, max tokens."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_discover_models__result_json
-msgid "The raw discovered models list, kept so Adopt can append them into a provider's configurable catalog."
-msgstr "Danh sách model dò được ở dạng thô, giữ lại để Adopt nạp vào catalog cấu hình của provider."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_discover_models__target_provider_id
-msgid "Provider whose configurable models the discovered entries are appended to when Adopt runs."
-msgstr "Provider mà các model dò được sẽ được thêm vào catalog cấu hình khi chạy Adopt."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_host_status__version
-msgid "The harness host app (apps/cli) package.json version."
-msgstr "Phiên bản package.json của app host harness (apps/cli)."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_host_status__cwd
-msgid "Host process working directory: the root for session persistence and tool execution."
-msgstr "Thư mục làm việc của tiến trình host: gốc để lưu session và chạy tool."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_host_status__provider
-msgid "Provider applied to a new agent that names none; blank when the host configures no explicit default."
-msgstr "Provider áp cho agent mới không chỉ định; để trống khi host không cấu hình mặc định tường minh."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_host_status__model
-msgid "Model applied to a new agent that names none; blank when the host configures no explicit default."
-msgstr "Model áp cho agent mới không chỉ định; để trống khi host không cấu hình mặc định tường minh."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_host_status__attached_sessions
-msgid "Count of currently attached sessions (those with a live agent)."
-msgstr "Số phiên đang gắn (có agent đang chạy)."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_host_status__can_open_path
-msgid "Whether this deployment can hand a path to a user-visible native desktop (false on a headless backend)."
-msgstr "Deployment có thể trao đường dẫn cho desktop native của người dùng không (false trên backend headless)."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_route__settings_ns
-msgid "The pi-ai adapter namespace that owns provider routes. Leave as llm-pi-ai unless the deployment renamed it."
-msgstr "Namespace của adapter pi-ai sở hữu các route provider. Giữ llm-pi-ai trừ khi deployment đổi tên."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_route__template_id
-msgid "Pick a known gateway to pre-fill key/protocol/base URL/thinking format; then just enter the API key."
-msgstr "Chọn một gateway có sẵn để tự điền key/protocol/base URL/thinking format; rồi chỉ cần nhập API key."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_route__route_key
-msgid "Route id under providers.<key>, lower-case (e.g. openrouter). Also stamped on every model's provider."
-msgstr "Id route dưới providers.<key>, chữ thường (ví dụ openrouter). Cũng được gán vào provider của mỗi model."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_route__display_name
-msgid "Human-readable name shown in selectors."
-msgstr "Tên dễ đọc hiển thị trong bộ chọn."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_route__api_protocol
-msgid "Endpoint wire format (sent as the profile `api` key). OpenRouter and most gateways speak openai-completions. Named api_protocol so it does not shadow the odoo `api` module."
-msgstr "Định dạng wire của endpoint (gửi làm key `api` của profile). OpenRouter và hầu hết gateway dùng openai-completions. Đặt tên api_protocol để không che module `api` của odoo."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_route__base_url
-msgid "Endpoint base, e.g. https://openrouter.ai/api/v1. Blank inherits the pi-ai catalog endpoint for a provider it already ships."
-msgstr "Base của endpoint, ví dụ https://openrouter.ai/api/v1. Để trống thì kế thừa endpoint catalog pi-ai cho provider đã có sẵn."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_route__api_key_env
-msgid "Credential-reference name the route resolves its key through (apiKeyEnv). Blank derives <ROUTE_KEY>_API_KEY."
-msgstr "Tên tham chiếu credential mà route dùng để lấy key (apiKeyEnv). Để trống thì suy ra <ROUTE_KEY>_API_KEY."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_route__api_key
-msgid "Optional key value pushed to the credential store now (credentials.set); never persisted in Odoo."
-msgstr "Giá trị key (tùy chọn) đẩy ngay vào kho credential (credentials.set); không lưu trong Odoo."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_route__thinking_format
-msgid "compat.thinkingFormat for the route's models; blank lets pi-ai guess from the base URL. OpenRouter uses openrouter."
-msgstr "compat.thinkingFormat cho model của route; để trống thì pi-ai tự đoán từ base URL. OpenRouter dùng openrouter."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_npei_agent_provider_route__models_text
-msgid "One model per line: `id` or `id | Display Name` (e.g. openai/gpt-4o | GPT-4o). Optional — add more later under the provider's Configured Models."
-msgstr "Mỗi model một dòng: `id` hoặc `id | Tên hiển thị` (ví dụ openai/gpt-4o | GPT-4o). Tùy chọn — có thể thêm sau ở Configured Models của provider."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/harness_client.py:0
-msgid "The DeepSeek Harness connection is not configured. Set both the Base URL and the API Token under Settings > MTIL Agent."
-msgstr "Kết nối DeepSeek Harness chưa được cấu hình. Hãy đặt cả Base URL và API Token tại Settings > MTIL Agent."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/harness_client.py:0
-msgid "Harness call %(method)s failed (HTTP %(status)s): %(body)s"
-msgstr "Gọi harness %(method)s thất bại (HTTP %(status)s): %(body)s"
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/harness_client.py:0
-msgid "Harness call %(method)s returned an error: %(error)s"
-msgstr "Gọi harness %(method)s trả về lỗi: %(error)s"
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/harness_client.py:0
-msgid "Harness call %(method)s returned a non-JSON body."
-msgstr "Gọi harness %(method)s trả về body không phải JSON."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_preset.py:0
-msgid "A preset '%(slug)s' already exists on the harness (from the name '%(name)s'). Pick a different name, or use 'Sync from Harness' to adopt it into Odoo."
-msgstr "Preset '%(slug)s' đã tồn tại trên harness (từ tên '%(name)s'). Hãy chọn tên khác, hoặc dùng 'Sync from Harness' để nạp vào Odoo."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_preset.py:0
-msgid "Presets synced"
-msgstr "Đã đồng bộ preset"
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_provider_model.py:0
-msgid "Provider %s has no settings namespace; sync providers from the harness before configuring its models."
-msgstr "Provider %s chưa có settings namespace; hãy đồng bộ providers từ harness trước khi cấu hình model."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_setting.py:0
-msgid "The user section for %s must be a JSON object."
-msgstr "Phần user của %s phải là một JSON object."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_setting.py:0
-msgid "The user section for %(ns)s is not valid JSON: %(error)s"
-msgstr "Phần user của %(ns)s không phải JSON hợp lệ: %(error)s"
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_setting.py:0
-msgid "Saving settings namespace %(ns)s failed: %(error)s\nIf another client changed it, use 'Sync from Harness' to reload the current revision, then reapply your edit."
-msgstr "Lưu namespace cấu hình %(ns)s thất bại: %(error)s\nNếu client khác đã thay đổi, dùng 'Sync from Harness' để nạp lại revision hiện tại rồi áp dụng lại chỉnh sửa."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_skill.py:0
-msgid "skill.list requires a harness session. Create at least one session mapping before syncing skills."
-msgstr "skill.list cần một session harness. Hãy tạo ít nhất một session mapping trước khi đồng bộ kỹ năng."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/npei_agent_skill.py:0
-msgid "Skills synced"
-msgstr "Đã đồng bộ kỹ năng"
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/models/res_config_settings.py:0
-msgid "Connected. Model: %(model)s · cwd: %(cwd)s · version: %(version)s"
-msgstr "Đã kết nối. Model: %(model)s · cwd: %(cwd)s · version: %(version)s"
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/wizard/npei_provider_route.py:0
-msgid "The route key %s must be lower-case letters, digits, or hyphens, starting with a letter or digit."
-msgstr "Route key %s chỉ gồm chữ thường, số hoặc dấu gạch ngang, và bắt đầu bằng chữ hoặc số."
-
-#. module: npei_agent_harness
-#: code:addons/npei_agent_harness/wizard/npei_provider_route.py:0
-msgid "Route %(key)s added. Configure its models under Providers > %(key)s > Configured Models."
-msgstr "Đã thêm route %(key)s. Cấu hình model tại Providers > %(key)s > Configured Models."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_res_config_settings__npei_harness_base_url
-msgid "Base URL of the DeepSeek Harness, e.g. https://harness.internal:8787. The gateway appends /api/<method>."
-msgstr "Base URL của DeepSeek Harness, ví dụ https://harness.internal:8787. Gateway sẽ nối thêm /api/<method>."
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,help:npei_agent_harness.field_res_config_settings__npei_harness_api_token
-msgid "Bearer token for the harness. On the harness host it lives at ~/.dsh/api-token. Never exposed to the browser."
-msgstr "Bearer token của harness. Trên máy harness nằm ở ~/.dsh/api-token. Không bao giờ lộ ra trình duyệt."
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_tree
-msgid "Agent Presets"
-msgstr "Các Preset Agent"
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_credential_form
-msgid "Credential"
-msgstr "Credential"
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.res_config_settings_view_form_npei
-msgid "Delete every MTIL Agent record (sessions, presets, skills, credentials, providers, models, settings) except the seeded provider route templates. Does not touch the harness. Irreversible."
-msgstr "Xóa mọi bản ghi MTIL Agent (phiên, preset, kỹ năng, credential, provider, model, cấu hình) trừ các mẫu route seed. Không chạm tới harness. Không thể hoàn tác."
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.res_config_settings_view_form_npei
-msgid "Bearer token for the harness (~/.dsh/api-token on the harness host). Never exposed to the browser."
-msgstr "Bearer token của harness (~/.dsh/api-token trên máy harness). Không bao giờ lộ ra trình duyệt."
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.res_config_settings_view_form_npei
-msgid "Base URL of the DeepSeek Harness. The gateway appends /api/<method>."
-msgstr "Base URL của DeepSeek Harness. Gateway sẽ nối thêm /api/<method>."
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.res_config_settings_view_form_npei
-msgid "Ping the harness (host.describe) with the saved URL and token."
-msgstr "Ping harness (host.describe) bằng URL và token đã lưu."
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_skill_tree
-msgid "Agent Skills"
-msgstr "Các kỹ năng Agent"
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_skill_form
-msgid "Agent Skill"
-msgstr "Kỹ năng Agent"
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_setting_tree
-msgid "Settings Namespaces"
-msgstr "Các Namespace Cấu hình"
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_route_template_form
-msgid "Provider Route Template"
-msgstr "Mẫu Route Provider"
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_session_tree
-msgid "Agent Sessions"
-msgstr "Các phiên Agent"
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_session_form
-msgid "Re-send the allowed-user set to the harness access store."
-msgstr "Gửi lại tập người dùng được phép về kho access của harness."
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_session_form
-msgid "Agent Session"
-msgstr "Phiên Agent"
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_session_search
 msgid "Group By"
 msgstr "Nhóm theo"
 
 #. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_session_search
-msgid "Preset"
-msgstr "Preset"
+msgid "HTTP Status"
+msgstr "Trạng thái HTTP"
 
 #. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_model_form
-msgid "Model"
-msgstr "Model"
+msgid "Harness API Token"
+msgstr "Token API Harness"
 
 #. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
-msgid "Shown in the preset picker; pushed to the harness on save"
-msgstr "Hiển thị trong bộ chọn preset; đẩy lên harness khi lưu"
+msgid "Harness Base URL"
+msgstr "URL Cơ sở Harness"
 
 #. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
+msgid "Harness Default"
+msgstr "Mặc định Harness"
+
+#. module: npei_agent_harness
+msgid "Harness Host Status"
+msgstr "Trạng thái máy chủ Harness"
+
+#. module: npei_agent_harness
+msgid "Harness Preset ID"
+msgstr "Mã Preset Harness"
+
+#. module: npei_agent_harness
+msgid "Harness Session ID"
+msgstr "Mã Phiên Harness"
+
+#. module: npei_agent_harness
+msgid "Harness Settings"
+msgstr "Cài đặt Namespace"
+
+#. module: npei_agent_harness
+msgid "Harness Updated At"
+msgstr "Cập nhật Harness lúc"
+
+#. module: npei_agent_harness
+msgid "Harness Workspace ID"
+msgstr "ID Workspace Harness"
+
+#. module: npei_agent_harness
+msgid ""
+"Harness roster description: sent with agentPresets/copy at authoring and pushed via agentPresets/rename on edit (user-trust presets only)."
+msgstr ""
+"Mô tả trong roster harness: gửi kèm agentPresets/copy khi đăng ký và đẩy qua agentPresets/rename khi chỉnh sửa (chỉ preset trust user)."
+
+#. module: npei_agent_harness
+msgid "Has Document"
+msgstr "Có tài liệu"
+
+#. module: npei_agent_harness
+msgid "Human-readable name shown in selectors."
+msgstr "Tên dễ đọc hiển thị trong các bộ chọn."
+
+#. module: npei_agent_harness
+msgid "Human-readable provider name from ``llm/listConfigurableProviders``."
+msgstr "Tên nhà cung cấp dễ đọc từ ``llm/listConfigurableProviders``."
+
+#. module: npei_agent_harness
+msgid "Kind"
+msgstr "Loại"
+
+#. module: npei_agent_harness
+msgid "Last activity timestamp reported by the harness sync."
+msgstr "Dấu thời gian hoạt động cuối cùng được báo cáo bởi lần đồng bộ harness."
+
+#. module: npei_agent_harness
 msgid "Leave blank — derived from the name; or enter an existing id to adopt"
-msgstr "Để trống — suy ra từ tên; hoặc nhập id có sẵn để adopt"
+msgstr "Để trống — tự sinh từ tên; hoặc nhập id đã tồn tại để nhận vào"
 
 #. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_provider_form
-msgid "Read-only resolved models this provider offers (from llm.models). Run \"Sync Models from Harness\" to refresh. This is what the provider serves when Configured Models below is empty (inherited)."
-msgstr "Model đã resolve mà provider này phục vụ (từ llm.models), chỉ đọc. Bấm \"Sync Models from Harness\" để làm mới. Đây là những gì provider phục vụ khi Configured Models bên dưới trống (kế thừa)."
+msgid "Live state reported by the last harness sync."
+msgstr "Trạng thái trực tiếp được báo cáo bởi lần đồng bộ harness gần nhất."
 
 #. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_provider_form
-msgid "Optional overrides pushed to the provider's settings namespace as its models array. Leave empty to use the inherited catalog above; emptying it returns to that catalog."
-msgstr "Các override tùy chọn, đẩy vào settings namespace của provider dưới dạng mảng models. Để trống thì dùng catalog kế thừa ở trên; xóa hết thì quay về catalog đó."
+msgid "Load (and edit) the composition before pushing it."
+msgstr "Hãy tải (và chỉnh sửa) cấu trúc trước khi gửi."
 
 #. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_credential_form
+msgid "Load from Harness"
+msgstr "Tải từ Harness"
+
+#. module: npei_agent_harness
+msgid "Manage Agent"
+msgstr "Quản lý Agent"
+
+#. module: npei_agent_harness
+msgid ""
+"Manual annotation of the harness workspace this preset groups sessions under."
+msgstr "Chú thích thủ công về workspace harness mà preset này nhóm các phiên vào."
+
+#. module: npei_agent_harness
+msgid "Map a harness session id to the Odoo users allowed to drive it."
+msgstr "Ánh xạ mã phiên harness với các người dùng Odoo được phép sử dụng."
+
+#. module: npei_agent_harness
+msgid "Max Tokens"
+msgstr "Số token tối đa"
+
+#. module: npei_agent_harness
+msgid ""
+"Mirrors the harness roster's active state. Toggling pushes agentPresets/setActive: an inactive preset is withheld from pickers and new selection while its running sessions continue."
+msgstr ""
+"Phản chiếu trạng thái active trong roster harness. Thay đổi sẽ đẩy agentPresets/setActive: preset không active bị ẩn khỏi bộ chọn và lựa chọn mới trong khi các phiên đang chạy tiếp tục."
+
+#. module: npei_agent_harness
+msgid "Model"
+msgstr "Mô hình"
+
+#. module: npei_agent_harness
+msgid "Model ID"
+msgstr "Mã Mô hình"
+
+#. module: npei_agent_harness
+msgid "Model Invocable"
+msgstr "Gọi được bởi mô hình"
+
+#. module: npei_agent_harness
+msgid "Model applied to a new session (agent-default-model)."
+msgstr "Mô hình áp dụng cho phiên mới (agent-default-model)."
+
+#. module: npei_agent_harness
+msgid "Model id owned by the harness (``ModelView.id``)."
+msgstr "Mã model do harness sở hữu (``ModelView.id``)."
+
+#. module: npei_agent_harness
+msgid "Model id sent to the adapter (``models[].id``)."
+msgstr "Mã model gửi đến adapter (``models[].id``)."
+
+#. module: npei_agent_harness
+msgid "Model-facing description reported by the harness sync."
+msgstr "Mô tả hướng tới mô hình được báo cáo bởi lần đồng bộ harness."
+
+#. module: npei_agent_harness
+msgid "Models"
+msgstr "Mô hình"
+
+#. module: npei_agent_harness
+msgid "Models (optional)"
+msgstr "Mô hình (tùy chọn)"
+
+#. module: npei_agent_harness
+msgid "Name"
+msgstr "Tên"
+
+#. module: npei_agent_harness
+msgid "Namespace"
+msgstr "Không gian tên"
+
+#. module: npei_agent_harness
+msgid ""
+"Namespace revision echoed as ``expectedRevision`` on save so a concurrent change is refused."
+msgstr ""
+"Phiên bản namespace được dùng làm ``expectedRevision`` khi lưu để từ chối thay đổi đồng thời."
+
+#. module: npei_agent_harness
+msgid "New Value"
+msgstr "Giá trị mới"
+
+#. module: npei_agent_harness
+msgid ""
+"No harness session is mapped in Odoo yet. Run Sessions > Sync from Harness first — the skill catalog is read through a session."
+msgstr ""
+"Chưa có phiên harness nào được ánh xạ trong Odoo. Chạy Phiên làm việc > Đồng bộ từ Harness trước — danh mục kỹ năng được đọc qua một phiên."
+
+#. module: npei_agent_harness
+msgid "No models returned."
+msgstr "Không có mô hình nào được trả về."
+
+#. module: npei_agent_harness
+msgid "Note"
+msgstr "Ghi chú"
+
+#. module: npei_agent_harness
+msgid "Odoo gateway and session ACL for the DeepSeek Harness backend"
+msgstr "Cổng Odoo và ACL phiên làm việc cho backend DeepSeek Harness"
+
+#. module: npei_agent_harness
+msgid "One line per discovered model: id, name, context window, max tokens."
+msgstr "Một dòng mỗi mô hình: id, tên, cửa sổ ngữ cảnh, số token tối đa."
+
+#. module: npei_agent_harness
+msgid ""
+"One model per line: `id` or `id | Display Name` (e.g. openai/gpt-4o | GPT-4o). Optional — add more later under the provider's Configured Models."
+msgstr ""
+"Một mô hình mỗi dòng: `id` hoặc `id | Tên hiển thị` (ví dụ openai/gpt-4o | GPT-4o). Tùy chọn — thêm sau trong Mô hình đã Cấu hình của nhà cung cấp."
+
+#. module: npei_agent_harness
+msgid "Only NPEI Agent Managers can add provider routes."
+msgstr "Chỉ Quản trị Agent NPEI mới có thể thêm tuyến nhà cung cấp."
+
+#. module: npei_agent_harness
+msgid "Only NPEI Agent Managers can configure provider models."
+msgstr "Chỉ Quản trị Agent NPEI mới có thể cấu hình mô hình nhà cung cấp."
+
+#. module: npei_agent_harness
+msgid "Only NPEI Agent Managers can discover models."
+msgstr "Chỉ Quản trị Agent NPEI mới có thể khám phá mô hình."
+
+#. module: npei_agent_harness
+msgid "Only NPEI Agent Managers can manage harness credentials."
+msgstr "Chỉ Quản trị Agent NPEI mới có thể quản lý thông tin xác thực harness."
+
+#. module: npei_agent_harness
+msgid "Only NPEI Agent Managers can manage harness settings."
+msgstr "Chỉ Quản trị Agent NPEI mới có thể quản lý cài đặt harness."
+
+#. module: npei_agent_harness
+msgid "Only NPEI Agent Managers can sync models from the harness."
+msgstr "Chỉ Quản trị Agent NPEI mới có thể đồng bộ mô hình từ harness."
+
+#. module: npei_agent_harness
+msgid "Only NPEI Agent Managers can sync presets from the harness."
+msgstr "Chỉ Quản trị Agent NPEI mới có thể đồng bộ presets từ harness."
+
+#. module: npei_agent_harness
+msgid "Only NPEI Agent Managers can sync providers from the harness."
+msgstr "Chỉ Quản trị Agent NPEI mới có thể đồng bộ nhà cung cấp từ harness."
+
+#. module: npei_agent_harness
+msgid "Only NPEI Agent Managers can sync sessions from the harness."
+msgstr "Chỉ Quản trị Agent NPEI mới có thể đồng bộ phiên từ harness."
+
+#. module: npei_agent_harness
+msgid "Only NPEI Agent Managers can sync skills from the harness."
+msgstr "Chỉ Quản trị Agent NPEI mới có thể đồng bộ kỹ năng từ harness."
+
+#. module: npei_agent_harness
+msgid "Only NPEI Agent Managers can sync tools from the harness."
+msgstr "Chỉ Quản trị Agent NPEI mới có thể đồng bộ công cụ từ harness."
+
+#. module: npei_agent_harness
+msgid "Only NPEI Agent Managers can view the harness host status."
+msgstr "Chỉ Quản trị Agent NPEI mới có thể xem trạng thái máy chủ harness."
+
+#. module: npei_agent_harness
+msgid "Only the system administrator can clear MTIL Agent data."
+msgstr "Chỉ quản trị viên hệ thống mới có thể xóa dữ liệu MTIL Agent."
+
+#. module: npei_agent_harness
+msgid ""
+"Opaque session id owned by the harness. Left blank on create, Odoo calls session/create and fills it; set it by hand only to adopt an existing harness session."
+msgstr ""
+"Mã phiên bất minh do harness sở hữu. Để trống khi tạo, Odoo gọi session/create và điền vào; chỉ nhập thủ công để nhận một phiên harness hiện có."
+
+#. module: npei_agent_harness
+msgid "Optional API key used only for this probe; never persisted."
+msgstr "Khóa API tùy chọn chỉ dùng cho thăm dò này; không bao giờ được lưu."
+
+#. module: npei_agent_harness
+msgid "Optional base URL override for the probe endpoint."
+msgstr "Ghi đè URL cơ sở tùy chọn cho điểm cuối thăm dò."
+
+#. module: npei_agent_harness
+msgid ""
+"Optional context capacity (``models[].contextWindow``); 0 omits the key so the adapter default applies."
+msgstr ""
+"Dung lượng ngữ cảnh tùy chọn (``models[].contextWindow``); 0 bỏ qua khóa để adapter dùng mặc định."
+
+#. module: npei_agent_harness
+msgid "Optional display name (``models[].name``); blank omits the key."
+msgstr "Tên hiển thị tùy chọn (``models[].name``); để trống sẽ bỏ qua khóa."
+
+#. module: npei_agent_harness
+msgid "Optional hint (where to get the key, model id examples)."
+msgstr "Gợi ý tùy chọn (nơi lấy khóa, ví dụ model id)."
+
+#. module: npei_agent_harness
+msgid ""
+"Optional key value pushed to the credential store now (credentials.set); never persisted in Odoo."
+msgstr ""
+"Giá trị khóa tùy chọn được đẩy vào kho thông tin xác thực ngay bây giờ (credentials.set); không bao giờ lưu trong Odoo."
+
+#. module: npei_agent_harness
+msgid ""
+"Optional output cap (``models[].maxTokens``); 0 omits the key so the adapter default applies."
+msgstr ""
+"Giới hạn đầu ra tùy chọn (``models[].maxTokens``); 0 bỏ qua khóa để adapter dùng mặc định."
+
+#. module: npei_agent_harness
+msgid ""
+"Optional overrides pushed to the provider's settings namespace as its models array. Leave empty to use the inherited catalog above; emptying it returns to that catalog."
+msgstr ""
+"Ghi đè tùy chọn được đẩy lên namespace cài đặt của nhà cung cấp dưới dạng mảng models. Để trống thì dùng danh mục kế thừa ở trên; xóa hết thì quay về danh mục đó."
+
+#. module: npei_agent_harness
+msgid ""
+"Optional provider API flavour override (sent as the `api` param). Named api_type so it does not shadow the odoo `api` module."
+msgstr ""
+"Ghi đè loại API nhà cung cấp tùy chọn (gửi dưới dạng tham số `api`). Đặt là api_type để không che khuất module odoo `api`."
+
+#. module: npei_agent_harness
+msgid "Optional provider id override."
+msgstr "Ghi đè mã nhà cung cấp tùy chọn."
+
+#. module: npei_agent_harness
+msgid "Order within the provider's models array."
+msgstr "Thứ tự trong mảng models của nhà cung cấp."
+
+#. module: npei_agent_harness
+msgid ""
+"Pick a known gateway to pre-fill key/protocol/base URL/thinking format; then just enter the API key."
+msgstr ""
+"Chọn một cổng kết nối quen thuộc để điền sẵn mã/giao thức/URL cơ sở/định dạng suy luận; chỉ cần nhập khóa API."
+
+#. module: npei_agent_harness
+msgid "Ping the harness (host.describe) with the saved URL and token."
+msgstr "Ping harness (host.describe) bằng URL và token đã lưu."
+
+#. module: npei_agent_harness
+msgid ""
+"Pre-selected in Granted Tools when a new router sub-agent line is created. Local flag — the harness sync never touches it."
+msgstr ""
+"Được chọn sẵn trong Công cụ được cấp khi tạo dòng agent phụ router mới. Cờ cục bộ — lần đồng bộ harness không bao giờ thay đổi nó."
+
+#. module: npei_agent_harness
+msgid "Preset %s needs a Persona for the %s kind."
+msgstr "Preset %s cần có Persona cho loại %s."
+
+#. module: npei_agent_harness
+msgid ""
+"Preset id owned by the harness (roster entry id). Left blank on create, Odoo derives it from the name and authors the preset on the harness; set only by the sync/adopt path."
+msgstr ""
+"Mã preset do harness sở hữu (id mục roster). Để trống khi tạo, Odoo sẽ tự sinh từ tên và đăng ký preset lên harness; chỉ được điền bởi đường dẫn sync/adopt."
+
+#. module: npei_agent_harness
+msgid "Presets synced"
+msgstr "Đồng bộ presets thành công"
+
+#. module: npei_agent_harness
+msgid "Pretty-printed raw user section. Edit and Save to replace it on the harness."
+msgstr "Phần user thô. Chỉnh sửa và Lưu để thay thế trên harness."
+
+#. module: npei_agent_harness
+msgid "Pretty-printed redacted resolved value (base + user), read-only."
+msgstr "Giá trị đã phân giải được làm mờ (base + user), chỉ đọc."
+
+#. module: npei_agent_harness
+msgid "Provider"
+msgstr "Nhà cung cấp"
+
+#. module: npei_agent_harness
+msgid ""
+"Provider %s has no settings namespace; sync providers from the harness before configuring its models."
+msgstr ""
+"Nhà cung cấp %s không có không gian tên cài đặt; đồng bộ nhà cung cấp từ harness trước khi cấu hình mô hình của nó."
+
+#. module: npei_agent_harness
+msgid "Provider ID"
+msgstr "Mã Nhà cung cấp"
+
+#. module: npei_agent_harness
+msgid "Provider Route"
+msgstr "Tuyến Nhà cung cấp"
+
+#. module: npei_agent_harness
+msgid "Provider Route Template"
+msgstr "Mẫu tuyến Nhà cung cấp"
+
+#. module: npei_agent_harness
+msgid "Provider Route Templates"
+msgstr "Mẫu tuyến Nhà cung cấp"
+
+#. module: npei_agent_harness
+msgid "Provider applied to a new session (agent-default-model)."
+msgstr "Nhà cung cấp áp dụng cho phiên mới (agent-default-model)."
+
+#. module: npei_agent_harness
+msgid ""
+"Provider group id this model belongs to (``group.id``); the raw key from llm.models and the unique-constraint partner."
+msgstr ""
+"Mã nhóm nhà cung cấp mà model này thuộc về (``group.id``); khóa thô từ llm.models và đối tác unique-constraint."
+
+#. module: npei_agent_harness
+msgid "Provider id owned by the harness (``ProviderView.provider``)."
+msgstr "Mã nhà cung cấp do harness sở hữu (``ProviderView.provider``)."
+
+#. module: npei_agent_harness
+msgid "Provider routes that read their configuration from this namespace."
+msgstr "Các tuyến nhà cung cấp đọc cấu hình từ namespace này."
+
+#. module: npei_agent_harness
+msgid ""
+"Provider whose configurable models the discovered entries are appended to when Adopt runs."
+msgstr ""
+"Nhà cung cấp có mô hình có thể cấu hình được thêm các mục đã khám phá khi Nhận vào chạy."
+
+#. module: npei_agent_harness
+msgid "Providers"
+msgstr "Nhà cung cấp"
+
+#. module: npei_agent_harness
+msgid "Providers using this namespace"
+msgstr "Nhà cung cấp dùng namespace này"
+
+#. module: npei_agent_harness
+msgid "Push Raw (management only)"
+msgstr "Gửi thô (chỉ quản trị)"
+
+#. module: npei_agent_harness
+msgid "Pushed to the harness session title on change (session/rename)."
+msgstr "Đẩy lên tiêu đề phiên harness khi thay đổi (session/rename)."
+
+#. module: npei_agent_harness
+msgid "Reachable"
+msgstr "Có thể truy cập"
+
+#. module: npei_agent_harness
+msgid ""
+"Read-only resolved catalog models (llm.models) whose group id matches this provider."
+msgstr ""
+"Mô hình danh mục đã phân giải chỉ đọc (llm.models) có group id khớp với nhà cung cấp này."
+
+#. module: npei_agent_harness
+msgid ""
+"Read-only resolved models this provider offers (from llm.models). Run \"Sync Models from Harness\" to refresh. This is what the provider serves when Configured Models below is empty (inherited)."
+msgstr ""
+"Mô hình chỉ đọc mà nhà cung cấp này cung cấp (từ llm.models). Chạy \"Đồng bộ Mô hình từ Harness\" để làm mới. Đây là những gì nhà cung cấp phục vụ khi Mô hình đã Cấu hình bên dưới để trống (kế thừa)."
+
+#. module: npei_agent_harness
+msgid "Reasoning effort applied to a new session (agent-default-model)."
+msgstr "Mức suy luận áp dụng cho phiên mới (agent-default-model)."
+
+#. module: npei_agent_harness
+msgid "Reference"
+msgstr "Tham chiếu"
+
+#. module: npei_agent_harness
+msgid "Refresh"
+msgstr "Làm mới"
+
+#. module: npei_agent_harness
+msgid "Register a harness session mapping"
+msgstr "Đăng ký ánh xạ phiên harness"
+
+#. module: npei_agent_harness
+msgid "Remove this credential's value on the harness?"
+msgstr "Xóa giá trị của thông tin xác thực này trên harness?"
+
+#. module: npei_agent_harness
+msgid "Resolved Value"
+msgstr "Giá trị đã phân giải"
+
+#. module: npei_agent_harness
+msgid "Resolved Value (read-only)"
+msgstr "Giá trị đã phân giải (chỉ đọc)"
+
+#. module: npei_agent_harness
+msgid "Revision"
+msgstr "Phiên bản"
+
+#. module: npei_agent_harness
+msgid ""
+"Route %(key)s added. Configure its models under Providers > %(key)s > Configured Models."
+msgstr ""
+"Đã thêm tuyến %(key)s. Cấu hình mô hình trong Nhà cung cấp > %(key)s > Mô hình đã Cấu hình."
+
+#. module: npei_agent_harness
+msgid "Route Active"
+msgstr "Tuyến đang hoạt động"
+
+#. module: npei_agent_harness
+msgid "Route Key"
+msgstr "Mã tuyến"
+
+#. module: npei_agent_harness
+msgid ""
+"Route id under providers.<key>, lower-case (e.g. openrouter). Also stamped on every model's provider."
+msgstr ""
+"Mã tuyến dưới providers.<key>, chữ thường (ví dụ openrouter). Cũng được đóng dấu lên nhà cung cấp của mỗi mô hình."
+
+#. module: npei_agent_harness
+msgid "Router Preset"
+msgstr "Preset Router"
+
+#. module: npei_agent_harness
+msgid ""
+"Router departments: each line becomes one delegation tool the router calls (spawns a child agent with the line's persona and capability flags)."
+msgstr ""
+"Các nhóm của router: mỗi dòng trở thành một công cụ ủy quyền mà router gọi (sinh agent con với persona và cờ khả năng của dòng đó)."
+
+#. module: npei_agent_harness
+msgid "Router preset %s needs at least one department sub-agent."
+msgstr "Preset router %s cần ít nhất một agent phụ theo nhóm."
+
+#. module: npei_agent_harness
+msgid ""
+"Rows in the boot injection table — the client plugin surface the harness currently serves."
+msgstr ""
+"Số dòng trong bảng boot injection — bề mặt plugin client mà harness hiện đang phục vụ."
+
+#. module: npei_agent_harness
+msgid "Running"
+msgstr "Đang chạy"
+
+#. module: npei_agent_harness
+msgid "Running Sessions"
+msgstr "Phiên đang chạy"
+
+#. module: npei_agent_harness
+msgid "Save to Harness"
+msgstr "Lưu lên Harness"
+
+#. module: npei_agent_harness
+msgid ""
+"Saving settings namespace %(ns)s failed: %(error)s\n"
+"If another client changed it, use 'Sync from Harness' to reload the current revision, then reapply your edit."
+msgstr ""
+"Lưu không gian tên cài đặt %(ns)s thất bại: %(error)s\n"
+"Nếu client khác đã thay đổi, dùng 'Đồng bộ từ Harness' để tải lại phiên bản hiện tại, rồi áp lại chỉnh sửa của bạn."
+
+#. module: npei_agent_harness
+msgid "Sequence"
+msgstr "Thứ tự"
+
+#. module: npei_agent_harness
+msgid "Session Count"
+msgstr "Số phiên làm việc"
+
+#. module: npei_agent_harness
+msgid "Sessions"
+msgstr "Phiên làm việc"
+
+#. module: npei_agent_harness
+msgid "Sessions running under this preset."
+msgstr "Các phiên đang chạy theo preset này."
+
+#. module: npei_agent_harness
+msgid "Sessions synced"
+msgstr "Đồng bộ phiên thành công"
+
+#. module: npei_agent_harness
+msgid "Sessions the harness currently lists."
+msgstr "Số phiên mà harness hiện liệt kê."
+
+#. module: npei_agent_harness
+msgid "Sessions whose agent is currently running."
+msgstr "Số phiên có agent đang chạy."
+
+#. module: npei_agent_harness
+msgid "Set a new value"
+msgstr "Đặt giá trị mới"
+
+#. module: npei_agent_harness
+msgid "Settings"
+msgstr "Cài đặt"
+
+#. module: npei_agent_harness
+msgid "Settings Namespace"
+msgstr "Không gian tên cài đặt"
+
+#. module: npei_agent_harness
+msgid "Settings Namespace Record"
+msgstr "Bản ghi không gian tên cài đặt"
+
+#. module: npei_agent_harness
+msgid "Settings Namespaces"
+msgstr "Danh sách Namespace Cài đặt"
+
+#. module: npei_agent_harness
+msgid "Settings Path"
+msgstr "Đường dẫn cài đặt"
+
+#. module: npei_agent_harness
+msgid "Settings namespace %(ns)s saved (revision %(rev)s)."
+msgstr "Đã lưu không gian tên cài đặt %(ns)s (phiên bản %(rev)s)."
+
+#. module: npei_agent_harness
+msgid "Settings namespace key owned by the harness."
+msgstr "Khóa không gian tên cài đặt do harness sở hữu."
+
+#. module: npei_agent_harness
+msgid ""
+"Settings namespace this provider reads its configuration from (raw key; the settings_id match partner)."
+msgstr ""
+"Không gian tên cài đặt mà nhà cung cấp này đọc cấu hình từ đó (khóa thô; đối tác khớp settings_id)."
+
+#. module: npei_agent_harness
+msgid "Settings namespace whose provider defaults seed the probe."
+msgstr "Không gian tên cài đặt có mặc định nhà cung cấp làm hạt giống thăm dò."
+
+#. module: npei_agent_harness
+msgid ""
+"Shared HMAC-SHA256 secret (>= 32 chars) the MTIL Flask API signs per-user tickets with; MUST equal the harness DSH_TICKET_SECRET. The Flask API reads it from this parameter. Never exposed to the browser."
+msgstr ""
+"Khóa bí mật HMAC-SHA256 dùng chung (>= 32 ký tự) mà MTIL Flask API ký vé per-user; PHẢI bằng DSH_TICKET_SECRET của harness. Flask API đọc từ tham số này. Không bao giờ lộ ra trình duyệt."
+
+#. module: npei_agent_harness
+msgid ""
+"Shared HMAC-SHA256 secret (>= 32 chars) the MTIL Flask API signs per-user tickets with; must equal the harness DSH_TICKET_SECRET. Never exposed to the browser."
+msgstr ""
+"Khóa bí mật HMAC-SHA256 chung (>= 32 ký tự) mà Flask API của MTIL dùng để ký ticket theo người dùng; phải khớp với DSH_TICKET_SECRET của harness. Không bao giờ lộ ra trình duyệt."
+
+#. module: npei_agent_harness
+msgid "Shown in the preset picker; pushed to the harness on save"
+msgstr "Hiển thị trong bộ chọn preset; gửi lên harness khi lưu"
+
+#. module: npei_agent_harness
+msgid "Skill Key"
+msgstr "Mã Kỹ năng"
+
+#. module: npei_agent_harness
+msgid "Skill identity as the harness catalog reports it (the ``SkillEntry.name``)."
+msgstr "Danh tính kỹ năng theo cách danh mục harness báo cáo (``SkillEntry.name``)."
+
+#. module: npei_agent_harness
+msgid "Skills"
+msgstr "Kỹ năng"
+
+#. module: npei_agent_harness
+msgid "Skills synced"
+msgstr "Đồng bộ kỹ năng thành công"
+
+#. module: npei_agent_harness
+msgid ""
+"Snapshot of the harness composition, loaded on demand via agentPresets/read. The view keeps it read-only; the raw push action (agentPresets/writeRaw, wildcard-gated) is wired for when editing is enabled later."
+msgstr ""
+"Ảnh chụp nhanh cấu trúc harness, tải theo yêu cầu qua agentPresets/read. Giao diện giữ chỉ đọc; action đẩy thô (agentPresets/writeRaw, cần vé quản trị '*') đã nối sẵn cho khi bật chỉnh sửa."
+
+#. module: npei_agent_harness
+msgid "Source"
+msgstr "Nguồn"
+
+#. module: npei_agent_harness
+msgid ""
+"Status of GET /api/boot.payload (200 = reachable and authenticated; 401 = bad/stale API token; 403 = the harness does not trust this domain)."
+msgstr ""
+"Trạng thái GET /api/boot.payload (200 = có thể truy cập và xác thực; 401 = token API sai/hết hạn; 403 = harness không tin tưởng domain này)."
+
+#. module: npei_agent_harness
+msgid "Sub-agents"
+msgstr "Agent phụ"
+
+#. module: npei_agent_harness
+msgid "Sync Credentials from Harness"
+msgstr "Đồng bộ Thông tin xác thực từ Harness"
+
+#. module: npei_agent_harness
+msgid "Sync Models from Harness"
+msgstr "Đồng bộ Mô hình từ Harness"
+
+#. module: npei_agent_harness
+msgid "Sync Presets from Harness"
+msgstr "Đồng bộ Presets từ Harness"
+
+#. module: npei_agent_harness
+msgid "Sync Provider Models from Harness"
+msgstr "Đồng bộ Mô hình Nhà cung cấp từ Harness"
+
+#. module: npei_agent_harness
+msgid "Sync Providers from Harness"
+msgstr "Đồng bộ Nhà cung cấp từ Harness"
+
+#. module: npei_agent_harness
+msgid "Sync Sessions from Harness"
+msgstr "Đồng bộ Phiên từ Harness"
+
+#. module: npei_agent_harness
+msgid "Sync Settings from Harness"
+msgstr "Đồng bộ Cài đặt từ Harness"
+
+#. module: npei_agent_harness
+msgid "Sync Skills from Harness"
+msgstr "Đồng bộ Kỹ năng từ Harness"
+
+#. module: npei_agent_harness
+msgid "Sync Tools from Harness"
+msgstr "Đồng bộ Công cụ từ Harness"
+
+#. module: npei_agent_harness
+msgid "Sync from Harness"
+msgstr "Đồng bộ từ Harness"
+
+#. module: npei_agent_harness
+msgid ""
+"System presets ship with the harness and are read-only there; only user presets can be authored or deleted from Odoo."
+msgstr ""
+"Preset hệ thống đi kèm harness và chỉ đọc ở đó; chỉ preset user mới có thể được đăng ký hoặc xóa từ Odoo."
+
+#. module: npei_agent_harness
+msgid "Test Connection"
+msgstr "Kiểm tra kết nối"
+
+#. module: npei_agent_harness
+msgid ""
+"The DeepSeek Harness connection is not configured. Set both the Base URL and the API Token under Settings > MTIL Agent."
+msgstr ""
+"Kết nối DeepSeek Harness chưa được cấu hình. Hãy đặt cả URL Cơ sở và Token API trong Cài đặt > MTIL Agent."
+
+#. module: npei_agent_harness
+msgid ""
+"The agent's own persona (role, duties, owned skills). Required for standalone/router kinds; pushed via agentPresets/author."
+msgstr ""
+"Persona riêng của agent (vai trò, nhiệm vụ, kỹ năng sở hữu). Bắt buộc cho loại standalone/router; đẩy qua agentPresets/author."
+
+#. module: npei_agent_harness
+msgid ""
+"The cwd new sessions of this preset land in. The harness derives it as <presetWorkspaceRoot>/<preset id> (deployment default ~/workspace/<preset id>); renames never change it because the preset id is fixed."
+msgstr ""
+"Thư mục làm việc mặc định của phiên mới theo preset này. Harness tự sinh là <presetWorkspaceRoot>/<preset id> (mặc định triển khai ~/workspace/<preset id>); đổi tên không thay đổi vì mã preset là cố định."
+
+#. module: npei_agent_harness
+msgid ""
+"The harness Ticket Secret is unset or shorter than %d characters. Set it under Settings > MTIL Agent."
+msgstr ""
+"Khóa bí mật Ticket của harness chưa được đặt hoặc ngắn hơn %d ký tự. Hãy đặt trong Cài đặt > MTIL Agent."
+
+#. module: npei_agent_harness
+msgid "The harness ``settingsPath`` segments joined with ``/``."
+msgstr "Các đoạn ``settingsPath`` của harness nối với ``/``."
+
+#. module: npei_agent_harness
+msgid "The harness reports no default preset to copy from."
+msgstr "Harness không báo cáo preset mặc định nào để sao chép."
+
+#. module: npei_agent_harness
+msgid "The harness reports no settings namespace %s."
+msgstr "Harness không báo cáo không gian tên cài đặt %s."
+
+#. module: npei_agent_harness
+msgid ""
+"The harness reports no settings namespace %s; sync settings from the harness first."
+msgstr ""
+"Harness không báo cáo không gian tên cài đặt %s; đồng bộ cài đặt từ harness trước."
+
+#. module: npei_agent_harness
+msgid "The harness session/create returned no sessionId."
+msgstr "Harness session/create không trả về sessionId."
+
+#. module: npei_agent_harness
+msgid ""
+"The pi-ai adapter namespace that owns provider routes. Leave as llm-pi-ai unless the deployment renamed it."
+msgstr ""
+"Không gian tên adapter pi-ai sở hữu các tuyến nhà cung cấp. Giữ là llm-pi-ai trừ khi triển khai đổi tên."
+
+#. module: npei_agent_harness
+msgid ""
+"The provider route this model's group maps to (matched by group id == provider id); blank when no provider mirror matches yet. Resolved by either sync."
+msgstr ""
+"Tuyến nhà cung cấp mà nhóm của model này ánh xạ tới (khớp theo group id == provider id); để trống khi chưa có nhà cung cấp phản chiếu nào khớp. Được phân giải bởi bất kỳ lần đồng bộ nào."
+
+#. module: npei_agent_harness
+msgid "The provider whose settings-namespace models array owns this row."
+msgstr "Nhà cung cấp có mảng models trong không gian tên cài đặt sở hữu dòng này."
+
+#. module: npei_agent_harness
+msgid ""
+"The raw discovered models list, kept so Adopt can append them into a provider's configurable catalog."
+msgstr ""
+"Danh sách mô hình đã khám phá thô, được giữ để Nhận vào có thể thêm chúng vào danh mục có thể cấu hình của nhà cung cấp."
+
+#. module: npei_agent_harness
+msgid ""
+"The route key %s must be lower-case letters, digits, or hyphens, starting with a letter or digit."
+msgstr ""
+"Mã tuyến %s phải gồm chữ thường, chữ số hoặc dấu gạch ngang, bắt đầu bằng chữ cái hoặc chữ số."
+
+#. module: npei_agent_harness
+msgid ""
+"The settings-namespace mirror matching settings_ns; blank until settings are synced. Many providers may share one namespace."
+msgstr ""
+"Bản ghi phản chiếu không gian tên khớp với settings_ns; để trống cho đến khi cài đặt được đồng bộ. Nhiều nhà cung cấp có thể dùng chung một namespace."
+
+#. module: npei_agent_harness
+msgid ""
+"The skill's catalog description — the hint telling the model when to invoke it (synced from ``skills/list``)."
+msgstr ""
+"Mô tả danh mục kỹ năng — gợi ý cho mô hình biết khi nào gọi kỹ năng này (đồng bộ từ ``skills/list``)."
+
+#. module: npei_agent_harness
+msgid "The user section for %(ns)s is not valid JSON: %(error)s"
+msgstr "Phần người dùng cho %(ns)s không phải JSON hợp lệ: %(error)s"
+
+#. module: npei_agent_harness
+msgid "The user section for %s must be a JSON object."
+msgstr "Phần người dùng cho %s phải là một JSON object."
+
+#. module: npei_agent_harness
+msgid "Thinking Format"
+msgstr "Định dạng suy luận"
+
+#. module: npei_agent_harness
+msgid ""
+"This permanently deletes all MTIL Agent data in Odoo (except seeded route templates). The harness is not affected. Continue?"
+msgstr ""
+"Thao tác này sẽ xóa vĩnh viễn toàn bộ dữ liệu MTIL Agent trong Odoo (trừ các mẫu tuyến đã gieo). Harness không bị ảnh hưởng. Tiếp tục?"
+
+#. module: npei_agent_harness
+msgid "This provider already configures a model with that id."
+msgstr "Nhà cung cấp này đã cấu hình một mô hình với mã đó."
+
+#. module: npei_agent_harness
+msgid "Ticket Secret"
+msgstr "Khóa bí mật Ticket"
+
+#. module: npei_agent_harness
+msgid "Title"
+msgstr "Tiêu đề"
+
+#. module: npei_agent_harness
+msgid "Tool Name"
+msgstr "Tên Công cụ"
+
+#. module: npei_agent_harness
+msgid "Tool name %s must be a lowercase slug ([a-z0-9_-])."
+msgstr "Tên công cụ %s phải là slug chữ thường ([a-z0-9_-])."
+
+#. module: npei_agent_harness
+msgid "Tool name as toolFilter.allow grants it (e.g. bash, web_search)."
+msgstr "Tên công cụ theo cách toolFilter.allow cấp (ví dụ bash, web_search)."
+
+#. module: npei_agent_harness
+msgid "Tools"
+msgstr "Công cụ"
+
+#. module: npei_agent_harness
+msgid "Tools synced"
+msgstr "Đồng bộ công cụ thành công"
+
+#. module: npei_agent_harness
+msgid "Trust"
+msgstr "Mức tin tưởng"
+
+#. module: npei_agent_harness
+msgid "Unset"
+msgstr "Xóa giá trị"
+
+#. module: npei_agent_harness
+msgid "User Section"
+msgstr "Phần người dùng"
+
+#. module: npei_agent_harness
+msgid "User Section (editable)"
+msgstr "Phần người dùng (có thể chỉnh)"
+
+#. module: npei_agent_harness
+msgid ""
+"Users allowed to access this session through the Odoo proxy. The record creator (create_uid) is always allowed even when absent from this list. Leave empty to make the session public."
+msgstr ""
+"Người dùng được phép truy cập phiên này qua proxy Odoo. Người tạo bản ghi (create_uid) luôn được phép dù không có trong danh sách. Để trống để công khai phiên."
+
+#. module: npei_agent_harness
+msgid ""
+"Where the harness resolves this credential from (e.g. env, .env). Reported by ``credentials/describe``."
+msgstr ""
+"Nơi harness phân giải thông tin xác thực này (ví dụ env, .env). Báo cáo bởi ``credentials/describe``."
+
+#. module: npei_agent_harness
+msgid "Whether a change takes effect live or needs a harness restart."
+msgstr "Thay đổi có hiệu lực ngay (live) hay cần khởi động lại harness (restart)."
+
+#. module: npei_agent_harness
+msgid ""
+"Whether the harness answered the authenticated boot-payload probe with HTTP 200."
+msgstr "Harness có trả lời thăm dò boot-payload xác thực với HTTP 200 không."
+
+#. module: npei_agent_harness
+msgid "Whether the harness has a persisted settings document."
+msgstr "Harness có tài liệu cài đặt được lưu lại không."
+
+#. module: npei_agent_harness
+msgid ""
+"Whether the harness holds a value for this ref (reported by ``credentials/describe``)."
+msgstr ""
+"Harness có đang giữ giá trị cho tham chiếu này không (báo cáo bởi ``credentials/describe``)."
+
+#. module: npei_agent_harness
+msgid "Whether the harness lets a full-token client set this ref."
+msgstr "Harness có cho phép client full-token đặt tham chiếu này không."
+
+#. module: npei_agent_harness
+msgid "Whether the harness lets the model invoke this skill directly."
+msgstr "Harness có cho phép mô hình gọi trực tiếp kỹ năng này không."
+
+#. module: npei_agent_harness
+msgid "Whether the harness reports this provider's route as active."
+msgstr "Harness có báo tuyến của nhà cung cấp này đang hoạt động không."
+
+#. module: npei_agent_harness
+msgid ""
+"Whether the harness reports this roster entry as the default preset for new sessions."
+msgstr "Harness có báo mục roster này là preset mặc định cho phiên mới không."
+
+#. module: npei_agent_harness
+msgid "Whether the harness reports this session as never prompted."
+msgstr "Harness có báo phiên này chưa được nhập lệnh bao giờ không."
+
+#. module: npei_agent_harness
+msgid "Whether the provider is explicitly declared in settings."
+msgstr "Nhà cung cấp có được khai báo rõ ràng trong cài đặt không."
+
+#. module: npei_agent_harness
+msgid "Whether this agent may run shell commands (standalone/router)."
+msgstr "Agent này có được chạy lệnh shell không (standalone/router)."
+
+#. module: npei_agent_harness
+msgid "Whether this agent may search/fetch the web (standalone/router)."
+msgstr "Agent này có được tìm kiếm/tải trang web không (standalone/router)."
+
+#. module: npei_agent_harness
+msgid ""
+"Whether this deployment can hand a path to a user-visible native desktop (false on a headless backend)."
+msgstr ""
+"Triển khai này có thể chuyển đường dẫn tới desktop bản địa hiển thị cho người dùng không (false trên backend headless)."
+
+#. module: npei_agent_harness
+msgid "Wire Protocol"
+msgstr "Giao thức wire"
+
+#. module: npei_agent_harness
+msgid "Workspace Path"
+msgstr "Đường dẫn Workspace"
+
+#. module: npei_agent_harness
+msgid "Writable"
+msgstr "Có thể ghi"
+
+#. module: npei_agent_harness
+msgid ""
+"Write-only secret. On save it is pushed to the harness with ``credentials/set`` and POPPED before the row is written, so it never lands in an Odoo column; the field always reads back blank."
+msgstr ""
+"Bí mật chỉ ghi. Khi lưu, được đẩy lên harness qua ``credentials/set`` và XÓA KHỎI vals trước khi ghi dòng, nên không bao giờ lưu vào cột Odoo; trường luôn đọc lại rỗng."
+
+#. module: npei_agent_harness
 msgid "Write-only; pushed to the harness on Save"
-msgstr "Chỉ ghi; đẩy lên harness khi Lưu"
+msgstr "Chỉ ghi; được đẩy lên harness khi Lưu"
 
 #. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_session_form
-msgid "Defaults from the chosen preset"
-msgstr "Mặc định theo preset đã chọn"
+msgid ""
+"compat.thinkingFormat for the route's models; blank lets pi-ai guess from the base URL."
+msgstr ""
+"compat.thinkingFormat cho các mô hình của tuyến; để trống để pi-ai tự đoán từ URL cơ sở."
+
+#. module: npei_agent_harness
+msgid ""
+"compat.thinkingFormat for the route's models; blank lets pi-ai guess from the base URL. OpenRouter uses openrouter."
+msgstr ""
+"compat.thinkingFormat cho các mô hình của tuyến; để trống để pi-ai tự đoán từ URL cơ sở. OpenRouter dùng openrouter."
+
+#. module: npei_agent_harness
+msgid ""
+"copy: plain duplicate of the harness default preset. standalone: generated agent with its own persona and bash/web capability flags. router: generated coordinator delegating to the department sub-agents below. standalone/router presets are re-generated on the harness whenever these fields change."
+msgstr ""
+"copy: bản sao đơn giản của preset mặc định harness. standalone: agent được sinh với persona và cờ khả năng bash/web riêng. router: coordinator được sinh, ủy quyền cho các agent phụ theo nhóm bên dưới. Preset standalone/router được sinh lại trên harness mỗi khi các trường này thay đổi."

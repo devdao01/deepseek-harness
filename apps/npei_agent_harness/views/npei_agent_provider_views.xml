@@ -4,7 +4,7 @@
         <field name="name">npei.agent.provider.tree</field>
         <field name="model">npei.agent.provider</field>
         <field name="arch" type="xml">
-            <tree string="Danh sách Nhà cung cấp">
+            <tree string="Providers">
                 <field name="seq" widget='handle'/>
                 <field name="seq" optional="show"/>
                 <field name="id" optional="show"/>
@@ -28,12 +28,12 @@
         <field name="name">npei.agent.provider.form</field>
         <field name="model">npei.agent.provider</field>
         <field name="arch" type="xml">
-            <form string="Nhà cung cấp">
+            <form string="Provider">
                 <header>
                     <button name="action_sync_from_harness" type="object"
-                            string="Đồng bộ từ Harness" class="btn-primary"/>
+                            string="Sync from Harness" class="btn-primary"/>
                     <button name="action_sync_models" type="object"
-                            string="Đồng bộ Mô hình từ Harness"
+                            string="Sync Models from Harness"
                             groups="npei_agent_harness.group_npei_agent_manager"/>
                     <button name="act_lock" string="Khóa" type="object" groups="npei_base.npei_group_lock" invisible="is_locked"/>
                     <button name="act_unlock" string="Mở Khóa" type="object" groups="npei_base.npei_group_lock" invisible="not is_locked"/>
@@ -44,7 +44,7 @@
                         <button name="action_view_catalog_models" type="object"
                                 class="oe_stat_button" icon="fa-cubes">
                             <field name="catalog_model_count" widget="statinfo"
-                                   string="Mô hình Danh mục"/>
+                                   string="Catalog Models"/>
                         </button>
                     </div>
                     <group>
@@ -61,8 +61,8 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Mô hình Danh mục" name="catalog_models">
-                            <p class="text-muted" colspan="2">Mô hình chỉ đọc mà nhà cung cấp này cung cấp (từ llm.models). Chạy "Đồng bộ Mô hình từ Harness" để làm mới. Đây là những gì nhà cung cấp phục vụ khi Mô hình đã Cấu hình bên dưới để trống (kế thừa).</p>
+                        <page string="Catalog Models" name="catalog_models">
+                            <p class="text-muted" colspan="2">Read-only resolved models this provider offers (from llm.models). Run "Sync Models from Harness" to refresh. This is what the provider serves when Configured Models below is empty (inherited).</p>
                             <field name="catalog_model_ids" readonly="1">
                                 <tree>
                                     <field name="model_id"/>
@@ -71,7 +71,7 @@
                                 </tree>
                             </field>
                         </page>
-                        <page string="Mô hình đã Cấu hình (ghi đè)" name="models">
+                        <page string="Configured Models (override)" name="models">
                             <field name="model_ids"
                                    groups="npei_agent_harness.group_npei_agent_manager">
                                 <tree editable="bottom">
@@ -86,7 +86,7 @@
                                     <field name="active" optional="hide"/>
                                 </tree>
                             </field>
-                            <p class="text-muted" colspan="2">Ghi đè tùy chọn được đẩy lên namespace cài đặt của nhà cung cấp dưới dạng mảng models. Để trống thì dùng danh mục kế thừa ở trên; xóa hết thì quay về danh mục đó.</p>
+                            <p class="text-muted" colspan="2">Optional overrides pushed to the provider's settings namespace as its models array. Leave empty to use the inherited catalog above; emptying it returns to that catalog.</p>
                         </page>
                         <page string="Quản lý Hệ thống*">
                             <notebook>
@@ -125,14 +125,14 @@
     </record>
 
     <record id="action_npei_agent_provider" model="ir.actions.act_window">
-        <field name="name">Nhà cung cấp</field>
+        <field name="name">Providers</field>
         <field name="res_model">npei.agent.provider</field>
         <field name="view_mode">tree,form</field>
     </record>
 
     <!-- Server action so the sync can run from a menu when the list is empty. -->
     <record id="action_npei_sync_providers" model="ir.actions.server">
-        <field name="name">Đồng bộ Nhà cung cấp từ Harness</field>
+        <field name="name">Sync Providers from Harness</field>
         <field name="model_id" ref="model_npei_agent_provider"/>
         <field name="state">code</field>
         <field name="code">action = model.action_sync_from_harness()</field>
@@ -140,7 +140,7 @@
 
     <!-- Sync every provider's configurable models from the harness. -->
     <record id="action_npei_sync_provider_models" model="ir.actions.server">
-        <field name="name">Đồng bộ Mô hình Nhà cung cấp từ Harness</field>
+        <field name="name">Sync Provider Models from Harness</field>
         <field name="model_id" ref="model_npei_agent_provider_model"/>
         <field name="state">code</field>
         <field name="code">action = model.action_sync_from_harness()</field>

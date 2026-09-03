@@ -42,38 +42,38 @@ class NpeiAgentProviderRouteTemplate(models.Model):
     _order = 'seq, sequence, name'
 
     name = fields.Char(
-        string='Tên',
+        string='Name',
         required=True, tracking=True,
-        help="Tên hiển thị trong wizard Thêm tuyến Nhà cung cấp.",
+        help="Display name shown in the Add Provider Route wizard.",
     )
     route_key = fields.Char(
-        string='Mã tuyến',
+        string='Route Key',
         required=True, tracking=True,
-        help="Mã tuyến mặc định (providers.<key>), ví dụ openrouter.",
+        help="Default route id (providers.<key>), e.g. openrouter.",
     )
     api_protocol = fields.Selection(
         PROTOCOLS,
-        string='Giao thức wire',
+        string='Wire Protocol',
         required=True,
         default='openai-completions', tracking=True,
-        help="Định dạng wire điểm cuối, gửi dưới dạng khóa `api` trong profile.",
+        help="Endpoint wire format sent as the profile `api` key.",
     )
     base_url = fields.Char(
-        string='URL cơ sở', tracking=True,
-        help="Điểm cuối cơ sở; để trống sẽ kế thừa điểm cuối từ danh mục pi-ai "
-             "cho nhà cung cấp mà nó đã có sẵn.",
+        string='Base URL', tracking=True,
+        help="Endpoint base; blank inherits the pi-ai catalog endpoint for a "
+             "provider it already ships.",
     )
     thinking_format = fields.Selection(
         THINKING_FORMATS,
-        string='Định dạng suy luận', tracking=True,
-        help="compat.thinkingFormat cho các mô hình của tuyến; để trống để pi-ai "
-             "tự đoán từ URL cơ sở.",
+        string='Thinking Format', tracking=True,
+        help="compat.thinkingFormat for the route's models; blank lets pi-ai "
+             "guess from the base URL.",
     )
     note = fields.Char(
-        string='Ghi chú', tracking=True,
-        help="Gợi ý tùy chọn (nơi lấy khóa, ví dụ model id).",
+        string='Note', tracking=True,
+        help="Optional hint (where to get the key, model id examples).",
     )
-    sequence = fields.Integer(string='Thứ tự', default=10)
+    sequence = fields.Integer(string='Sequence', default=10)
     active = fields.Boolean(default=True, tracking=True)
     seq = fields.Integer('Trình tự*:', default=1)
     is_locked = fields.Boolean('Đã Khóa*:', tracking=True)

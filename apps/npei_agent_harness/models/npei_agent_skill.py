@@ -28,21 +28,21 @@ class NpeiAgentSkill(models.Model):
     _order = 'seq, name'
 
     skill_key = fields.Char(
-        string='Mã Kỹ năng',
+        string='Skill Key',
         index=True,
         copy=False, tracking=True,
-        help="Danh tính kỹ năng theo cách danh mục harness báo cáo "
-             "(``SkillEntry.name``).",
+        help="Skill identity as the harness catalog reports it (the "
+             "``SkillEntry.name``).",
     )
-    name = fields.Char(string='Tên', tracking=True)
+    name = fields.Char(string='Name', tracking=True)
     description = fields.Text(
-        string='Mô tả', tracking=True,
-        help="Mô tả danh mục kỹ năng — gợi ý cho mô hình biết khi nào "
-             "gọi kỹ năng này (đồng bộ từ ``skills/list``).",
+        string='Description', tracking=True,
+        help="The skill's catalog description — the hint telling the model "
+             "when to invoke it (synced from ``skills/list``).",
     )
     model_invocable = fields.Boolean(
-        string='Gọi được bởi mô hình', readonly=True, copy=False, tracking=True,
-        help="Harness có cho phép mô hình gọi trực tiếp kỹ năng này không.",
+        string='Model Invocable', readonly=True, copy=False, tracking=True,
+        help="Whether the harness lets the model invoke this skill directly.",
     )
     active = fields.Boolean(default=True, tracking=True)
     seq = fields.Integer('Trình tự*:', default=1)
@@ -54,7 +54,7 @@ class NpeiAgentSkill(models.Model):
         (
             'skill_key_uniq',
             'unique(skill_key)',
-            'Đã tồn tại một kỹ năng với mã này.',
+            'A skill with this key already exists.',
         ),
     ]
 
@@ -62,7 +62,7 @@ class NpeiAgentSkill(models.Model):
         """Raise unless the current user is an NPEI Agent Manager."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Chỉ Quản trị Agent NPEI mới có thể đồng bộ kỹ năng từ harness."))
+                _("Only NPEI Agent Managers can sync skills from the harness."))
 
     @api.model
     def _catalog_session_id(self):
@@ -76,8 +76,9 @@ class NpeiAgentSkill(models.Model):
             limit=1)
         if not record:
             raise UserError(_(
-                "Chưa có phiên harness nào được ánh xạ trong Odoo. Chạy Phiên làm việc > "
-                "Đồng bộ từ Harness trước — danh mục kỹ năng được đọc qua một phiên."))
+                "No harness session is mapped in Odoo yet. Run Sessions > "
+                "Sync from Harness first — the skill catalog is read through "
+                "a session."))
         return record.session_id
 
     @api.model
@@ -114,8 +115,8 @@ class NpeiAgentSkill(models.Model):
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': _("Đồng bộ kỹ năng thành công"),
-                'message': _("Đã đồng bộ %s kỹ năng từ harness.", synced),
+                'title': _("Skills synced"),
+                'message': _("%s skill(s) synced from the harness.", synced),
                 'type': 'success',
                 'sticky': False,
             },

@@ -4,7 +4,7 @@
         <field name="name">npei.agent.session.tree</field>
         <field name="model">npei.agent.session</field>
         <field name="arch" type="xml">
-            <tree string="Danh sách Phiên Agent">
+            <tree string="Agent Sessions">
                 <field name="seq" widget='handle'/>
                 <field name="seq" optional="show"/>
                 <field name="id" optional="show"/>
@@ -30,7 +30,7 @@
         <field name="name">npei.agent.session.form</field>
         <field name="model">npei.agent.session</field>
         <field name="arch" type="xml">
-            <form string="Phiên Agent">
+            <form string="Agent Session">
                 <header>
                     <button name="act_lock" string="Khóa" type="object" groups="npei_base.npei_group_lock" invisible="is_locked"/>
                     <button name="act_unlock" string="Mở Khóa" type="object" groups="npei_base.npei_group_lock" invisible="not is_locked"/>
@@ -39,21 +39,21 @@
                     <div class="alert alert-success text-center o_form_header" role="alert" invisible="not is_locked"><div><strong>ĐÃ KHOÁ</strong></div></div>
                     <group>
                         <group>
-                            <field name="name" string="Tiêu đề"/>
+                            <field name="name" string="Title"/>
                             <field name="preset_id" options="{'no_create': True, 'no_quick_create': True, 'no_open': True}"/>
                         </group>
                         <group>
                             <field name="session_id" options="{'no_create': True, 'no_quick_create': True, 'no_open': True}"
                                    readonly="1"/>
                             <field name="workspace_path" readonly="1"
-                                   placeholder="Mặc định từ preset đã chọn"/>
+                                   placeholder="Defaults from the chosen preset"/>
                             <field name="running" readonly="1"/>
                             <field name="harness_updated_at" readonly="1"/>
                             <field name="create_uid" readonly="1"/>
                         </group>
                     </group>
                     <notebook>
-                        <page string="Người dùng được phép">
+                        <page string="Allowed Users">
                             <field name="user_ids" options="{'no_create': True, 'no_quick_create': True, 'no_open': True}"/>
                         </page>
                         <page string="Quản lý Hệ thống*">
@@ -91,14 +91,14 @@
         <field name="name">npei.agent.session.search</field>
         <field name="model">npei.agent.session</field>
         <field name="arch" type="xml">
-            <search string="Tìm kiếm Phiên Agent">
+            <search string="Agent Sessions">
                 <field name="session_id"/>
                 <field name="name"/>
                 <field name="create_uid"/>
                 <field name="user_ids"/>
-                <filter string="Đã lưu trữ" name="inactive" domain="[('active', '=', False)]"/>
-                <group expand="0" string="Nhóm theo">
-                    <filter string="Người tạo" name="group_creator" context="{'group_by': 'create_uid'}"/>
+                <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Creator" name="group_creator" context="{'group_by': 'create_uid'}"/>
                     <filter string="Preset" name="group_preset" context="{'group_by': 'preset_id'}"/>
                 </group>
             </search>
@@ -106,18 +106,18 @@
     </record>
 
     <record id="action_npei_agent_session" model="ir.actions.act_window">
-        <field name="name">Phiên làm việc</field>
+        <field name="name">Sessions</field>
         <field name="res_model">npei.agent.session</field>
         <field name="view_mode">tree,form</field>
         <field name="search_view_id" ref="view_npei_agent_session_search"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Đăng ký ánh xạ phiên harness</p>
-            <p>Ánh xạ mã phiên harness với các người dùng Odoo được phép sử dụng.</p>
+            <p class="o_view_nocontent_smiling_face">Register a harness session mapping</p>
+            <p>Map a harness session id to the Odoo users allowed to drive it.</p>
         </field>
     </record>
     <!-- Server action so the sync can run from a menu when the list is empty. -->
     <record id="action_npei_sync_sessions" model="ir.actions.server">
-        <field name="name">Đồng bộ Phiên từ Harness</field>
+        <field name="name">Sync Sessions from Harness</field>
         <field name="model_id" ref="model_npei_agent_session"/>
         <field name="state">code</field>
         <field name="code">action = model.action_sync_from_harness()</field>

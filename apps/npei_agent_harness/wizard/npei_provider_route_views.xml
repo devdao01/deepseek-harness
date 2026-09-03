@@ -4,7 +4,7 @@
         <field name="name">npei.agent.provider.route.form</field>
         <field name="model">npei.agent.provider.route</field>
         <field name="arch" type="xml">
-            <form string="Thêm tuyến Nhà cung cấp">
+            <form string="Add Provider Route">
                 <sheet>
                     <group>
                         <field name="template_id"
@@ -25,22 +25,22 @@
                             <field name="settings_ns"/>
                         </group>
                     </group>
-                    <group string="Mô hình (tùy chọn)">
+                    <group string="Models (optional)">
                         <field name="models_text" nolabel="1"
                                placeholder="openai/gpt-4o | GPT-4o&#10;anthropic/claude-3.5-sonnet | Claude 3.5 Sonnet"/>
                     </group>
                 </sheet>
                 <footer>
                     <button name="action_create_route" type="object"
-                            string="Thêm tuyến" class="btn-primary"/>
-                    <button string="Hủy" special="cancel"/>
+                            string="Add Route" class="btn-primary"/>
+                    <button string="Cancel" special="cancel"/>
                 </footer>
             </form>
         </field>
     </record>
 
     <record id="action_npei_provider_route" model="ir.actions.act_window">
-        <field name="name">Thêm tuyến Nhà cung cấp</field>
+        <field name="name">Add Provider Route</field>
         <field name="res_model">npei.agent.provider.route</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>

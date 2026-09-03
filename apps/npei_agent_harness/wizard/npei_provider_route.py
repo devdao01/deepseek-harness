@@ -54,70 +54,70 @@ class NpeiProviderRoute(models.TransientModel):
     _description = 'DeepSeek Harness Add Provider Route'
 
     settings_ns = fields.Char(
-        string='Không gian tên cài đặt',
+        string='Settings Namespace',
         required=True,
         default=PI_AI_NS,
-        help="Không gian tên adapter pi-ai sở hữu các tuyến nhà cung cấp. Giữ là "
-             "llm-pi-ai trừ khi triển khai đổi tên.",
+        help="The pi-ai adapter namespace that owns provider routes. Leave as "
+             "llm-pi-ai unless the deployment renamed it.",
     )
     template_id = fields.Many2one(
         'npei.agent.provider.route.template',
-        string='Từ mẫu',
-        help="Chọn một cổng kết nối quen thuộc để điền sẵn mã/giao thức/URL cơ sở/"
-             "định dạng suy luận; chỉ cần nhập khóa API.",
+        string='From Template',
+        help="Pick a known gateway to pre-fill key/protocol/base URL/thinking "
+             "format; then just enter the API key.",
     )
     route_key = fields.Char(
-        string='Mã tuyến',
+        string='Route Key',
         required=True,
-        help="Mã tuyến dưới providers.<key>, chữ thường (ví dụ openrouter). "
-             "Cũng được đóng dấu lên nhà cung cấp của mỗi mô hình.",
+        help="Route id under providers.<key>, lower-case (e.g. openrouter). "
+             "Also stamped on every model's provider.",
     )
     display_name = fields.Char(
-        string='Tên hiển thị',
-        help="Tên dễ đọc hiển thị trong các bộ chọn.",
+        string='Display Name',
+        help="Human-readable name shown in selectors.",
     )
     api_protocol = fields.Selection(
         PROTOCOLS,
-        string='Giao thức wire',
+        string='Wire Protocol',
         required=True,
         default='openai-completions',
-        help="Định dạng wire điểm cuối (gửi dưới dạng khóa `api` trong profile). "
-             "OpenRouter và hầu hết cổng kết nối dùng openai-completions. "
-             "Đặt là api_protocol để không che khuất module odoo `api`.",
+        help="Endpoint wire format (sent as the profile `api` key). OpenRouter "
+             "and most gateways speak openai-completions. Named api_protocol so "
+             "it does not shadow the odoo `api` module.",
     )
     base_url = fields.Char(
-        string='URL cơ sở',
-        help="Điểm cuối cơ sở, ví dụ https://openrouter.ai/api/v1. Để trống kế thừa "
-             "điểm cuối từ danh mục pi-ai cho nhà cung cấp mà nó đã có sẵn.",
+        string='Base URL',
+        help="Endpoint base, e.g. https://openrouter.ai/api/v1. Blank inherits "
+             "the pi-ai catalog endpoint for a provider it already ships.",
     )
     api_key_env = fields.Char(
-        string='Tham chiếu thông tin xác thực',
-        help="Tên tham chiếu thông tin xác thực mà tuyến phân giải khóa qua đó "
-             "(apiKeyEnv). Để trống sẽ tạo <ROUTE_KEY>_API_KEY.",
+        string='Credential Reference',
+        help="Credential-reference name the route resolves its key through "
+             "(apiKeyEnv). Blank derives <ROUTE_KEY>_API_KEY.",
     )
     api_key = fields.Char(
-        string='Khóa API',
-        help="Giá trị khóa tùy chọn được đẩy vào kho thông tin xác thực ngay bây giờ "
-             "(credentials.set); không bao giờ lưu trong Odoo.",
+        string='API Key',
+        help="Optional key value pushed to the credential store now "
+             "(credentials.set); never persisted in Odoo.",
     )
     thinking_format = fields.Selection(
         THINKING_FORMATS,
-        string='Định dạng suy luận',
-        help="compat.thinkingFormat cho các mô hình của tuyến; để trống để pi-ai "
-             "tự đoán từ URL cơ sở. OpenRouter dùng openrouter.",
+        string='Thinking Format',
+        help="compat.thinkingFormat for the route's models; blank lets pi-ai "
+             "guess from the base URL. OpenRouter uses openrouter.",
     )
     models_text = fields.Text(
-        string='Mô hình',
-        help="Một mô hình mỗi dòng: `id` hoặc `id | Tên hiển thị` "
-             "(ví dụ openai/gpt-4o | GPT-4o). Tùy chọn — thêm sau trong "
-             "Mô hình đã Cấu hình của nhà cung cấp.",
+        string='Models',
+        help="One model per line: `id` or `id | Display Name` "
+             "(e.g. openai/gpt-4o | GPT-4o). Optional — add more later under "
+             "the provider's Configured Models.",
     )
 
     def _check_manager(self):
         """Raise unless the current user is an NPEI Agent Manager."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Chỉ Quản trị Agent NPEI mới có thể thêm tuyến nhà cung cấp."))
+                _("Only NPEI Agent Managers can add provider routes."))
 
     @api.model
     def _derive_key_ref(self, route_key):
@@ -186,8 +186,8 @@ class NpeiProviderRoute(models.TransientModel):
         route_key = (self.route_key or '').strip()
         if not ROUTE_KEY_PATTERN.match(route_key):
             raise UserError(_(
-                "Mã tuyến %s phải gồm chữ thường, chữ số hoặc dấu gạch ngang, "
-                "bắt đầu bằng chữ cái hoặc chữ số.", route_key))
+                "The route key %s must be lower-case letters, digits, or "
+                "hyphens, starting with a letter or digit.", route_key))
         api_key_env = (self.api_key_env or '').strip() or self._derive_key_ref(route_key)
 
         profile = {'api': self.api_protocol}
@@ -210,7 +210,7 @@ class NpeiProviderRoute(models.TransientModel):
                       if row.get('ns') == self.settings_ns), None)
         if entry is None:
             raise UserError(_(
-                "Harness không báo cáo không gian tên cài đặt %s.", self.settings_ns))
+                "The harness reports no settings namespace %s.", self.settings_ns))
         client._rpc('settings/mutate', {
             'ns': self.settings_ns,
             'ops': [{'op': 'set', 'path': ['providers', route_key], 'value': profile}],
@@ -226,8 +226,8 @@ class NpeiProviderRoute(models.TransientModel):
             'params': {
                 'title': _("MTIL Agent"),
                 'message': _(
-                    "Đã thêm tuyến %(key)s. Cấu hình mô hình trong "
-                    "Nhà cung cấp > %(key)s > Mô hình đã Cấu hình.", key=route_key),
+                    "Route %(key)s added. Configure its models under "
+                    "Providers > %(key)s > Configured Models.", key=route_key),
                 'type': 'success',
                 'sticky': False,
             },
