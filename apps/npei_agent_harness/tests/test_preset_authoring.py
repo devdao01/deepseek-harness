@@ -34,6 +34,16 @@ class TestPresetAuthoring(TransactionCase):
                 return None  # the harness copy endpoint is void
             if method == 'agentPresets/author':
                 return None  # void
+            if method == 'agentPresets/writeRaw':
+                return None  # void
+            if method == 'agentPresets/toolCatalog':
+                return {'tools': [
+                    {'name': 'bash', 'description': 'Run shell commands'},
+                    {'name': 'read', 'description': 'Read files'},
+                ]}
+            if method == 'agentPresets/read':
+                return {'agentPreset': (args or {}).get('agentPreset'),
+                        'trust': 'user', 'content': '- id: alpha\n  name: x\n'}
             if method == 'agentPresets/deletePreset':
                 return None
             return {}
@@ -153,6 +163,40 @@ class TestPresetAuthoring(TransactionCase):
             })
         with self.assertRaises(UserError):
             self.Preset.create({'name': 'Thiếu Persona', 'kind': 'standalone'})
+
+    def test_tool_catalog_sync_and_explicit_grants(self):
+        self.env.user.groups_id |= self.env.ref(
+            'npei_agent_harness.group_npei_agent_manager')
+        Tool = self.env['npei.agent.tool']
+        Tool.action_sync_from_harness()
+        bash = Tool.search([('name', '=', 'bash')])
+        self.assertTrue(bash)
+        read = Tool.search([('name', '=', 'read')])
+        record = self.Preset.create({
+            'name': 'Router Grant', 'kind': 'router', 'persona': 'R.',
+            'subagent_ids': [(0, 0, {
+                'tool_name': 'chuyen-biet', 'persona': 'X.',
+                'tool_ids': [(6, 0, (bash | read).ids)],
+            })],
+        })
+        pushes = self._calls_for('agentPresets/author')
+        self.assertCountEqual(
+            pushes[-1]['request']['subagents'][0]['tools'], ['bash', 'read'])
+        self.assertTrue(record.preset_id)
+
+    def test_composition_load_and_raw_push(self):
+        record = self.Preset.with_context(npei_syncing=True).create(
+            {'name': 'Adopted', 'preset_id': 'adopted', 'trust': 'user'})
+        record = self.Preset.browse(record.id)
+        record.action_load_composition()
+        self.assertIn('- id: alpha', record.composition)
+        # Loading is mirror-only: no author/rename echo.
+        self.assertFalse(self._calls_for('agentPresets/author'))
+        self._calls.clear()
+        record.action_push_raw_composition()
+        pushes = self._calls_for('agentPresets/writeRaw')
+        self.assertEqual(pushes[-1]['request']['agentPreset'], 'adopted')
+        self.assertIn('- id: alpha', pushes[-1]['request']['content'])
 
     def test_description_travels_with_copy_and_rename(self):
         record = self.Preset.create({'name': 'Hồ Sơ 9', 'description': 'Mô tả 9'})

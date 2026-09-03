@@ -17,17 +17,14 @@
  * caller, which sees unrestricted sessions only.
  */
 
-import { createHmac, timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 import type { Context } from '@deepseek-ai/cordis'
-import { currentRpcRequest } from '@deepseek-ai/dsh-client-connection'
+import { currentTicketUserId, verifyUserTicket } from '@deepseek-ai/dsh-client-connection'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionHeader } from '@deepseek-ai/dsh-session'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import type { Domain, KvTable } from '@deepseek-ai/dsh-storage-domain'
 
-/** Cookie carrying the signed user ticket the MTIL SPA installs after its Odoo gate. */
-export const USER_TICKET_COOKIE = 'mtil-ticket'
 
 /** The stored-log identity a record is bound to (see session-projection-cache). */
 const accessIdentity = z.object({
@@ -51,69 +48,22 @@ export const sessionAccessDomainSpec = defineDomain({
   tables: { sessions: domainTable<SessionId, AccessRecord>(accessRecord) },
 })
 
-const BASE64URL = /^[A-Za-z0-9_-]+$/
 
-function decodeBase64Url(value: string): Buffer | undefined {
-  if (!BASE64URL.test(value)) return undefined
-  return Buffer.from(value, 'base64url')
-}
+
 
 /**
- * Verify one signed user ticket.
- * @param ticket - `v1.<base64url payload>.<base64url mac>` as Odoo mints it.
- * @param secret - the deployment's shared ticket secret.
- * @returns the user id the ticket names, or undefined for any invalid,
- * malformed, or expired ticket.
- */
-export function verifyUserTicket(ticket: string, secret: string): string | undefined {
-  const parts = ticket.split('.')
-  const [version, body, encodedMac] = parts
-  if (parts.length !== 3 || version !== 'v1' || body === undefined || encodedMac === undefined) {
-    return undefined
-  }
-  const mac = decodeBase64Url(encodedMac)
-  if (mac === undefined) return undefined
-  const expected = createHmac('sha256', secret).update(`v1.${body}`).digest()
-  if (mac.byteLength !== expected.byteLength || !timingSafeEqual(mac, expected)) return undefined
-  const decoded = decodeBase64Url(body)
-  if (decoded === undefined) return undefined
-  let payload: unknown
-  try {
-    payload = JSON.parse(decoded.toString('utf8'))
-  } catch {
-    // A signed-but-unparsable body cannot name a user; anonymous is the safe read.
-    return undefined
-  }
-  const parsed = z.object({ u: z.string().min(1), exp: z.number() }).safeParse(payload)
-  if (!parsed.success) return undefined
-  if (parsed.data.exp <= Date.now() / 1000) return undefined
-  return parsed.data.u
-}
-
-/** Read the exact cookie value without implementing general Cookie decoding. */
-function cookieValue(headerValue: string, name: string): string | undefined {
-  for (const segment of headerValue.split(';')) {
-    const at = segment.indexOf('=')
-    if (at === -1 || segment.slice(0, at).trim() !== name) continue
-    return segment.slice(at + 1).trim()
-  }
-  return undefined
-}
-
-/**
- * The verified user id of the RPC currently being handled.
+ * The verified user id of the RPC currently being handled (the canonical
+ * implementation lives in dsh-client-connection beside the ambient request).
  * @param secret - the deployment's shared ticket secret; undefined disables
  * identification entirely.
  * @returns the user id, or undefined for the anonymous caller.
  */
 export function currentUserId(secret: string | undefined): string | undefined {
-  if (secret === undefined || secret === '') return undefined
-  const cookies = currentRpcRequest()?.headers.get('cookie')
-  if (cookies === null || cookies === undefined) return undefined
-  const ticket = cookieValue(cookies, USER_TICKET_COOKIE)
-  if (ticket === undefined) return undefined
-  return verifyUserTicket(ticket, secret)
+  return currentTicketUserId(secret)
 }
+
+export { verifyUserTicket }
+export { USER_TICKET_COOKIE } from '@deepseek-ai/dsh-client-connection'
 
 /**
  * Durable per-session `allowedUsers` records over the `session_access`

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_npei_agent_tool_tree" model="ir.ui.view">
+        <field name="name">npei.agent.tool.tree</field>
+        <field name="model">npei.agent.tool</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="name"/>
+                <field name="description"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="action_npei_agent_tool" model="ir.actions.act_window">
+        <field name="name">Tools</field>
+        <field name="res_model">npei.agent.tool</field>
+        <field name="view_mode">tree</field>
+    </record>
+
+    <record id="action_npei_agent_tool_sync" model="ir.actions.server">
+        <field name="name">Sync Tools from Harness</field>
+        <field name="model_id" ref="model_npei_agent_tool"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_sync_from_harness()</field>
+    </record>
+</odoo>

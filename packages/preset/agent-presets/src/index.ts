@@ -29,13 +29,15 @@ import { bindScopeParent, createScope, scopeOf, type Scope, type ScopeKey, type 
 // Type-only: resolves the `agent/created` lifecycle event this service watches.
 import type {} from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { AgentPresetDocument, AgentPresetErrorDetailsMap, AgentPresetRoster, AuthorPresetRequest } from './types.ts'
+import type { AgentPresetDocument, AgentPresetErrorDetailsMap, AgentPresetRoster, AgentPresetToolCatalog, AuthorPresetRequest, WriteRawPresetRequest } from './types.ts'
 import type {} from '@deepseek-ai/dsh-session-projection'
 // Type-only: resolves the registry notification emitted after scope reparenting.
 import type {} from '@deepseek-ai/dsh-tools'
 import { settingsNamespace, type SettingsScope, type default as SettingsService } from '@deepseek-ai/dsh-settings'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
-import { discoverPresets, SHIPPED_PRESET_ROOT, USER_PRESET_DIR } from './discovery.ts'
+import { currentTicketUserId } from '@deepseek-ai/dsh-client-connection'
+import { load as loadYaml } from 'js-yaml'
+import { discoverPresets, entryListProblem, SHIPPED_PRESET_ROOT, USER_PRESET_DIR } from './discovery.ts'
 import {
   copyComposition, deleteComposition, readComposition, renameComposition,
   writeAuthoredComposition,
@@ -172,6 +174,7 @@ export class AgentPresets extends TypertRemoteService {
     })).default([]),
     includeShippedRoot: z.boolean().default(true),
     includeUserRoot: z.boolean().default(true),
+    ticketSecret: z.string(),
   }) as z<Config>
 
   /**
@@ -401,6 +404,93 @@ export class AgentPresets extends TypertRemoteService {
         }
       } catch (error: unknown) {
         this.ctx.logger.warn(`agent-presets: author notification listener failed for "${request.agentPreset}": ${String(error)}`)
+      }
+    } catch (error: unknown) {
+      rejectPreset(error, request.agentPreset, `agent preset "${request.agentPreset}": ${String(error)}`)
+    }
+  }
+
+  /**
+   * The tools the deployment's default composition registers, for authoring
+   * pickers to offer as `toolFilter` grants.
+   * @returns one entry per visible tool of the default preset's standing mount.
+   * @throws {TypertRemoteFailure} when the default preset cannot compose.
+   */
+  @Remote('toolCatalog')
+  async remoteExportToolCatalog(): Promise<AgentPresetToolCatalog> {
+    const tools = this.ctx.get('tools')
+    if (tools === undefined) {
+      throw remotePresetFailure('internal', 'no tool registry is mounted', {})
+    }
+    try {
+      const key = await this.standingKeyFor()
+      return {
+        tools: tools.schemas(key).map(schema => ({
+          name: schema.name,
+          description: schema.description ?? '',
+        })),
+      }
+    } catch (error: unknown) {
+      rejectPreset(error, this.defaultId, `agent preset "${this.defaultId}": ${String(error)}`)
+    }
+  }
+
+  /**
+   * Replace one user preset's raw composition text.
+   *
+   * UNLIKE every other authoring path, the caller supplies the composition —
+   * and with it arbitrary plugin names, which is shell-equivalent trust. With
+   * a configured `ticketSecret` only the `*` management wildcard (the Odoo
+   * plane, server-side) may call; without one the deployment is a trusted
+   * single-operator setup and the call is open like the rest of authoring.
+   * The content must parse as a top-level list of plugin rows; deeper health
+   * (unresolvable plugin names) still surfaces as a broken roster row.
+   * @param request - preset identity, display text, and the full composition.
+   * @returns once the preset is stored.
+   * @throws {TypertRemoteFailure} `bad-request` for refused callers or
+   * unusable content, `agent-preset-read-only` for a shipped id.
+   */
+  @Remote('writeRaw')
+  async remoteExportWriteRaw(request: WriteRawPresetRequest): Promise<void> {
+    validatePresetId(request.agentPreset, 'agentPreset')
+    const secret = this.config.ticketSecret
+    if (secret !== undefined && secret !== '' && currentTicketUserId(secret) !== '*') {
+      throw remotePresetFailure('bad-request', 'raw compositions are administered by the management plane', {})
+    }
+    if (request.name.trim() === '') {
+      throw remotePresetFailure('bad-request', 'name must be a non-empty string', {})
+    }
+    let parsed: unknown
+    try {
+      parsed = loadYaml(request.content)
+    } catch (error: unknown) {
+      throw remotePresetFailure('bad-request', `content is not valid YAML: ${String(error)}`, {})
+    }
+    const problem = entryListProblem(parsed)
+    if (problem !== undefined) {
+      throw remotePresetFailure('bad-request', `content is not a composition: ${problem}`, {})
+    }
+    try {
+      const existing = (await this.list()).find(preset => preset.id === request.agentPreset)
+      await writeAuthoredComposition(
+        this.resolvedRoots,
+        request.agentPreset,
+        request.content.endsWith('\n') ? request.content : `${request.content}\n`,
+        {
+          name: request.name,
+          ...request.description === undefined ? {} : { description: request.description },
+        },
+        existing,
+      )
+      this.standing.delete(request.agentPreset)
+      try {
+        if (existing === undefined) {
+          this.ctx.emit('agent-preset/authored', request.agentPreset)
+        } else {
+          this.ctx.emit('agent-preset/renamed', request.agentPreset, request.name)
+        }
+      } catch (error: unknown) {
+        this.ctx.logger.warn(`agent-presets: writeRaw notification listener failed for "${request.agentPreset}": ${String(error)}`)
       }
     } catch (error: unknown) {
       rejectPreset(error, request.agentPreset, `agent preset "${request.agentPreset}": ${String(error)}`)

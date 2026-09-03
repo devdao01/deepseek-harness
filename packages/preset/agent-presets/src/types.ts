@@ -38,6 +38,11 @@ export interface AuthorPresetSubagent {
   readonly allowBash?: boolean
   /** Whether the child may search/fetch the web. */
   readonly allowWeb?: boolean
+  /**
+   * Explicit tool grant (names per {@link AgentPresetToolCatalog}); present,
+   * it replaces the flag-derived allow list.
+   */
+  readonly tools?: readonly string[]
 }
 
 /** Request creating or rewriting one structured locally authored preset. */
@@ -58,6 +63,32 @@ export interface AuthorPresetRequest {
   readonly allowWeb?: boolean
   /** Router departments; required (non-empty) for `kind: 'router'`. */
   readonly subagents?: readonly AuthorPresetSubagent[]
+}
+
+/** One grantable tool as the authoring catalog lists it. */
+export interface AgentPresetToolCatalogEntry {
+  /** The tool name a `toolFilter.allow` entry grants. */
+  readonly name: string
+  /** The tool's model-facing description (may be long). */
+  readonly description: string
+}
+
+/** The tools the deployment's default composition registers. */
+export interface AgentPresetToolCatalog {
+  /** One entry per visible tool, in registry order. */
+  readonly tools: readonly AgentPresetToolCatalogEntry[]
+}
+
+/** Request replacing one user preset's raw composition (management plane only). */
+export interface WriteRawPresetRequest {
+  /** The preset id (directory name); an existing user preset is rewritten. */
+  readonly agentPreset: string
+  /** Display name stored in the preset metadata. */
+  readonly name: string
+  /** Description stored in the preset metadata. */
+  readonly description?: string
+  /** The complete `agent.cordis.yml` text. */
+  readonly content: string
 }
 
 /** The roster one deployment currently supplies, with its authoring capability. */

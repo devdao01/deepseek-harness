@@ -65,6 +65,14 @@ export interface Config {
    */
   includeShippedRoot: boolean
   /**
+   * Shared HMAC-SHA256 secret user tickets (`mtil-ticket` cookie) are
+   * verified with. Set, `agentPresets/writeRaw` — the one authoring path
+   * whose caller supplies plugin names — accepts only the `*` management
+   * wildcard. Unset, the deployment is a trusted single-operator setup and
+   * the call is open like the rest of authoring.
+   */
+  ticketSecret?: string
+  /**
    * Append the harness home's `USER_PRESET_DIR` as a `user` root, after every
    * configured root. False mounts a roster without the derived writable root.
    */

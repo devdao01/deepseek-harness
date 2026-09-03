@@ -34,6 +34,7 @@ This module provides:
         'views/npei_agent_provider_route_template_views.xml',
         'views/npei_agent_session_views.xml',
         'views/npei_agent_preset_views.xml',
+        'views/npei_agent_tool_views.xml',
         'views/npei_agent_skill_views.xml',
         'views/npei_agent_credential_views.xml',
         'views/npei_agent_provider_views.xml',

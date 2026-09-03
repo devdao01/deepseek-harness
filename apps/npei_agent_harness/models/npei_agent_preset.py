@@ -89,6 +89,13 @@ class NpeiAgentPreset(models.Model):
              "router calls (spawns a child agent with the line's persona and "
              "capability flags).",
     )
+    composition = fields.Text(
+        string='Composition (agent.cordis.yml)', copy=False,
+        help="Snapshot of the harness composition, loaded on demand via "
+             "agentPresets/read. The view keeps it read-only; the raw push "
+             "action (agentPresets/writeRaw, wildcard-gated) is wired for "
+             "when editing is enabled later.",
+    )
     is_default = fields.Boolean(
         string='Harness Default', readonly=True, copy=False, tracking=True,
         help="Whether the harness reports this roster entry as the default "
@@ -258,6 +265,7 @@ class NpeiAgentPreset(models.Model):
                 'persona': (line.persona or '').strip(),
                 'allowBash': bool(line.allow_bash),
                 'allowWeb': bool(line.allow_web),
+                **({'tools': line.tool_ids.mapped('name')} if line.tool_ids else {}),
             } for line in self.subagent_ids]
         return request
 
@@ -402,6 +410,37 @@ class NpeiAgentPreset(models.Model):
             },
         }
 
+    def action_load_composition(self):
+        """Fill ``composition`` from the harness (``agentPresets/read``)."""
+        client = self.env['npei.agent.harness.client'].sudo()
+        for record in self:
+            if not record.preset_id:
+                continue
+            value = client._rpc('agentPresets/read', {'agentPreset': record.preset_id})
+            record.with_context(npei_syncing=True).write({
+                'composition': (value or {}).get('content') or False,
+            })
+
+    def action_push_raw_composition(self):
+        """Replace the harness composition with the ``composition`` field.
+
+        ``agentPresets/writeRaw`` accepts only the management wildcard once a
+        ticket secret is configured; the form keeps the field read-only until
+        raw editing is deliberately enabled.
+        """
+        client = self.env['npei.agent.harness.client'].sudo()
+        for record in self:
+            if not record.preset_id or not (record.composition or '').strip():
+                raise UserError(_(
+                    "Load (and edit) the composition before pushing it."))
+            client._rpc('agentPresets/writeRaw', {'request': {
+                'agentPreset': record.preset_id,
+                'name': record.name,
+                **({'description': record.description.strip()}
+                   if (record.description or '').strip() else {}),
+                'content': record.composition,
+            }})
+
     def act_lock(self):
         self.write({'is_locked': True})
 
@@ -432,6 +471,12 @@ class NpeiAgentPresetSubagent(models.Model):
     )
     allow_bash = fields.Boolean(string='Allow Bash')
     allow_web = fields.Boolean(string='Allow Web')
+    tool_ids = fields.Many2many(
+        'npei.agent.tool', string='Granted Tools',
+        help="Explicit tool grant for this sub-agent. Set, it REPLACES the "
+             "bash/web flag derivation; empty falls back to the flags plus "
+             "the standard file/skill/job tool set.",
+    )
 
     @api.constrains('tool_name')
     def _check_tool_name(self):

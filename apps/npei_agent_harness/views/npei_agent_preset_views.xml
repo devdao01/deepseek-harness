@@ -67,6 +67,19 @@
                             <field name="persona" nolabel="1" readonly="is_locked"
                                placeholder="Vai trò, nhiệm vụ, skill sở hữu của agent này — sinh lại composition trên harness mỗi lần lưu"/>
                         </page>
+                        <page string="Composition">
+                            <group>
+                                <button name="action_load_composition" type="object"
+                                        string="Load from Harness" class="btn-secondary"/>
+                                <button name="action_push_raw_composition" type="object"
+                                        string="Push Raw (management only)" class="btn-secondary"
+                                        confirm="Ghi đè composition trên harness bằng nội dung bên dưới?"/>
+                            </group>
+                            <!-- Read-only by design for now: bỏ readonly="1" khi
+                                 muốn cho phép sửa raw rồi dùng nút Push ở trên. -->
+                            <field name="composition" nolabel="1" readonly="1"
+                                   placeholder="Bấm Load from Harness để xem agent.cordis.yml của preset này"/>
+                        </page>
                         <page string="Sub-agents" invisible="kind != 'router'">
                             <field name="subagent_ids" nolabel="1" readonly="is_locked">
                                 <tree editable="bottom">
@@ -75,6 +88,8 @@
                                     <field name="persona"/>
                                     <field name="allow_bash"/>
                                     <field name="allow_web"/>
+                                    <field name="tool_ids" widget="many2many_tags"
+                                           options="{'no_create': True}"/>
                                 </tree>
                             </field>
                         </page>

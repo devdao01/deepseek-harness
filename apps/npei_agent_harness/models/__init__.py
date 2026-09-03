@@ -2,6 +2,7 @@
 from . import harness_client
 from . import npei_agent_session
 from . import npei_agent_preset
+from . import npei_agent_tool
 from . import npei_agent_skill
 from . import npei_agent_credential
 from . import npei_agent_provider

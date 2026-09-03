@@ -26,6 +26,12 @@ export interface AuthorSubagentSpec {
   readonly allowBash?: boolean
   /** Whether the child may search/fetch the web. */
   readonly allowWeb?: boolean
+  /**
+   * Explicit tool grant (tool names per the deployment's catalog). Present,
+   * it REPLACES the flag-derived allow list; the bash/web flags then only
+   * document intent.
+   */
+  readonly tools?: readonly string[]
 }
 
 /** Bounded description of one authored preset composition. */
@@ -51,6 +57,9 @@ const SUBAGENT_BASE_TOOLS = [
 
 /** `toolName` is a model-visible tool identifier and a config key. */
 const SUBAGENT_TOOL_NAME = /^[a-z0-9][a-z0-9_-]*$/
+
+/** A granted tool name is a plain tool identifier, never YAML structure. */
+const GRANTED_TOOL_NAME = /^[a-zA-Z0-9_-]+$/
 
 /** One parsed top-level composition row (or group) as a line range. */
 interface RowBlock {
@@ -95,11 +104,13 @@ function personaRow(persona: string): string[] {
 
 /** One generated department `dsh-tool-subagent` row. */
 function subagentRow(spec: AuthorSubagentSpec): string[] {
-  const allow = [
-    ...spec.allowBash === true ? ['bash'] : [],
-    ...spec.allowWeb === true ? ['web_search', 'web_fetch'] : [],
-    ...SUBAGENT_BASE_TOOLS,
-  ]
+  const allow = spec.tools !== undefined && spec.tools.length > 0
+    ? [...new Set(spec.tools)]
+    : [
+      ...spec.allowBash === true ? ['bash'] : [],
+      ...spec.allowWeb === true ? ['web_search', 'web_fetch'] : [],
+      ...SUBAGENT_BASE_TOOLS,
+    ]
   return [
     `- id: tool-subagent-${spec.toolName}`,
     "  name: '@deepseek-ai/dsh-tool-subagent'",
@@ -139,6 +150,11 @@ export function validateAuthorSpec(spec: AuthorCompositionSpec): void {
       seen.add(subagent.toolName)
       if (subagent.persona.trim() === '') {
         throw new Error(`subagent ${JSON.stringify(subagent.toolName)} needs a persona`)
+      }
+      for (const tool of subagent.tools ?? []) {
+        if (!GRANTED_TOOL_NAME.test(tool)) {
+          throw new Error(`granted tool name ${JSON.stringify(tool)} must match ${String(GRANTED_TOOL_NAME)}`)
+        }
       }
     }
   }

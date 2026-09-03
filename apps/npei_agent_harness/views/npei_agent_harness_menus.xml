@@ -17,6 +17,11 @@
               action="action_npei_agent_preset"
               sequence="20"/>
 
+    <menuitem id="menu_npei_agent_tool"
+              name="Tools"
+              parent="menu_npei_agent_root"
+              action="action_npei_agent_tool"
+              sequence="17"/>
     <menuitem id="menu_npei_agent_skill"
               name="Skills"
               parent="menu_npei_agent_root"

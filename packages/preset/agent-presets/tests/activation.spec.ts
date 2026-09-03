@@ -23,6 +23,8 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import FileSettingsProvider from '@deepseek-ai/dsh-settings-file'
 import { TypertRemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
 import { describe, expect, it } from 'vitest'
+import { createHmac } from 'node:crypto'
+import { runWithRpcRequest } from '@deepseek-ai/dsh-client-connection'
 import AgentPresets, { COMPOSITION_FILE, METADATA_FILE } from '@deepseek-ai/dsh-agent-presets'
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
@@ -220,6 +222,77 @@ describe('structured authoring (agentPresets/author)', () => {
     await expect(ctx.agentPresets.remoteExportAuthor({
       agentPreset: 'standard', name: 'X', kind: 'standalone', persona: 'x',
     })).rejects.toMatchObject({ failure: { code: 'agent-preset-read-only' } })
+  })
+})
+
+describe('tool catalog and raw compositions', () => {
+  it('lists the default composition tools for authoring pickers', async () => {
+    const { ctx } = await harness()
+
+    const catalog = await ctx.agentPresets.remoteExportToolCatalog()
+
+    expect(catalog.tools.map(tool => tool.name)).toContain('alpha')
+  })
+
+  it('grants an explicit tools list to a router department', async () => {
+    const { ctx, userRoot } = await harness()
+
+    await ctx.agentPresets.remoteExportAuthor({
+      agentPreset: 'router-tools',
+      name: 'Router Tools',
+      kind: 'router',
+      persona: 'ROUTER.',
+      subagents: [{ toolName: 'chuyen-biet', persona: 'X.', tools: ['bash', 'read'] }],
+    })
+
+    const content = await readFile(join(userRoot, 'router-tools', COMPOSITION_FILE), 'utf8')
+    expect(content).toContain('- bash')
+    expect(content).toContain('- read')
+    expect(content).not.toContain('- todo_write')
+  })
+
+  it('writes and rewrites raw compositions, refusing non-compositions', async () => {
+    const { ctx, userRoot } = await harness()
+    const raw = '- id: alpha\n  name: ../../plugins/contribute.js\n  config:\n    tool: alpha\n'
+
+    await ctx.agentPresets.remoteExportWriteRaw({
+      agentPreset: 'tho-cong', name: 'Thợ Công', content: raw,
+    })
+    expect(await readFile(join(userRoot, 'tho-cong', COMPOSITION_FILE), 'utf8')).toBe(raw)
+    const row = (await ctx.agentPresets.remoteExportList()).presets
+      .find(preset => preset.id === 'tho-cong')
+    expect(row).toMatchObject({ name: 'Thợ Công', trust: 'user' })
+
+    await expect(ctx.agentPresets.remoteExportWriteRaw({
+      agentPreset: 'xau', name: 'X', content: 'not: a list',
+    })).rejects.toMatchObject({ failure: { code: 'bad-request' } })
+    await expect(ctx.agentPresets.remoteExportWriteRaw({
+      agentPreset: 'standard', name: 'X', content: raw,
+    })).rejects.toMatchObject({ failure: { code: 'agent-preset-read-only' } })
+  })
+
+  it('accepts raw writes only from the management wildcard once a secret is set', async () => {
+    const { ctx } = await harness()
+    const secret = 'ticket-secret-for-tests-0123456789abcdef'
+    ;(ctx.agentPresets as unknown as { config: { ticketSecret?: string } }).config.ticketSecret = secret
+    const raw = '- id: alpha\n  name: ../../plugins/contribute.js\n  config:\n    tool: alpha\n'
+    const mint = (u: string): string => {
+      const body = Buffer.from(JSON.stringify({ u, exp: Math.floor(Date.now() / 1000) + 600 })).toString('base64url')
+      const mac = createHmac('sha256', secret).update(`v1.${body}`).digest().toString('base64url')
+      return `v1.${body}.${mac}`
+    }
+
+    await expect(ctx.agentPresets.remoteExportWriteRaw({
+      agentPreset: 'quan-tri', name: 'X', content: raw,
+    })).rejects.toMatchObject({ failure: { code: 'bad-request' } })
+    await expect(runWithRpcRequest(
+      { headers: new Headers({ cookie: `mtil-ticket=${mint('7')}` }) },
+      () => ctx.agentPresets.remoteExportWriteRaw({ agentPreset: 'quan-tri', name: 'X', content: raw }),
+    )).rejects.toMatchObject({ failure: { code: 'bad-request' } })
+    await expect(runWithRpcRequest(
+      { headers: new Headers({ cookie: `mtil-ticket=${mint('*')}` }) },
+      () => ctx.agentPresets.remoteExportWriteRaw({ agentPreset: 'quan-tri', name: 'Quản Trị', content: raw }),
+    )).resolves.toBeUndefined()
   })
 })
 
