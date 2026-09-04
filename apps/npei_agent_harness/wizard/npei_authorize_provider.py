@@ -49,6 +49,7 @@ class NpeiAuthorizeProvider(models.TransientModel):
         string='Status', default='idle', readonly=True, copy=False,
     )
     log_text = fields.Text(string='Progress', readonly=True, copy=False)
+    route_declared = fields.Boolean(readonly=True, copy=False)
 
     @api.model
     def _flow_selection(self):
@@ -153,6 +154,44 @@ class NpeiAuthorizeProvider(models.TransientModel):
         self.prompt_id = False
         self._apply_poll(client._rpc('settings/pollAuthorization',
                                      {'attemptId': self.attempt_id}))
+        return self._reopen()
+
+    def action_declare_route(self):
+        """Declare the signed-in provider as an llm-pi-ai route.
+
+        The flow key is ``<settings-ns>/<provider-id>`` (e.g.
+        ``llm-pi-ai/openai-codex``): this sets ``providers.<id> = {}`` in that
+        settings namespace so the route inherits the catalog provider's
+        endpoint, wire, and models, authenticated by the sign-in grant. Its
+        models then appear in the harness picker. Written unconditionally
+        (expectedRevision omitted); an existing route config is not disturbed
+        because 'set' at the provider path only adds the key when absent.
+        """
+        self.ensure_one()
+        self._check_manager()
+        if self.status != 'authorized':
+            raise UserError(_("Sign in successfully before declaring the route."))
+        if '/' not in (self.flow_key or ''):
+            raise UserError(_("This provider has no settings route to declare."))
+        namespace, provider_id = self.flow_key.split('/', 1)
+        client = self._client()
+        described = client._rpc('settings/describe', {})
+        current = next((ns for ns in (described or {}).get('namespaces') or []
+                        if ns.get('ns') == namespace), None)
+        existing_providers = ((current or {}).get('user') or {}).get('providers') or {}
+        if provider_id in existing_providers:
+            self.route_declared = True
+            self.log_text = '\n'.join((self.log_text or '').splitlines()
+                                       + [_("Route '%s' already declared.") % provider_id])
+            return self._reopen()
+        client._rpc('settings/mutate', {
+            'ns': namespace,
+            'ops': [{'op': 'set', 'path': ['providers', provider_id], 'value': {}}],
+            'expectedRevision': (current or {}).get('revision'),
+        })
+        self.route_declared = True
+        self.log_text = '\n'.join((self.log_text or '').splitlines()
+                                   + [_("Route '%s' declared; its models are now available.") % provider_id])
         return self._reopen()
 
     def action_cancel_attempt(self):

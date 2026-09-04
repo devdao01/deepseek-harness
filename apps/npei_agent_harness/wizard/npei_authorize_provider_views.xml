@@ -23,6 +23,7 @@
                     <field name="log_text" readonly="1" invisible="not log_text"/>
                     <field name="attempt_id" invisible="1"/>
                     <field name="prompt_id" invisible="1"/>
+                    <field name="route_declared" invisible="1"/>
                 </sheet>
                 <footer>
                     <button name="action_start" type="object" string="Start sign-in"
@@ -31,6 +32,8 @@
                             class="btn-primary" invisible="not prompt_id"/>
                     <button name="action_refresh" type="object" string="Refresh"
                             class="btn-secondary" invisible="status != 'running'"/>
+                    <button name="action_declare_route" type="object" string="Declare route"
+                            class="btn-primary" invisible="status != 'authorized' or route_declared"/>
                     <button name="action_cancel_attempt" type="object" string="Cancel attempt"
                             class="btn-secondary" invisible="status != 'running'"/>
                     <button string="Close" class="btn-secondary" special="cancel"/>
