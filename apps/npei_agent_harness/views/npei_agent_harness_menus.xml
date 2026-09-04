@@ -96,6 +96,12 @@
               action="action_npei_sync_presets"
               sequence="20"/>
 
+    <menuitem id="menu_npei_authorize_provider"
+              name="Sign in to Provider"
+              parent="menu_npei_agent_config"
+              action="action_npei_authorize_provider"
+              sequence="12"/>
+
     <menuitem id="menu_npei_sync_tools"
               name="Sync Tools from Harness"
               parent="menu_npei_agent_config"

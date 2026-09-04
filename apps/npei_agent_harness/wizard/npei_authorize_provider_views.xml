@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_npei_authorize_provider_form" model="ir.ui.view">
+        <field name="name">npei.authorize.provider.form</field>
+        <field name="model">npei.authorize.provider</field>
+        <field name="arch" type="xml">
+            <form string="Provider Sign-in">
+                <sheet>
+                    <group>
+                        <field name="flow_key" readonly="status != 'idle'"/>
+                        <field name="status"/>
+                    </group>
+                    <group string="Sign in" invisible="not auth_url">
+                        <field name="auth_url" widget="url" readonly="1"
+                               text="Open the sign-in page"/>
+                        <field name="device_code" readonly="1" invisible="not device_code"/>
+                        <field name="prompt_message" readonly="1" invisible="not prompt_message"/>
+                    </group>
+                    <group invisible="not prompt_id">
+                        <field name="answer" password="True"
+                               placeholder="Paste the authorization code or the success redirect URL"/>
+                    </group>
+                    <field name="log_text" readonly="1" invisible="not log_text"/>
+                    <field name="attempt_id" invisible="1"/>
+                    <field name="prompt_id" invisible="1"/>
+                </sheet>
+                <footer>
+                    <button name="action_start" type="object" string="Start sign-in"
+                            class="btn-primary" invisible="status != 'idle'"/>
+                    <button name="action_submit_answer" type="object" string="Submit code"
+                            class="btn-primary" invisible="not prompt_id"/>
+                    <button name="action_refresh" type="object" string="Refresh"
+                            class="btn-secondary" invisible="status != 'running'"/>
+                    <button name="action_cancel_attempt" type="object" string="Cancel attempt"
+                            class="btn-secondary" invisible="status != 'running'"/>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_npei_authorize_provider" model="ir.actions.act_window">
+        <field name="name">Sign in to Provider</field>
+        <field name="res_model">npei.authorize.provider</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>
