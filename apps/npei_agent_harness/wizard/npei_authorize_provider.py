@@ -60,6 +60,16 @@ class NpeiAuthorizeProvider(models.TransientModel):
     )
     log_text = fields.Text(string='Progress', readonly=True, copy=False)
     route_declared = fields.Boolean(readonly=True, copy=False)
+    route_reasoning = fields.Selection(
+        [('', 'Provider default'),
+         ('minimal', 'Minimal'), ('low', 'Low'), ('medium', 'Medium'),
+         ('high', 'High'), ('xhigh', 'Extra high')],
+        string='Default Reasoning', default='medium',
+        help="Reasoning effort the declared route defaults to. Without one "
+             "the harness reports no default and the model picker opens with "
+             "no effort chosen; a level unsupported by a given model is "
+             "ignored for that model.",
+    )
 
     @api.model
     def _flow_selection(self):
@@ -250,9 +260,10 @@ class NpeiAuthorizeProvider(models.TransientModel):
             self.log_text = '\n'.join((self.log_text or '').splitlines()
                                        + [_("Route '%s' already declared.") % provider_id])
             return self._reopen()
+        route = {'reasoning': self.route_reasoning} if self.route_reasoning else {}
         client._rpc('settings/mutate', {
             'ns': namespace,
-            'ops': [{'op': 'set', 'path': ['providers', provider_id], 'value': {}}],
+            'ops': [{'op': 'set', 'path': ['providers', provider_id], 'value': route}],
             'expectedRevision': (current or {}).get('revision'),
         })
         self.route_declared = True

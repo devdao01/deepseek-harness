@@ -9,6 +9,7 @@
                     <group>
                         <field name="flow_key" readonly="status != 'idle'"/>
                         <field name="status"/>
+                        <field name="route_reasoning" invisible="status != 'authorized'"/>
                     </group>
                     <group string="Sign in" invisible="not auth_url">
                         <field name="auth_url" widget="url" readonly="1"
