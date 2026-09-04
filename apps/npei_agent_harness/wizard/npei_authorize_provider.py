@@ -9,6 +9,7 @@ polls the running attempt. The grant is committed inside the harness — no
 secret is stored in Odoo.
 """
 import logging
+import time
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
@@ -79,6 +80,27 @@ class NpeiAuthorizeProvider(models.TransientModel):
             'target': 'new',
         }
 
+    def _poll_budget(self, client, seconds=8.0):
+        """Poll the attempt until a URL, a prompt, or a settled outcome shows.
+
+        The flow runs detached on the harness, so its sign-in URL arrives a
+        beat after begin; a single immediate poll would show an empty screen.
+        This drains repeatedly (short sleeps) up to a budget, folding every
+        result, and returns once there is something actionable to render.
+        """
+        deadline = time.monotonic() + seconds
+        while True:
+            self._apply_poll(client._rpc('settings/pollAuthorization',
+                                         {'attemptId': self.attempt_id}))
+            # The paste box (prompt) is the actionable step; wait for it (it
+            # arrives with or just after the URL for openai-codex), or a
+            # settled outcome. A URL-only provider still returns at the budget.
+            if self.prompt_id or self.status in ('authorized', 'cancelled', 'failed'):
+                return
+            if time.monotonic() >= deadline:
+                return
+            time.sleep(0.4)
+
     def _apply_poll(self, state):
         """Fold one poll result into the wizard fields."""
         lines = (self.log_text or '').splitlines()
@@ -121,8 +143,7 @@ class NpeiAuthorizeProvider(models.TransientModel):
         self.auth_url = False
         self.device_code = False
         self.log_text = False
-        self._apply_poll(client._rpc('settings/pollAuthorization',
-                                     {'attemptId': self.attempt_id}))
+        self._poll_budget(client)
         return self._reopen()
 
     def action_refresh(self):
@@ -153,8 +174,7 @@ class NpeiAuthorizeProvider(models.TransientModel):
             raise UserError(_("The prompt expired; Refresh and try again."))
         self.answer = False
         self.prompt_id = False
-        self._apply_poll(client._rpc('settings/pollAuthorization',
-                                     {'attemptId': self.attempt_id}))
+        self._poll_budget(client)
         return self._reopen()
 
     def action_declare_route(self):
