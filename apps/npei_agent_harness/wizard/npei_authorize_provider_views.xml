@@ -42,7 +42,7 @@
                     <button name="action_submit_answer" type="object" string="Submit code"
                             class="btn-primary" invisible="not prompt_id"/>
                     <button name="action_refresh" type="object" string="Refresh"
-                            class="btn-secondary" invisible="status != 'running'"/>
+                            class="btn-secondary" invisible="not attempt_id or status == 'authorized'"/>
                     <button name="action_declare_route" type="object" string="Declare route"
                             class="btn-primary" invisible="status != 'authorized' or route_declared"/>
                     <button name="action_cancel_attempt" type="object" string="Cancel attempt"

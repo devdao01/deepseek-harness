@@ -93,13 +93,18 @@ class NpeiAuthorizeProvider(models.TransientModel):
             'target': 'new',
         }
 
-    def _poll_budget(self, client, seconds=8.0):
-        """Poll the attempt until a URL, a prompt, or a settled outcome shows.
+    def _poll_budget(self, client, seconds=8.0, wait_settled=False):
+        """Poll the attempt until there is something to render.
 
         The flow runs detached on the harness, so its sign-in URL arrives a
         beat after begin; a single immediate poll would show an empty screen.
         This drains repeatedly (short sleeps) up to a budget, folding every
-        result, and returns once there is something actionable to render.
+        result.
+
+        ``wait_settled`` is for after an answer was delivered: the sign-in URL
+        is already on screen from the previous step, so returning on it would
+        end the wait before the harness finished exchanging the code — only a
+        settled outcome (or a NEW prompt) ends the wait then.
         """
         deadline = time.monotonic() + seconds
         while True:
@@ -121,8 +126,13 @@ class NpeiAuthorizeProvider(models.TransientModel):
                         continue
             # Return as soon as there is something to act on: a remaining
             # prompt (the paste box, or a picker with no browser option), a
-            # sign-in URL, or a settled outcome.
-            if self.prompt_id or self.auth_url or self.status in ('authorized', 'cancelled', 'failed'):
+            # sign-in URL, or a settled outcome. After an answer, only the
+            # outcome or a new prompt counts (see wait_settled).
+            if self.status in ('authorized', 'cancelled', 'failed'):
+                return
+            if self.prompt_id:
+                return
+            if not wait_settled and self.auth_url:
                 return
             if time.monotonic() >= deadline:
                 return
@@ -186,8 +196,9 @@ class NpeiAuthorizeProvider(models.TransientModel):
         self._check_manager()
         if not self.attempt_id:
             raise UserError(_("Start the sign-in first."))
-        self._apply_poll(self._client()._rpc('settings/pollAuthorization',
-                                             {'attemptId': self.attempt_id}))
+        # A refresh after the code was submitted is waiting for the outcome,
+        # so it must not return on the URL that is already on screen.
+        self._poll_budget(self._client(), seconds=10.0, wait_settled=not self.prompt_id)
         return self._reopen()
 
     def action_submit_answer(self):
@@ -208,7 +219,7 @@ class NpeiAuthorizeProvider(models.TransientModel):
         if not delivered:
             raise UserError(_("The prompt expired; Refresh and try again."))
         self._clear_prompt()
-        self._poll_budget(client)
+        self._poll_budget(client, seconds=25.0, wait_settled=True)
         return self._reopen()
 
     def action_declare_route(self):
@@ -271,7 +282,7 @@ class NpeiAuthorizeProvider(models.TransientModel):
         if not delivered:
             raise UserError(_("The prompt expired; Refresh and try again."))
         self._clear_prompt()
-        self._poll_budget(client)
+        self._poll_budget(client, seconds=25.0, wait_settled=True)
         return self._reopen()
 
     def action_cancel_attempt(self):
