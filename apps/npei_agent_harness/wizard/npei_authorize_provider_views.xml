@@ -16,13 +16,20 @@
                         <field name="device_code" readonly="1" invisible="not device_code"/>
                         <field name="prompt_message" readonly="1" invisible="not prompt_message"/>
                     </group>
-                    <group invisible="not prompt_id">
+                    <group string="Choose sign-in method" invisible="prompt_kind != 'select'">
+                        <field name="prompt_message" readonly="1" nolabel="1"
+                               invisible="not prompt_message"/>
+                        <field name="answer_option" widget="radio"/>
+                    </group>
+                    <group invisible="prompt_kind not in ('text', 'secret')">
                         <field name="answer" password="True"
                                placeholder="Paste the authorization code or the success redirect URL"/>
                     </group>
                     <field name="log_text" readonly="1" invisible="not log_text"/>
                     <field name="attempt_id" invisible="1"/>
                     <field name="prompt_id" invisible="1"/>
+                    <field name="prompt_kind" invisible="1"/>
+                    <field name="prompt_options_json" invisible="1"/>
                     <field name="route_declared" invisible="1"/>
                 </sheet>
                 <footer>

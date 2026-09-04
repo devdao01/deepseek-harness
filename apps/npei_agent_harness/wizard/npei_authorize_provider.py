@@ -36,7 +36,15 @@ class NpeiAuthorizeProvider(models.TransientModel):
              "authorization code (or the success redirect URL) back here.",
     )
     device_code = fields.Char(string='Device Code', readonly=True, copy=False)
+    prompt_kind = fields.Char(readonly=True, copy=False)
     prompt_message = fields.Char(readonly=True, copy=False)
+    prompt_options_json = fields.Char(readonly=True, copy=False)
+    answer_option = fields.Selection(
+        selection='_answer_option_selection', string='Choice',
+        help="For a provider that first asks how to sign in (e.g. Browser vs "
+             "Device code). Device code suits Odoo: open the URL, enter the "
+             "code — no localhost callback needed.",
+    )
     answer = fields.Char(
         string='Authorization Code / Redirect URL',
         help="Paste what the provider gave you after signing in.",
@@ -51,6 +59,22 @@ class NpeiAuthorizeProvider(models.TransientModel):
     )
     log_text = fields.Text(string='Progress', readonly=True, copy=False)
     route_declared = fields.Boolean(readonly=True, copy=False)
+
+    @api.model
+    def _answer_option_selection(self):
+        """Options of the pending select prompt (empty for a text prompt)."""
+        import json
+        raw = self.env.context.get('default_prompt_options_json')
+        # For an existing record the field is read off the record, not context.
+        record = self.browse(self.env.context.get('active_id')) if self.env.context.get('active_id') else self
+        raw = (record.prompt_options_json if record else None) or raw
+        if not raw:
+            return []
+        try:
+            options = json.loads(raw)
+        except (TypeError, ValueError):
+            return []
+        return [(o['id'], o.get('label') or o['id']) for o in options if o.get('id')]
 
     @api.model
     def _flow_selection(self):
@@ -92,10 +116,11 @@ class NpeiAuthorizeProvider(models.TransientModel):
         while True:
             self._apply_poll(client._rpc('settings/pollAuthorization',
                                          {'attemptId': self.attempt_id}))
-            # The paste box (prompt) is the actionable step; wait for it (it
-            # arrives with or just after the URL for openai-codex), or a
-            # settled outcome. A URL-only provider still returns at the budget.
-            if self.prompt_id or self.status in ('authorized', 'cancelled', 'failed'):
+            # Return as soon as there is something to act on: a prompt (the
+            # method picker, or a paste box), a sign-in URL/device code (the
+            # device-code path has no further prompt — the harness polls the
+            # token endpoint itself), or a settled outcome.
+            if self.prompt_id or self.auth_url or self.status in ('authorized', 'cancelled', 'failed'):
                 return
             if time.monotonic() >= deadline:
                 return
@@ -115,8 +140,13 @@ class NpeiAuthorizeProvider(models.TransientModel):
         self.log_text = '\n'.join(lines[-50:])
         prompt = (state or {}).get('prompt')
         if prompt:
+            import json
             self.prompt_id = prompt.get('id') or False
+            self.prompt_kind = prompt.get('kind') or False
             self.prompt_message = prompt.get('message') or False
+            options = prompt.get('options') or []
+            self.prompt_options_json = json.dumps(options) if options else False
+            self.answer_option = False
         settled = (state or {}).get('settled')
         if settled:
             self.status = settled.get('status') or 'failed'
@@ -162,18 +192,27 @@ class NpeiAuthorizeProvider(models.TransientModel):
         self._check_manager()
         if not self.attempt_id or not self.prompt_id:
             raise UserError(_("There is no pending prompt to answer yet; Refresh first."))
-        if not (self.answer or '').strip():
-            raise UserError(_("Paste the authorization code or redirect URL first."))
+        if self.prompt_kind == 'select':
+            reply = self.answer_option
+            if not reply:
+                raise UserError(_("Choose an option to continue."))
+        else:
+            reply = (self.answer or '').strip()
+            if not reply:
+                raise UserError(_("Paste the authorization code or redirect URL first."))
         client = self._client()
         delivered = client._rpc('settings/respondAuthorization', {
             'attemptId': self.attempt_id,
             'promptId': self.prompt_id,
-            'answer': self.answer.strip(),
+            'answer': reply,
         })
         if not delivered:
             raise UserError(_("The prompt expired; Refresh and try again."))
         self.answer = False
+        self.answer_option = False
         self.prompt_id = False
+        self.prompt_kind = False
+        self.prompt_options_json = False
         self._poll_budget(client)
         return self._reopen()
 
