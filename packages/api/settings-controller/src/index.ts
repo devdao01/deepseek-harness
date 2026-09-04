@@ -30,7 +30,11 @@ import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { z } from 'zod'
 import { CredentialsController } from './credentials.ts'
-import type { AgentPresetDirectoryOpenValue, SettingsDocumentOpenValue } from './types.ts'
+import type {
+  AgentPresetDirectoryOpenValue, SettingsDocumentOpenValue,
+  AuthorizationAttemptState, AuthorizationBeginValue, AuthorizationListValue,
+} from './types.ts'
+import { AuthorizationBridge } from './authorization.ts'
 
 export { CredentialsController } from './credentials.ts'
 export type * from './types.ts'
@@ -96,6 +100,7 @@ export class SettingsController extends TypertRemoteService {
   private readonly openPath: (path: string, signal: AbortSignal) => Promise<void>
   private readonly openTextFile: (path: string, signal: AbortSignal) => Promise<void>
   private readonly canOpenPath: () => boolean
+  private readonly authorizationBridge: AuthorizationBridge
 
   /**
    * Register the settings namespace and mount the credentials namespace beside
@@ -109,7 +114,76 @@ export class SettingsController extends TypertRemoteService {
     this.openTextFile = internals.openTextFile ?? openNativeTextFile
     this.canOpenPath = internals.canOpenPath
       ?? (() => config.nativeOpen ?? (internals.openPath !== undefined || canOpenNativePath()))
+    this.authorizationBridge = new AuthorizationBridge(ctx)
     ctx.plugin(CredentialsController)
+  }
+
+  /**
+   * List the credential flows this deployment can authorize (e.g. a provider
+   * sign-in). Empty when no authorization seam is mounted.
+   * @returns one entry per registered flow.
+   */
+  @Remote
+  listAuthorizations(): AuthorizationListValue {
+    return { flows: this.authorizationBridge.list() }
+  }
+
+  /**
+   * Start one authorization attempt, detached, and return its id. Poll it for
+   * the sign-in URL and the pending prompt; answer with `respondAuthorization`.
+   * @param key - the credential record to authorize.
+   * @param method - the flow method, or undefined for the flow's first.
+   * @returns the attempt id to poll and respond to.
+   * @throws TypertRemoteFailure when no flow claims the key or none can run.
+   */
+  @Remote
+  beginAuthorization(key: string, method: string | undefined): AuthorizationBeginValue {
+    try {
+      return { attemptId: this.authorizationBridge.begin(key, method) }
+    } catch (error) {
+      throw new TypertRemoteFailure({
+        code: 'bad-request',
+        message: error instanceof Error ? error.message : String(error),
+        details: {},
+      })
+    }
+  }
+
+  /**
+   * Read one attempt's progress: notices drained since the last poll, the
+   * pending prompt (e.g. paste your code), and the settled outcome.
+   * @param attemptId - the id `beginAuthorization` returned.
+   * @returns the attempt state, or notices-empty settled-failed for an
+   * unknown or reaped id so a poller stops cleanly.
+   */
+  @Remote
+  pollAuthorization(attemptId: string): AuthorizationAttemptState {
+    return this.authorizationBridge.poll(attemptId) ?? {
+      notices: [],
+      settled: { status: 'failed', message: 'the authorization attempt is unknown or has expired' },
+    }
+  }
+
+  /**
+   * Answer the pending prompt of one attempt (the pasted OAuth code/URL, or a
+   * chosen option id).
+   * @param attemptId - the attempt whose prompt to answer.
+   * @param promptId - the prompt id from the last poll.
+   * @param answer - the human's text or the chosen option id.
+   * @returns whether a matching pending prompt received the answer.
+   */
+  @Remote
+  respondAuthorization(attemptId: string, promptId: string, answer: string): boolean {
+    return this.authorizationBridge.respond(attemptId, promptId, answer)
+  }
+
+  /**
+   * Withdraw one authorization attempt.
+   * @param attemptId - the attempt to cancel.
+   */
+  @Remote
+  cancelAuthorization(attemptId: string): void {
+    this.authorizationBridge.cancel(attemptId)
   }
 
   /**

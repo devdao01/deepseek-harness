@@ -81,6 +81,11 @@ describe('the settings Remote namespace a configuration page calls', () => {
     expect(controller.typertRemote.serviceKey).toBe('settingsController')
     expect(controller.typertRemote.namespace).toBe('settings')
     expect(remoteMethods(controller)).toEqual([
+      { method: 'listAuthorizations', invocation: { kind: 'direct' } },
+      { method: 'beginAuthorization', invocation: { kind: 'direct' } },
+      { method: 'pollAuthorization', invocation: { kind: 'direct' } },
+      { method: 'respondAuthorization', invocation: { kind: 'direct' } },
+      { method: 'cancelAuthorization', invocation: { kind: 'direct' } },
       { method: 'describe', invocation: { kind: 'direct' } },
       { method: 'canOpenAgentPresetDirectory', invocation: { kind: 'direct' } },
       { method: 'update', invocation: { kind: 'direct' } },

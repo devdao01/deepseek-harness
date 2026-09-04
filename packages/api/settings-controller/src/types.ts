@@ -57,3 +57,52 @@ export type CredentialError = {
     readonly details: CredentialErrorDetailsMap[Code]
   }
 }[keyof CredentialErrorDetailsMap]
+
+/** One choice of a `select` authorization prompt, as a surface reads it. */
+export interface AuthorizationPromptOptionView {
+  /** Value returned when this option is chosen. */
+  readonly id: string
+  /** User-facing label. */
+  readonly label: string
+  /** Optional extra context. */
+  readonly description?: string
+}
+
+/** An authorization prompt the flow is waiting on, as a surface reads it. */
+export type AuthorizationPromptView =
+  | { readonly kind: 'text' | 'secret'; readonly message: string; readonly placeholder?: string }
+  | { readonly kind: 'select'; readonly message: string; readonly options: readonly AuthorizationPromptOptionView[] }
+
+/** One flow a surface can offer to run. */
+export interface AuthorizationFlowView {
+  /** The credential record this flow writes. */
+  readonly key: string
+  /** User-facing name of what is being authorized. */
+  readonly label: string
+  /** The methods offered, most preferred first. */
+  readonly methods: readonly { readonly id: string; readonly label: string }[]
+  /** Whether an attempt for this key is already running. */
+  readonly inFlight: boolean
+}
+
+/** The flows this deployment can authorize. */
+export interface AuthorizationListValue {
+  /** One entry per registered flow; empty when no authorization seam is mounted. */
+  readonly flows: readonly AuthorizationFlowView[]
+}
+
+/** The started attempt's handle. */
+export interface AuthorizationBeginValue {
+  /** The id polled and responded to for this attempt. */
+  readonly attemptId: string
+}
+
+/** One poll of an attempt: notices drained since the last poll, the pending prompt, the outcome. */
+export interface AuthorizationAttemptState {
+  /** Progress/notice messages emitted since the previous poll (each may carry a url/code). */
+  readonly notices: readonly { readonly message: string; readonly url?: string; readonly code?: string }[]
+  /** The question the flow is blocked on (e.g. paste your code); absent when none pending. */
+  readonly prompt?: { readonly id: string } & AuthorizationPromptView
+  /** How the attempt ended; absent while still running. */
+  readonly settled?: { readonly status: 'authorized' | 'cancelled' | 'failed'; readonly message?: string }
+}
