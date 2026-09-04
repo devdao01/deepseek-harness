@@ -67,6 +67,29 @@
                             <field name="persona" nolabel="1" readonly="is_locked"
                                placeholder="Vai trò, nhiệm vụ, skill sở hữu của agent này — sinh lại composition trên harness mỗi lần lưu"/>
                         </page>
+                        <page string="Odoo Connection" invisible="kind == 'copy'">
+                            <group>
+                                <group>
+                                    <field name="odoo_enable" readonly="is_locked"/>
+                                    <field name="odoo_url" readonly="is_locked"
+                                           invisible="not odoo_enable" required="odoo_enable"
+                                           placeholder="https://mtil.mtil.vn"/>
+                                    <field name="odoo_db" readonly="is_locked"
+                                           invisible="not odoo_enable"
+                                           placeholder="(this database)"/>
+                                    <field name="odoo_user" readonly="is_locked"
+                                           invisible="not odoo_enable" required="odoo_enable"
+                                           placeholder="ai-ketoan"/>
+                                    <field name="odoo_api_key" password="True" readonly="is_locked"
+                                           invisible="not odoo_enable" required="odoo_enable"/>
+                                </group>
+                                <group invisible="not odoo_enable">
+                                    <field name="odoo_allow_write" readonly="is_locked"/>
+                                    <field name="odoo_allowed_models" readonly="is_locked"
+                                           placeholder="res.partner,account.move"/>
+                                </group>
+                            </group>
+                        </page>
                         <page string="Composition">
                             <group>
                                 <button name="action_load_composition" type="object"

@@ -114,6 +114,36 @@ class TestPresetAuthoring(TransactionCase):
         system.name = 'Base đổi tên'
         self.assertFalse(self._calls_for('agentPresets/rename'))
 
+    def test_odoo_connection_travels_with_author(self):
+        record = self.Preset.create({
+            'name': 'Kế Toán', 'kind': 'standalone',
+            'persona': 'Agent kế toán.', 'odoo_enable': True,
+            'odoo_url': 'https://mtil.mtil.vn', 'odoo_user': 'ai-ketoan',
+            'odoo_api_key': 'k', 'odoo_allow_write': True,
+            'odoo_allowed_models': ' res.partner , account.move ',
+        })
+        pushes = self._calls_for('agentPresets/author')
+        odoo = pushes[-1]['request']['odoo']
+        self.assertEqual(odoo['url'], 'https://mtil.mtil.vn')
+        self.assertEqual(odoo['db'], self.env.cr.dbname)
+        self.assertEqual(odoo['user'], 'ai-ketoan')
+        self.assertEqual(odoo['apiKey'], 'k')
+        self.assertTrue(odoo['allowWrite'])
+        self.assertEqual(odoo['allowedModels'], ['res.partner', 'account.move'])
+        # Toggling the connection off re-authors without the block.
+        self._calls.clear()
+        self.Preset.browse(record.id).write({'odoo_enable': False})
+        pushes = self._calls_for('agentPresets/author')
+        self.assertNotIn('odoo', pushes[-1]['request'])
+
+    def test_odoo_connection_requires_account_fields(self):
+        with self.assertRaises(UserError):
+            self.Preset.create({
+                'name': 'Thiếu Key', 'kind': 'standalone',
+                'persona': 'p', 'odoo_enable': True,
+                'odoo_url': 'https://mtil.mtil.vn', 'odoo_user': 'ai',
+            })
+
     def test_structured_standalone_authors_and_reauthors(self):
         record = self.Preset.create({
             'name': 'Hồ Sơ CS', 'kind': 'standalone',

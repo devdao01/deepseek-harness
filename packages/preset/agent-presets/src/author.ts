@@ -34,6 +34,33 @@ export interface AuthorSubagentSpec {
   readonly tools?: readonly string[]
 }
 
+/**
+ * One Odoo XML-RPC connection an authored preset carries (a mounted
+ * `apps/odoo-mcp` server row under this preset's own Odoo account).
+ */
+export interface AuthorOdooSpec {
+  /** Odoo base URL, e.g. `https://mtil.mtil.vn`. */
+  readonly url: string
+  /** Database name. */
+  readonly db: string
+  /** Login of the dedicated AI account. */
+  readonly user: string
+  /** That account's API key or password. */
+  readonly apiKey: string
+  /** Whether `odoo_create`/`odoo_write`/`odoo_unlink` are offered. */
+  readonly allowWrite?: boolean
+  /** Model allowlist (e.g. `res.partner`); empty/absent = the account's own scope. */
+  readonly allowedModels?: readonly string[]
+  /** Per-call row cap; the server defaults to 200. */
+  readonly maxRows?: number
+  /**
+   * Absolute path of the odoo-mcp server script. Host-resolved by the
+   * authoring plugin, NEVER taken from a remote request — a caller-supplied
+   * path would let the management plane execute an arbitrary script.
+   */
+  readonly serverPath: string
+}
+
 /** Bounded description of one authored preset composition. */
 export interface AuthorCompositionSpec {
   /** `standalone` = one direct-chat agent; `router` = delegates to `subagents`. */
@@ -46,6 +73,8 @@ export interface AuthorCompositionSpec {
   readonly allowWeb?: boolean
   /** Router departments; ignored for `standalone`. */
   readonly subagents?: readonly AuthorSubagentSpec[]
+  /** Odoo connection to mount for this preset, when any. */
+  readonly odoo?: AuthorOdooSpec
 }
 
 /** Tool names every generated department child receives. */
@@ -57,6 +86,9 @@ const SUBAGENT_BASE_TOOLS = [
 
 /** `toolName` is a model-visible tool identifier and a config key. */
 const SUBAGENT_TOOL_NAME = /^[a-z0-9][a-z0-9_-]*$/
+
+/** An Odoo model name (`res.partner`); anything else is refused. */
+const ODOO_MODEL_NAME = /^[a-z0-9_.]+$/
 
 /** A granted tool name is a plain tool identifier, never YAML structure. */
 const GRANTED_TOOL_NAME = /^[a-zA-Z0-9_-]+$/
@@ -128,14 +160,71 @@ function subagentRow(spec: AuthorSubagentSpec): string[] {
   ]
 }
 
+/** Quote one value as YAML single-quoted scalar (quotes doubled). */
+function yamlQuote(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
+/** The generated `mcp-odoo` row mounting this preset's Odoo connection. */
+function odooRow(odoo: AuthorOdooSpec): string[] {
+  return [
+    '- id: mcp-odoo',
+    "  name: '@deepseek-ai/dsh-mcp-client'",
+    '  config:',
+    '    serverName: odoo',
+    '    transport: stdio',
+    '    command: node',
+    `    args: [${yamlQuote(odoo.serverPath)}]`,
+    '    env:',
+    `      ODOO_URL: ${yamlQuote(odoo.url)}`,
+    `      ODOO_DB: ${yamlQuote(odoo.db)}`,
+    `      ODOO_USER: ${yamlQuote(odoo.user)}`,
+    `      ODOO_API_KEY: ${yamlQuote(odoo.apiKey)}`,
+    ...odoo.allowWrite === true ? ["      ODOO_ALLOW_WRITE: '1'"] : [],
+    ...odoo.allowedModels !== undefined && odoo.allowedModels.length > 0
+      ? [`      ODOO_ALLOWED_MODELS: ${yamlQuote(odoo.allowedModels.join(','))}`]
+      : [],
+    ...odoo.maxRows === undefined ? [] : [`      ODOO_MAX_ROWS: ${yamlQuote(String(odoo.maxRows))}`],
+    '',
+  ]
+}
+
+/**
+ * Refuse an Odoo connection whose fields could break the generated YAML or
+ * name something other than an Odoo endpoint.
+ * @param odoo - the connection to validate.
+ * @throws when a required field is empty or multi-line, the URL is not
+ * http(s), a model name is not an Odoo model slug, or maxRows is not a
+ * positive integer.
+ */
+function validateOdooSpec(odoo: AuthorOdooSpec): void {
+  for (const [field, value] of Object.entries({
+    url: odoo.url, db: odoo.db, user: odoo.user, apiKey: odoo.apiKey, serverPath: odoo.serverPath,
+  })) {
+    if (value.trim() === '') throw new Error(`odoo.${field} must be a non-empty string`)
+    // eslint-disable-next-line no-control-regex -- refuses YAML/env-breaking control chars
+    if (/[\u0000-\u001f\u007f]/.test(value)) throw new Error(`odoo.${field} must be a single line`)
+  }
+  if (!/^https?:\/\//.test(odoo.url)) throw new Error('odoo.url must start with http:// or https://')
+  for (const model of odoo.allowedModels ?? []) {
+    if (!ODOO_MODEL_NAME.test(model)) {
+      throw new Error(`odoo model name ${JSON.stringify(model)} must match ${String(ODOO_MODEL_NAME)}`)
+    }
+  }
+  if (odoo.maxRows !== undefined && (!Number.isInteger(odoo.maxRows) || odoo.maxRows < 1)) {
+    throw new Error('odoo.maxRows must be a positive integer')
+  }
+}
+
 /**
  * Refuse a spec whose free-form fields could break the generated layout.
  * @param spec - the composition description to validate.
- * @throws when a persona is empty, a router names no departments, or a tool
- * name is not a lowercase slug.
+ * @throws when a persona is empty, a router names no departments, a tool
+ * name is not a lowercase slug, or the Odoo connection is unusable.
  */
 export function validateAuthorSpec(spec: AuthorCompositionSpec): void {
   if (spec.persona.trim() === '') throw new Error('persona must be a non-empty string')
+  if (spec.odoo !== undefined) validateOdooSpec(spec.odoo)
   if (spec.kind === 'router') {
     const subagents = spec.subagents ?? []
     if (subagents.length === 0) throw new Error('a router preset needs at least one subagent')
@@ -201,6 +290,10 @@ export function generateComposition(base: string, spec: AuthorCompositionSpec): 
   if (spec.kind === 'router') {
     out.push('', '# ── generated departments (agentPresets/author) ──', '')
     for (const subagent of spec.subagents ?? []) out.push(...subagentRow(subagent))
+  }
+  if (spec.odoo !== undefined) {
+    out.push('', '# ── generated Odoo connection (agentPresets/author) ──', '')
+    out.push(...odooRow(spec.odoo))
   }
   return `${out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`
 }

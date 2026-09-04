@@ -82,6 +82,44 @@ class NpeiAgentPreset(models.Model):
         string='Allow Web', default=True, tracking=True,
         help="Whether this agent may search/fetch the web (standalone/router).",
     )
+    odoo_enable = fields.Boolean(
+        string='Connect to Odoo', tracking=True,
+        help="Mount a read (optionally write) Odoo XML-RPC toolset for this "
+             "preset, under the dedicated Odoo account below. Each preset "
+             "can use a different account; the account's access rights and "
+             "record rules are the real boundary.",
+    )
+    odoo_url = fields.Char(
+        string='Odoo URL',
+        help="Odoo base URL the harness reaches, e.g. https://mtil.mtil.vn.",
+    )
+    odoo_db = fields.Char(
+        string='Odoo Database',
+        help="Database name; defaults to this database when left empty.",
+    )
+    odoo_user = fields.Char(
+        string='Odoo AI Account',
+        help="Login of the dedicated AI account for THIS preset.",
+    )
+    odoo_api_key = fields.Char(
+        string='Odoo API Key / Password',
+        help="That account's API key (Preferences > Account Security) or its "
+             "password. Stored in Odoo and written into the preset "
+             "composition on the harness — anyone who can read either sees "
+             "it, so use a dedicated low-privilege account.",
+    )
+    odoo_allow_write = fields.Boolean(
+        string='Allow Odoo Write',
+        help="Offer odoo_create / odoo_write / odoo_unlink tools. Without "
+             "it the preset gets read-only tools; either way the account's "
+             "Odoo access rights still apply.",
+    )
+    odoo_allowed_models = fields.Char(
+        string='Odoo Allowed Models',
+        help="Comma-separated model allowlist, e.g. "
+             "res.partner,account.move. Empty = everything the account may "
+             "use.",
+    )
     subagent_ids = fields.One2many(
         'npei.agent.preset.subagent', 'preset_ref',
         string='Department Sub-agents',
@@ -267,6 +305,27 @@ class NpeiAgentPreset(models.Model):
                 'allowWeb': bool(line.allow_web),
                 **({'tools': line.tool_ids.mapped('name')} if line.tool_ids else {}),
             } for line in self.subagent_ids]
+        if self.odoo_enable:
+            for label, value in (('Odoo URL', self.odoo_url),
+                                 ('Odoo AI Account', self.odoo_user),
+                                 ('Odoo API Key / Password', self.odoo_api_key)):
+                if not (value or '').strip():
+                    raise UserError(_(
+                        "Preset %s connects to Odoo but %s is empty.",
+                        self.name, label))
+            odoo = {
+                'url': self.odoo_url.strip(),
+                'db': (self.odoo_db or '').strip() or self.env.cr.dbname,
+                'user': self.odoo_user.strip(),
+                'apiKey': self.odoo_api_key.strip(),
+            }
+            if self.odoo_allow_write:
+                odoo['allowWrite'] = True
+            models_csv = (self.odoo_allowed_models or '').strip()
+            if models_csv:
+                odoo['allowedModels'] = [
+                    name.strip() for name in models_csv.split(',') if name.strip()]
+            request['odoo'] = odoo
         return request
 
     def _push_author(self):
@@ -334,7 +393,9 @@ class NpeiAgentPreset(models.Model):
         if self.env.context.get('npei_syncing'):
             return result
         client = self.env['npei.agent.harness.client'].sudo()
-        author_fields = {'kind', 'persona', 'allow_bash', 'allow_web', 'subagent_ids', 'name', 'description'}
+        author_fields = {'kind', 'persona', 'allow_bash', 'allow_web', 'subagent_ids', 'name', 'description',
+                         'odoo_enable', 'odoo_url', 'odoo_db', 'odoo_user', 'odoo_api_key',
+                         'odoo_allow_write', 'odoo_allowed_models'}
         structured = self.filtered(lambda r: r.kind in ('standalone', 'router'))
         if structured and author_fields.intersection(vals):
             structured._push_author()

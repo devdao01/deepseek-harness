@@ -77,6 +77,11 @@ msgid "%s tool(s) synced from the harness."
 msgstr "Đã đồng bộ %s công cụ từ harness."
 
 #. module: npei_agent_harness
+#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
+msgid "(this database)"
+msgstr "(cơ sở dữ liệu này)"
+
+#. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.res_config_settings_view_form_npei
 msgid "/mtilai2"
 msgstr "/mtilai2"
@@ -232,6 +237,11 @@ msgstr "Người dùng Agent"
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset_subagent__allow_bash
 msgid "Allow Bash"
 msgstr "Cho phép Bash"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_allow_write
+msgid "Allow Odoo Write"
+msgstr "Cho phép ghi Odoo"
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__allow_web
@@ -403,6 +413,13 @@ msgid "Close"
 msgstr "Đóng"
 
 #. module: npei_agent_harness
+#: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__odoo_allowed_models
+msgid ""
+"Comma-separated model allowlist, e.g. res.partner,account.move. Empty = everything the account may use."
+msgstr ""
+"Danh sách model cho phép, phân tách bằng dấu phẩy, ví dụ res.partner,account.move. Trống = mọi thứ tài khoản được dùng."
+
+#. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
 msgid "Composition"
 msgstr "Composition"
@@ -431,6 +448,11 @@ msgstr "Mô hình đã cấu hình"
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_provider_form
 msgid "Configured Models (override)"
 msgstr "Mô hình đã Cấu hình (ghi đè)"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_enable
+msgid "Connect to Odoo"
+msgstr "Kết nối với Odoo"
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/res_config_settings.py:0
@@ -550,6 +572,11 @@ msgstr "Thông tin xác thực"
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_route_template_form
 msgid "Cấu hình Hệ thống*"
 msgstr "Cấu hình Hệ thống*"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__odoo_db
+msgid "Database name; defaults to this database when left empty."
+msgstr "Tên cơ sở dữ liệu; để trống sẽ dùng chính cơ sở dữ liệu này."
 
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_authorize_provider_form
@@ -1033,6 +1060,11 @@ msgid "Locked*:"
 msgstr "Đã Khóa*:"
 
 #. module: npei_agent_harness
+#: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__odoo_user
+msgid "Login of the dedicated AI account for THIS preset."
+msgstr "Tên đăng nhập của tài khoản AI chuyên dụng cho CHÍNH preset này."
+
+#. module: npei_agent_harness
 #: model:ir.model.fields.selection,name:npei_agent_harness.selection__npei_authorize_provider__route_reasoning__low
 msgid "Low"
 msgstr "Thấp"
@@ -1127,6 +1159,13 @@ msgid "Models (optional)"
 msgstr "Mô hình (tùy chọn)"
 
 #. module: npei_agent_harness
+#: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__odoo_enable
+msgid ""
+"Mount a read (optionally write) Odoo XML-RPC toolset for this preset, under the dedicated Odoo account below. Each preset can use a different account; the account's access rights and record rules are the real boundary."
+msgstr ""
+"Gắn bộ công cụ Odoo XML-RPC đọc (tùy chọn ghi) cho preset này, dưới tài khoản Odoo chuyên dụng bên dưới. Mỗi preset có thể dùng một tài khoản khác nhau; quyền truy cập và record rule của tài khoản là ranh giới thật."
+
+#. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_credential_form
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_model_form
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
@@ -1198,9 +1237,51 @@ msgid "OPENROUTER_API_KEY"
 msgstr "OPENROUTER_API_KEY"
 
 #. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_user
+msgid "Odoo AI Account"
+msgstr "Tài khoản AI Odoo"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_api_key
+msgid "Odoo API Key / Password"
+msgstr "API Key / Mật khẩu Odoo"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_allowed_models
+msgid "Odoo Allowed Models"
+msgstr "Model Odoo được phép"
+
+#. module: npei_agent_harness
+#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
+msgid "Odoo Connection"
+msgstr "Kết nối Odoo"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_db
+msgid "Odoo Database"
+msgstr "Cơ sở dữ liệu Odoo"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_url
+msgid "Odoo URL"
+msgstr "URL Odoo"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__odoo_url
+msgid "Odoo base URL the harness reaches, e.g. https://mtil.mtil.vn."
+msgstr "URL gốc Odoo mà harness truy cập tới, ví dụ https://mtil.mtil.vn."
+
+#. module: npei_agent_harness
 #: model:ir.module.module,summary:npei_agent_harness.module_meta_information
 msgid "Odoo gateway and session ACL for the DeepSeek Harness backend"
 msgstr "Cổng Odoo và ACL phiên làm việc cho backend DeepSeek Harness"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__odoo_allow_write
+msgid ""
+"Offer odoo_create / odoo_write / odoo_unlink tools. Without it the preset gets read-only tools; either way the account's Odoo access rights still apply."
+msgstr ""
+"Cấp các tool odoo_create / odoo_write / odoo_unlink. Không bật thì preset chỉ có tool đọc; dù bật hay không, quyền truy cập Odoo của tài khoản vẫn được áp dụng."
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_discover_models__result_text
@@ -1453,6 +1534,12 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_session_search
 msgid "Preset"
 msgstr "Preset"
+
+#. module: npei_agent_harness
+#: code:addons/npei_agent_harness/models/npei_agent_preset.py:0
+#, python-format
+msgid "Preset %s connects to Odoo but %s is empty."
+msgstr "Preset %s kết nối Odoo nhưng %s đang trống."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_preset.py:0
@@ -2099,6 +2186,13 @@ msgid "Test Connection"
 msgstr "Kiểm tra kết nối"
 
 #. module: npei_agent_harness
+#: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__odoo_api_key
+msgid ""
+"That account's API key (Preferences > Account Security) or its password. Stored in Odoo and written into the preset composition on the harness — anyone who can read either sees it, so use a dedicated low-privilege account."
+msgstr ""
+"API key của tài khoản đó (Preferences > Account Security) hoặc mật khẩu. Được lưu trong Odoo và ghi vào composition của preset trên harness — ai đọc được một trong hai đều thấy, nên hãy dùng tài khoản chuyên dụng quyền thấp."
+
+#. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/harness_client.py:0
 msgid ""
 "The DeepSeek Harness connection is not configured. Set both the Base URL and the API Token under Settings > MTIL Agent."
@@ -2461,6 +2555,11 @@ msgid "Write-only; pushed to the harness on Save"
 msgstr "Chỉ ghi; được đẩy lên harness khi Lưu"
 
 #. module: npei_agent_harness
+#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
+msgid "ai-ketoan"
+msgstr "ai-ketoan"
+
+#. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_provider_route_template__thinking_format
 msgid ""
 "compat.thinkingFormat for the route's models; blank lets pi-ai guess from the base URL."
@@ -2498,6 +2597,11 @@ msgid "e.g. Hồ Sơ X"
 msgstr "ví dụ Hồ Sơ X"
 
 #. module: npei_agent_harness
+#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
+msgid "https://mtil.mtil.vn"
+msgstr "https://mtil.mtil.vn"
+
+#. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_provider_route_form
 msgid "https://openrouter.ai/api/v1"
 msgstr "https://openrouter.ai/api/v1"
@@ -2526,6 +2630,11 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_provider_route_form
 msgid "openrouter"
 msgstr "openrouter"
+
+#. module: npei_agent_harness
+#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
+msgid "res.partner,account.move"
+msgstr "res.partner,account.move"
 
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_credential_form

@@ -45,6 +45,24 @@ export interface AuthorPresetSubagent {
   readonly tools?: readonly string[]
 }
 
+/** Odoo connection an authored preset mounts (its own dedicated account). */
+export interface AuthorPresetOdoo {
+  /** Odoo base URL, e.g. `https://mtil.mtil.vn`. */
+  readonly url: string
+  /** Database name. */
+  readonly db: string
+  /** Login of the dedicated AI account. */
+  readonly user: string
+  /** That account's API key or password. */
+  readonly apiKey: string
+  /** Whether create/write/unlink tools are offered (Odoo rights still apply). */
+  readonly allowWrite?: boolean
+  /** Model allowlist (e.g. `res.partner`); absent = the account's own scope. */
+  readonly allowedModels?: readonly string[]
+  /** Per-call row cap; the server defaults to 200. */
+  readonly maxRows?: number
+}
+
 /** Request creating or rewriting one structured locally authored preset. */
 export interface AuthorPresetRequest {
   /** The preset id (directory name); an existing user preset is rewritten. */
@@ -63,6 +81,8 @@ export interface AuthorPresetRequest {
   readonly allowWeb?: boolean
   /** Router departments; required (non-empty) for `kind: 'router'`. */
   readonly subagents?: readonly AuthorPresetSubagent[]
+  /** Odoo connection this preset mounts; absent = no Odoo tools. */
+  readonly odoo?: AuthorPresetOdoo
 }
 
 /** One grantable tool as the authoring catalog lists it. */

@@ -31,6 +31,14 @@ A preset with no row has no Odoo tools at all.
 
 ## Preset row
 
+Two ways to get the row into a preset. The MTIL Odoo module's preset form
+has an **Odoo Connection** tab (URL, database, account, key, write switch,
+model allowlist) — saving the preset regenerates the composition with this
+row through `agentPresets/author`, which also resolves the server path
+host-side. Hand-written rows (below) suit presets managed outside Odoo; note
+a later authored save from Odoo regenerates the composition, so pick one
+management plane per preset.
+
 ```yaml
 - id: mcp-odoo
   name: '@deepseek-ai/dsh-mcp-client'

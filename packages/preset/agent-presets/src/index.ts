@@ -21,7 +21,10 @@
  * @module @deepseek-ai/dsh-agent-presets
  */
 
+import { existsSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
@@ -109,6 +112,26 @@ function validatePresetId(value: string, field: 'agentPreset' | 'from'): void {
   if (value.length === 0) {
     throw remotePresetFailure('bad-request', `${field} must be a non-empty string`, {})
   }
+}
+
+/**
+ * Locate `apps/odoo-mcp/server.mjs` by walking up from this module.
+ *
+ * Host-resolved so a remote author request can never name a script to run;
+ * works from `src/` (tsx source launch) and from built `lib/`, both of which
+ * live under the repository that also carries `apps/odoo-mcp`.
+ * @returns the absolute server script path.
+ * @throws a stable `bad-request` failure when the deployment lacks the script.
+ */
+function resolveOdooMcpServerPath(): string {
+  let dir = dirname(fileURLToPath(import.meta.url))
+  for (let depth = 0; depth < 8; depth += 1) {
+    const candidate = join(dir, 'apps', 'odoo-mcp', 'server.mjs')
+    if (existsSync(candidate)) return candidate
+    dir = dirname(dir)
+  }
+  throw remotePresetFailure('bad-request',
+    'this deployment does not ship apps/odoo-mcp/server.mjs; an Odoo connection cannot be authored', {})
 }
 
 /** Throw the stable preset failure or the caller's operation-specific fallback. */
@@ -376,6 +399,9 @@ export class AgentPresets extends TypertRemoteService {
       ...request.allowBash === undefined ? {} : { allowBash: request.allowBash },
       ...request.allowWeb === undefined ? {} : { allowWeb: request.allowWeb },
       ...request.subagents === undefined ? {} : { subagents: request.subagents },
+      ...request.odoo === undefined ? {} : {
+        odoo: { ...request.odoo, serverPath: resolveOdooMcpServerPath() },
+      },
     }
     try {
       validateAuthorSpec(spec)
