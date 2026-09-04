@@ -111,8 +111,9 @@ class NpeiAuthorizeProvider(models.TransientModel):
         if not self.flow_key:
             raise UserError(_("Choose a provider to sign in to."))
         client = self._client()
-        value = client._rpc('settings/beginAuthorization',
-                            {'key': self.flow_key, 'method': None})
+        # Omit method entirely (not null): the wire param is string|undefined
+        # and rejects a JSON null. The flow's first method is used.
+        value = client._rpc('settings/beginAuthorization', {'key': self.flow_key})
         self.attempt_id = (value or {}).get('attemptId') or False
         if not self.attempt_id:
             raise UserError(_("The harness did not start an authorization attempt."))
