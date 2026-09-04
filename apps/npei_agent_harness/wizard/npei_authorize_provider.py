@@ -69,8 +69,12 @@ class NpeiAuthorizeProvider(models.TransientModel):
                 'settings/listAuthorizations', {})
         except UserError:
             return []
+        # Only OAuth flows (browser sign-in): api-key-only providers are
+        # configured through the Models settings page instead, and offering
+        # them here would open a typed-key prompt this wizard is not for.
         return [(flow['key'], flow.get('label') or flow['key'])
-                for flow in (value or {}).get('flows') or []]
+                for flow in (value or {}).get('flows') or []
+                if any(m.get('id') == 'oauth' for m in flow.get('methods') or [])]
 
     def _check_manager(self):
         if not self.env.user.has_group(MANAGER_GROUP):
@@ -101,10 +105,23 @@ class NpeiAuthorizeProvider(models.TransientModel):
         while True:
             self._apply_poll(client._rpc('settings/pollAuthorization',
                                          {'attemptId': self.attempt_id}))
-            # Return as soon as there is something to act on: a prompt (the
-            # method picker, or a paste box), a sign-in URL/device code (the
-            # device-code path has no further prompt — the harness polls the
-            # token endpoint itself), or a settled outcome.
+            # A method picker offering Browser login is answered here without
+            # showing it: the browser path is this wizard's whole flow (open
+            # the URL, sign in, paste the redirect URL back).
+            if self.prompt_kind == 'select':
+                browser = self.option_ids.filtered(lambda o: o.option_id == 'browser')
+                if browser:
+                    delivered = client._rpc('settings/respondAuthorization', {
+                        'attemptId': self.attempt_id,
+                        'promptId': self.prompt_id,
+                        'answer': 'browser',
+                    })
+                    if delivered:
+                        self._clear_prompt()
+                        continue
+            # Return as soon as there is something to act on: a remaining
+            # prompt (the paste box, or a picker with no browser option), a
+            # sign-in URL, or a settled outcome.
             if self.prompt_id or self.auth_url or self.status in ('authorized', 'cancelled', 'failed'):
                 return
             if time.monotonic() >= deadline:
