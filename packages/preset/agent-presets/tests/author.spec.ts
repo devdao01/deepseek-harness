@@ -63,6 +63,24 @@ describe('authoring an Odoo connection', () => {
     expect(env.ODOO_MAX_ROWS).toBe('50')
   })
 
+  it('brands the server name and env with a custom tool prefix', () => {
+    const text = generateComposition(BASE, {
+      kind: 'standalone', persona: 'p', odoo: { ...ODOO, toolPrefix: 'erp' },
+    })
+
+    const config = odooRowOf(text)
+    expect(config.serverName).toBe('erp')
+    expect((config.env as Record<string, string>).ODOO_TOOL_PREFIX).toBe('erp')
+  })
+
+  it('emits no ODOO_TOOL_PREFIX for the default keyword', () => {
+    const text = generateComposition(BASE, { kind: 'standalone', persona: 'p', odoo: ODOO })
+
+    const config = odooRowOf(text)
+    expect(config.serverName).toBe('odoo')
+    expect((config.env as Record<string, string>).ODOO_TOOL_PREFIX).toBeUndefined()
+  })
+
   it('emits no mcp-odoo row without an odoo spec', () => {
     const text = generateComposition(BASE, { kind: 'standalone', persona: 'p' })
 
@@ -75,6 +93,7 @@ describe('authoring an Odoo connection', () => {
     ['an empty db', { ...ODOO, db: ' ' }, /non-empty/],
     ['a YAML-shaped model name', { ...ODOO, allowedModels: ["x'\ny"] }, /must match/],
     ['a zero row cap', { ...ODOO, maxRows: 0 }, /positive integer/],
+    ['a YAML-shaped tool prefix', { ...ODOO, toolPrefix: "e'\nrp" }, /must match/],
   ] as const)('refuses %s', (_label, odoo, message) => {
     expect(() => generateComposition(BASE, { kind: 'standalone', persona: 'p', odoo }))
       .toThrow(message)

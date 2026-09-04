@@ -115,6 +115,12 @@ class NpeiAgentPreset(models.Model):
              "it the preset gets read-only tools; either way the account's "
              "Odoo access rights still apply.",
     )
+    odoo_tool_prefix = fields.Char(
+        string='Odoo Tool Keyword', default='odoo',
+        help="Keyword branding the toolset for the model: it becomes the "
+             "server name and every tool's leading word (erp -> "
+             "mcp__erp__erp_search_read). Lowercase slug, max 24 chars.",
+    )
     odoo_allowed_models = fields.Char(
         string='Odoo Allowed Models',
         help="Comma-separated model allowlist, e.g. "
@@ -336,6 +342,9 @@ class NpeiAgentPreset(models.Model):
             }
             if self.odoo_allow_write:
                 odoo['allowWrite'] = True
+            prefix = (self.odoo_tool_prefix or '').strip()
+            if prefix and prefix != 'odoo':
+                odoo['toolPrefix'] = prefix
             models_csv = (self.odoo_allowed_models or '').strip()
             if models_csv:
                 odoo['allowedModels'] = [
@@ -410,7 +419,7 @@ class NpeiAgentPreset(models.Model):
         client = self.env['npei.agent.harness.client'].sudo()
         author_fields = {'kind', 'persona', 'allow_bash', 'allow_web', 'subagent_ids', 'name', 'description',
                          'odoo_enable', 'odoo_url', 'odoo_db', 'odoo_user', 'odoo_api_key',
-                         'odoo_allow_write', 'odoo_allowed_models'}
+                         'odoo_allow_write', 'odoo_allowed_models', 'odoo_tool_prefix'}
         structured = self.filtered(lambda r: r.kind in ('standalone', 'router'))
         if structured and author_fields.intersection(vals):
             structured._push_author()

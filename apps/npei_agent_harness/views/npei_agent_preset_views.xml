@@ -81,6 +81,7 @@
                                            invisible="not odoo_enable" required="odoo_enable"/>
                                 </group>
                                 <group invisible="not odoo_enable">
+                                    <field name="odoo_tool_prefix" readonly="is_locked"/>
                                     <field name="odoo_allow_write" readonly="is_locked"/>
                                     <field name="odoo_allowed_models" readonly="is_locked"
                                            placeholder="res.partner,account.move"/>

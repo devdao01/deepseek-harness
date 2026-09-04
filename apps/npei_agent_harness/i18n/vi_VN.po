@@ -942,6 +942,13 @@ msgid "Human-readable provider name from ``llm/listConfigurableProviders``."
 msgstr "Tên nhà cung cấp dễ đọc từ ``llm/listConfigurableProviders``."
 
 #. module: npei_agent_harness
+#: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__odoo_tool_prefix
+msgid ""
+"Keyword branding the toolset for the model: it becomes the server name and every tool's leading word (erp -> mcp__erp__erp_search_read). Lowercase slug, max 24 chars."
+msgstr ""
+"Từ khóa đặt tên bộ công cụ đối với model: nó trở thành tên server và từ đứng đầu tên mọi tool (erp -> mcp__erp__erp_search_read). Slug chữ thường, tối đa 24 ký tự."
+
+#. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_credential_form
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_model_form
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
@@ -1255,6 +1262,11 @@ msgstr "Kết nối Odoo"
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_db
 msgid "Odoo Database"
 msgstr "Cơ sở dữ liệu Odoo"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_tool_prefix
+msgid "Odoo Tool Keyword"
+msgstr "Từ khóa Tool Odoo"
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_url

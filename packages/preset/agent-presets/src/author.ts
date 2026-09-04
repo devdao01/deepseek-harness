@@ -54,6 +54,12 @@ export interface AuthorOdooSpec {
   /** Per-call row cap; the server defaults to 200. */
   readonly maxRows?: number
   /**
+   * Keyword branding the toolset: it becomes both the MCP server name and
+   * every tool's leading word (`erp` -> `mcp__erp__erp_search_read`).
+   * Defaults to `odoo`.
+   */
+  readonly toolPrefix?: string
+  /**
    * Absolute path of the odoo-mcp server script. Host-resolved by the
    * authoring plugin, NEVER taken from a remote request — a caller-supplied
    * path would let the management plane execute an arbitrary script.
@@ -89,6 +95,9 @@ const SUBAGENT_TOOL_NAME = /^[a-z0-9][a-z0-9_-]*$/
 
 /** An Odoo model name (`res.partner`); anything else is refused. */
 const ODOO_MODEL_NAME = /^[a-z0-9_.]+$/
+
+/** A tool-prefix keyword: MCP server-name charset, kept short. */
+const ODOO_TOOL_PREFIX = /^[a-z0-9][a-z0-9_-]{0,23}$/
 
 /** A granted tool name is a plain tool identifier, never YAML structure. */
 const GRANTED_TOOL_NAME = /^[a-zA-Z0-9_-]+$/
@@ -167,15 +176,17 @@ function yamlQuote(value: string): string {
 
 /** The generated `mcp-odoo` row mounting this preset's Odoo connection. */
 function odooRow(odoo: AuthorOdooSpec): string[] {
+  const prefix = odoo.toolPrefix ?? 'odoo'
   return [
     '- id: mcp-odoo',
     "  name: '@deepseek-ai/dsh-mcp-client'",
     '  config:',
-    '    serverName: odoo',
+    `    serverName: ${prefix}`,
     '    transport: stdio',
     '    command: node',
     `    args: [${yamlQuote(odoo.serverPath)}]`,
     '    env:',
+    ...prefix === 'odoo' ? [] : [`      ODOO_TOOL_PREFIX: ${yamlQuote(prefix)}`],
     `      ODOO_URL: ${yamlQuote(odoo.url)}`,
     `      ODOO_DB: ${yamlQuote(odoo.db)}`,
     `      ODOO_USER: ${yamlQuote(odoo.user)}`,
@@ -212,6 +223,9 @@ function validateOdooSpec(odoo: AuthorOdooSpec): void {
   }
   if (odoo.maxRows !== undefined && (!Number.isInteger(odoo.maxRows) || odoo.maxRows < 1)) {
     throw new Error('odoo.maxRows must be a positive integer')
+  }
+  if (odoo.toolPrefix !== undefined && !ODOO_TOOL_PREFIX.test(odoo.toolPrefix)) {
+    throw new Error(`odoo.toolPrefix ${JSON.stringify(odoo.toolPrefix)} must match ${String(ODOO_TOOL_PREFIX)}`)
   }
 }
 

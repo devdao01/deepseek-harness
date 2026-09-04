@@ -61,6 +61,8 @@ export interface AuthorPresetOdoo {
   readonly allowedModels?: readonly string[]
   /** Per-call row cap; the server defaults to 200. */
   readonly maxRows?: number
+  /** Tool keyword (`erp` -> `mcp__erp__erp_search_read`); default `odoo`. */
+  readonly toolPrefix?: string
 }
 
 /** Request creating or rewriting one structured locally authored preset. */

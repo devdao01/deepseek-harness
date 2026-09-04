@@ -34,6 +34,12 @@ import { createInterface } from 'node:readline'
 
 const PROTOCOL_VERSION = '2024-11-05'
 const ALLOW_WRITE = ['1', 'true', 'yes'].includes((process.env.ODOO_ALLOW_WRITE ?? '').toLowerCase())
+// The keyword every tool name starts with (odoo_search_read -> erp_search_read
+// under ODOO_TOOL_PREFIX=erp), so a deployment can brand the toolset.
+const TOOL_PREFIX = process.env.ODOO_TOOL_PREFIX ?? 'odoo'
+if (!/^[a-z0-9][a-z0-9_-]{0,23}$/.test(TOOL_PREFIX)) {
+  throw new Error(`odoo-mcp: ODOO_TOOL_PREFIX ${JSON.stringify(TOOL_PREFIX)} must be a short lowercase slug`)
+}
 const MAX_ROWS = Math.max(1, Number(process.env.ODOO_MAX_ROWS ?? '200') || 200)
 const ALLOWED_MODELS = (process.env.ODOO_ALLOWED_MODELS ?? '')
   .split(',').map(name => name.trim()).filter(name => name.length > 0)
@@ -250,7 +256,7 @@ async function execute(model, method, args, kwargs) {
 
 const TOOLS = [
   {
-    name: 'odoo_search_read',
+    name: `${TOOL_PREFIX}_search_read`,
     description: 'Search Odoo records and read their fields in one call (read-only). '
       + 'Domain is Odoo domain syntax, e.g. [["state","=","sale"],["amount_total",">",1000]].',
     inputSchema: {
@@ -278,7 +284,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'odoo_read',
+    name: `${TOOL_PREFIX}_read`,
     description: 'Read named fields of Odoo records by id (read-only).',
     inputSchema: {
       type: 'object',
@@ -297,7 +303,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'odoo_search_count',
+    name: `${TOOL_PREFIX}_search_count`,
     description: 'Count Odoo records matching a domain (read-only).',
     inputSchema: {
       type: 'object',
@@ -313,7 +319,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'odoo_fields_get',
+    name: `${TOOL_PREFIX}_fields_get`,
     description: 'Describe a model\'s fields (name, type, label, relation) so a query can be written correctly.',
     inputSchema: {
       type: 'object',
@@ -337,9 +343,9 @@ const TOOLS = [
 /** The write tools, listed and callable only under ODOO_ALLOW_WRITE. */
 const WRITE_TOOLS = [
   {
-    name: 'odoo_create',
+    name: `${TOOL_PREFIX}_create`,
     description: 'Create one Odoo record and return its id. Relational fields take ids '
-      + '(many2one: the id; many2many: [[6,0,[ids]]]). Check odoo_fields_get for required fields first.',
+      + `(many2one: the id; many2many: [[6,0,[ids]]]). Check ${TOOL_PREFIX}_fields_get for required fields first.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -357,7 +363,7 @@ const WRITE_TOOLS = [
     },
   },
   {
-    name: 'odoo_write',
+    name: `${TOOL_PREFIX}_write`,
     description: 'Update named fields on existing Odoo records by id. Returns true on success.',
     inputSchema: {
       type: 'object',
@@ -378,9 +384,9 @@ const WRITE_TOOLS = [
     },
   },
   {
-    name: 'odoo_unlink',
+    name: `${TOOL_PREFIX}_unlink`,
     description: 'Delete Odoo records by id. Irreversible; returns true on success. '
-      + 'Prefer archiving (odoo_write with {"active": false}) when the model has an active field.',
+      + `Prefer archiving (${TOOL_PREFIX}_write with {"active": false}) when the model has an active field.`,
     inputSchema: {
       type: 'object',
       properties: {
