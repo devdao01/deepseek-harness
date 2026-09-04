@@ -136,12 +136,25 @@ class TestPresetAuthoring(TransactionCase):
         pushes = self._calls_for('agentPresets/author')
         self.assertNotIn('odoo', pushes[-1]['request'])
 
+    def test_odoo_url_and_db_prefill(self):
+        self.env['ir.config_parameter'].sudo().set_param(
+            'web.base.url', 'https://mtil.mtil.vn')
+        record = self.Preset.create({
+            'name': 'Mặc Định', 'kind': 'standalone', 'persona': 'p',
+            'odoo_enable': True, 'odoo_user': 'ai', 'odoo_api_key': 'k',
+        })
+        self.assertEqual(record.odoo_url, 'https://mtil.mtil.vn')
+        self.assertEqual(record.odoo_db, self.env.cr.dbname)
+        odoo = self._calls_for('agentPresets/author')[-1]['request']['odoo']
+        self.assertEqual(odoo['url'], 'https://mtil.mtil.vn')
+
     def test_odoo_connection_requires_account_fields(self):
         with self.assertRaises(UserError):
             self.Preset.create({
                 'name': 'Thiếu Key', 'kind': 'standalone',
                 'persona': 'p', 'odoo_enable': True,
                 'odoo_url': 'https://mtil.mtil.vn', 'odoo_user': 'ai',
+                'odoo_api_key': False,
             })
 
     def test_structured_standalone_authors_and_reauthors(self):

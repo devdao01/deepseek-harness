@@ -77,11 +77,6 @@ msgid "%s tool(s) synced from the harness."
 msgstr "Đã đồng bộ %s công cụ từ harness."
 
 #. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
-msgid "(this database)"
-msgstr "(cơ sở dữ liệu này)"
-
-#. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.res_config_settings_view_form_npei
 msgid "/mtilai2"
 msgstr "/mtilai2"
@@ -575,8 +570,8 @@ msgstr "Cấu hình Hệ thống*"
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__odoo_db
-msgid "Database name; defaults to this database when left empty."
-msgstr "Tên cơ sở dữ liệu; để trống sẽ dùng chính cơ sở dữ liệu này."
+msgid "Database name; prefilled with this database."
+msgstr "Tên cơ sở dữ liệu; được điền sẵn bằng chính cơ sở dữ liệu này."
 
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_authorize_provider_form
@@ -1268,8 +1263,10 @@ msgstr "URL Odoo"
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__odoo_url
-msgid "Odoo base URL the harness reaches, e.g. https://mtil.mtil.vn."
-msgstr "URL gốc Odoo mà harness truy cập tới, ví dụ https://mtil.mtil.vn."
+msgid ""
+"Odoo base URL the harness reaches; prefilled with this instance's web.base.url."
+msgstr ""
+"URL gốc Odoo mà harness truy cập tới; được điền sẵn bằng web.base.url của hệ thống này."
 
 #. module: npei_agent_harness
 #: model:ir.module.module,summary:npei_agent_harness.module_meta_information
@@ -2555,11 +2552,6 @@ msgid "Write-only; pushed to the harness on Save"
 msgstr "Chỉ ghi; được đẩy lên harness khi Lưu"
 
 #. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
-msgid "ai-ketoan"
-msgstr "ai-ketoan"
-
-#. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_provider_route_template__thinking_format
 msgid ""
 "compat.thinkingFormat for the route's models; blank lets pi-ai guess from the base URL."
@@ -2595,11 +2587,6 @@ msgstr "ví dụ DEEPSEEK_API_KEY"
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
 msgid "e.g. Hồ Sơ X"
 msgstr "ví dụ Hồ Sơ X"
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
-msgid "https://mtil.mtil.vn"
-msgstr "https://mtil.mtil.vn"
 
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_provider_route_form

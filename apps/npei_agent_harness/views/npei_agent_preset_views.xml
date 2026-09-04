@@ -72,14 +72,11 @@
                                 <group>
                                     <field name="odoo_enable" readonly="is_locked"/>
                                     <field name="odoo_url" readonly="is_locked"
-                                           invisible="not odoo_enable" required="odoo_enable"
-                                           placeholder="https://mtil.mtil.vn"/>
+                                           invisible="not odoo_enable" required="odoo_enable"/>
                                     <field name="odoo_db" readonly="is_locked"
-                                           invisible="not odoo_enable"
-                                           placeholder="(this database)"/>
+                                           invisible="not odoo_enable"/>
                                     <field name="odoo_user" readonly="is_locked"
-                                           invisible="not odoo_enable" required="odoo_enable"
-                                           placeholder="ai-ketoan"/>
+                                           invisible="not odoo_enable" required="odoo_enable"/>
                                     <field name="odoo_api_key" password="True" readonly="is_locked"
                                            invisible="not odoo_enable" required="odoo_enable"/>
                                 </group>

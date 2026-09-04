@@ -90,12 +90,13 @@ class NpeiAgentPreset(models.Model):
              "record rules are the real boundary.",
     )
     odoo_url = fields.Char(
-        string='Odoo URL',
-        help="Odoo base URL the harness reaches, e.g. https://mtil.mtil.vn.",
+        string='Odoo URL', default=lambda self: self._default_odoo_url(),
+        help="Odoo base URL the harness reaches; prefilled with this "
+             "instance's web.base.url.",
     )
     odoo_db = fields.Char(
-        string='Odoo Database',
-        help="Database name; defaults to this database when left empty.",
+        string='Odoo Database', default=lambda self: self.env.cr.dbname,
+        help="Database name; prefilled with this database.",
     )
     odoo_user = fields.Char(
         string='Odoo AI Account',
@@ -211,6 +212,20 @@ class NpeiAgentPreset(models.Model):
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
                 _("Only NPEI Agent Managers can sync presets from the harness."))
+
+    @api.model
+    def _default_odoo_url(self):
+        """This instance's public URL, for the Odoo connection tab."""
+        return (self.env['ir.config_parameter'].sudo()
+                .get_param('web.base.url') or '').strip()
+
+    @api.onchange('odoo_enable')
+    def _onchange_odoo_enable(self):
+        """Prefill the connection for records created before these defaults."""
+        for record in self:
+            if record.odoo_enable:
+                record.odoo_url = record.odoo_url or self._default_odoo_url()
+                record.odoo_db = record.odoo_db or self.env.cr.dbname
 
     # ------------------------------------------------------------------
     # Authoring (create a preset on the harness)
