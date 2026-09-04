@@ -63,6 +63,8 @@ const SETTLED_RETENTION_MS = 60_000
  */
 export class AuthorizationBridge {
   private readonly attempts = new Map<string, Attempt>()
+  /** The latest attempt id per credential key, for takeover on re-begin. */
+  private readonly byKey = new Map<string, string>()
 
   constructor(private readonly ctx: Context) {}
 
@@ -91,10 +93,17 @@ export class AuthorizationBridge {
       throw new Error('this deployment mounts no authorization seam')
     }
     this.reap()
+    // One attempt per key, and the LATEST caller wins: a wizard closed
+    // mid-flow leaves its attempt running on the seam, and without takeover
+    // every later sign-in would settle failed with ALREADY_IN_FLIGHT.
+    const previous = this.byKey.get(key)
+    if (previous !== undefined) this.cancel(previous)
+    authorization.cancel(key as CredentialKey)
     const attemptId = randomUUID()
     const controller = new AbortController()
     const attempt: Attempt = { key: key as CredentialKey, controller, notices: [], pending: undefined }
     this.attempts.set(attemptId, attempt)
+    this.byKey.set(key, attemptId)
 
     const interaction: AuthorizationInteraction = {
       notify: (notice: AuthorizationNotice) => { attempt.notices.push(notice) },
@@ -106,17 +115,32 @@ export class AuthorizationBridge {
       }),
     }
 
-    void authorization.begin({
-      key: key as CredentialKey,
-      ...method === undefined ? {} : { method },
-      interaction,
-      signal: controller.signal,
-    }).then(
-      (outcome) => { this.settle(attempt, outcome.status) },
-      (error: unknown) => {
-        this.settle(attempt, 'failed', error instanceof Error ? error.message : String(error))
-      },
-    )
+    const start = async (): Promise<void> => {
+      // The cancelled predecessor leaves the seam's running slot
+      // asynchronously; retry briefly instead of failing the takeover.
+      for (let tries = 0; ; tries += 1) {
+        try {
+          const outcome = await authorization.begin({
+            key: key as CredentialKey,
+            ...method === undefined ? {} : { method },
+            interaction,
+            signal: controller.signal,
+          })
+          this.settle(attempt, outcome.status)
+          return
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error)
+          if (tries < 10 && !controller.signal.aborted && message.includes('already running')) {
+            authorization.cancel(key as CredentialKey)
+            await new Promise(resolve => setTimeout(resolve, 200))
+            continue
+          }
+          this.settle(attempt, 'failed', message)
+          return
+        }
+      }
+    }
+    void start()
     return attemptId
   }
 

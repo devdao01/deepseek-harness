@@ -38,12 +38,13 @@ class NpeiAuthorizeProvider(models.TransientModel):
     device_code = fields.Char(string='Device Code', readonly=True, copy=False)
     prompt_kind = fields.Char(readonly=True, copy=False)
     prompt_message = fields.Char(readonly=True, copy=False)
-    prompt_options_json = fields.Char(readonly=True, copy=False)
-    answer_option = fields.Selection(
-        selection='_answer_option_selection', string='Choice',
-        help="For a provider that first asks how to sign in (e.g. Browser vs "
-             "Device code). Device code suits Odoo: open the URL, enter the "
-             "code — no localhost callback needed.",
+    option_ids = fields.One2many(
+        'npei.authorize.provider.option', 'wizard_ref',
+        string='Options', readonly=True,
+        help="Choices of the pending select prompt (e.g. Browser vs Device "
+             "code); picking one answers the flow immediately. Device code "
+             "suits Odoo: open the URL, enter the code — no localhost "
+             "callback needed.",
     )
     answer = fields.Char(
         string='Authorization Code / Redirect URL',
@@ -59,22 +60,6 @@ class NpeiAuthorizeProvider(models.TransientModel):
     )
     log_text = fields.Text(string='Progress', readonly=True, copy=False)
     route_declared = fields.Boolean(readonly=True, copy=False)
-
-    @api.model
-    def _answer_option_selection(self):
-        """Options of the pending select prompt (empty for a text prompt)."""
-        import json
-        raw = self.env.context.get('default_prompt_options_json')
-        # For an existing record the field is read off the record, not context.
-        record = self.browse(self.env.context.get('active_id')) if self.env.context.get('active_id') else self
-        raw = (record.prompt_options_json if record else None) or raw
-        if not raw:
-            return []
-        try:
-            options = json.loads(raw)
-        except (TypeError, ValueError):
-            return []
-        return [(o['id'], o.get('label') or o['id']) for o in options if o.get('id')]
 
     @api.model
     def _flow_selection(self):
@@ -140,13 +125,15 @@ class NpeiAuthorizeProvider(models.TransientModel):
         self.log_text = '\n'.join(lines[-50:])
         prompt = (state or {}).get('prompt')
         if prompt:
-            import json
             self.prompt_id = prompt.get('id') or False
             self.prompt_kind = prompt.get('kind') or False
             self.prompt_message = prompt.get('message') or False
-            options = prompt.get('options') or []
-            self.prompt_options_json = json.dumps(options) if options else False
-            self.answer_option = False
+            self.option_ids.unlink()
+            self.option_ids = [(0, 0, {
+                'option_id': option['id'],
+                'name': option.get('label') or option['id'],
+                'description': option.get('description') or False,
+            }) for option in prompt.get('options') or [] if option.get('id')]
         settled = (state or {}).get('settled')
         if settled:
             self.status = settled.get('status') or 'failed'
@@ -192,14 +179,9 @@ class NpeiAuthorizeProvider(models.TransientModel):
         self._check_manager()
         if not self.attempt_id or not self.prompt_id:
             raise UserError(_("There is no pending prompt to answer yet; Refresh first."))
-        if self.prompt_kind == 'select':
-            reply = self.answer_option
-            if not reply:
-                raise UserError(_("Choose an option to continue."))
-        else:
-            reply = (self.answer or '').strip()
-            if not reply:
-                raise UserError(_("Paste the authorization code or redirect URL first."))
+        reply = (self.answer or '').strip()
+        if not reply:
+            raise UserError(_("Paste the authorization code or redirect URL first."))
         client = self._client()
         delivered = client._rpc('settings/respondAuthorization', {
             'attemptId': self.attempt_id,
@@ -208,11 +190,7 @@ class NpeiAuthorizeProvider(models.TransientModel):
         })
         if not delivered:
             raise UserError(_("The prompt expired; Refresh and try again."))
-        self.answer = False
-        self.answer_option = False
-        self.prompt_id = False
-        self.prompt_kind = False
-        self.prompt_options_json = False
+        self._clear_prompt()
         self._poll_budget(client)
         return self._reopen()
 
@@ -254,6 +232,31 @@ class NpeiAuthorizeProvider(models.TransientModel):
                                    + [_("Route '%s' declared; its models are now available.") % provider_id])
         return self._reopen()
 
+    def _clear_prompt(self):
+        self.answer = False
+        self.prompt_id = False
+        self.prompt_kind = False
+        self.prompt_message = False
+        self.option_ids.unlink()
+
+    def _respond_option(self, option_id):
+        """Answer the pending select prompt with one option id."""
+        self.ensure_one()
+        self._check_manager()
+        if not self.attempt_id or not self.prompt_id:
+            raise UserError(_("There is no pending prompt to answer yet; Refresh first."))
+        client = self._client()
+        delivered = client._rpc('settings/respondAuthorization', {
+            'attemptId': self.attempt_id,
+            'promptId': self.prompt_id,
+            'answer': option_id,
+        })
+        if not delivered:
+            raise UserError(_("The prompt expired; Refresh and try again."))
+        self._clear_prompt()
+        self._poll_budget(client)
+        return self._reopen()
+
     def action_cancel_attempt(self):
         """Withdraw the running attempt."""
         self.ensure_one()
@@ -263,3 +266,21 @@ class NpeiAuthorizeProvider(models.TransientModel):
                                 {'attemptId': self.attempt_id})
             self.status = 'cancelled'
         return self._reopen()
+
+
+class NpeiAuthorizeProviderOption(models.TransientModel):
+    """One choice of the wizard's pending select prompt."""
+
+    _name = 'npei.authorize.provider.option'
+    _description = 'DeepSeek Harness Sign-in Choice'
+
+    wizard_ref = fields.Many2one(
+        'npei.authorize.provider', required=True, ondelete='cascade')
+    option_id = fields.Char(required=True)
+    name = fields.Char(string='Option', readonly=True)
+    description = fields.Char(readonly=True)
+
+    def action_pick(self):
+        """Answer the pending prompt with this option."""
+        self.ensure_one()
+        return self.wizard_ref._respond_option(self.option_id)

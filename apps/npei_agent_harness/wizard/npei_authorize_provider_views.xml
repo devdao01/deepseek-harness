@@ -17,9 +17,14 @@
                         <field name="prompt_message" readonly="1" invisible="not prompt_message"/>
                     </group>
                     <group string="Choose sign-in method" invisible="prompt_kind != 'select'">
-                        <field name="prompt_message" readonly="1" nolabel="1"
-                               invisible="not prompt_message"/>
-                        <field name="answer_option" widget="radio"/>
+                        <field name="option_ids" nolabel="1" readonly="0">
+                            <tree create="false" delete="false" editable="bottom">
+                                <field name="name"/>
+                                <field name="description" optional="show"/>
+                                <button name="action_pick" type="object" string="Choose"
+                                        class="btn-primary"/>
+                            </tree>
+                        </field>
                     </group>
                     <group invisible="prompt_kind not in ('text', 'secret')">
                         <field name="answer" password="True"
@@ -29,7 +34,6 @@
                     <field name="attempt_id" invisible="1"/>
                     <field name="prompt_id" invisible="1"/>
                     <field name="prompt_kind" invisible="1"/>
-                    <field name="prompt_options_json" invisible="1"/>
                     <field name="route_declared" invisible="1"/>
                 </sheet>
                 <footer>

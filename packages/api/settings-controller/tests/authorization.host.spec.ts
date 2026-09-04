@@ -113,6 +113,22 @@ describe('AuthorizationBridge', () => {
     expect(settled.settled?.status).toBe('cancelled')
   })
 
+  it('takes over a running attempt for the same key (wizard reopened)', async () => {
+    const { ctx, bridge } = await boot()
+    ctx.authorization.registerFlow(chatgptLikeFlow(ctx))
+    const first = bridge.begin('llm-pi-ai:openai-codex', undefined)
+    await pollUntil(bridge, first, s => s.prompt !== undefined)
+
+    // A second begin (the reopened wizard) cancels the first and proceeds.
+    const second = bridge.begin('llm-pi-ai:openai-codex', undefined)
+    const firstSettled = await pollUntil(bridge, first, s => s.settled !== undefined)
+    expect(firstSettled.settled?.status).toBe('cancelled')
+    const withPrompt = await pollUntil(bridge, second, s => s.prompt !== undefined)
+    bridge.respond(second, withPrompt.prompt?.id as string, 'the-code')
+    const settled = await pollUntil(bridge, second, s => s.settled !== undefined)
+    expect(settled.settled?.status).toBe('authorized')
+  })
+
   it('answers an unknown attempt as failed so a poller stops', () => {
     const ctx = new Context()
     const bridge = new AuthorizationBridge(ctx)

@@ -24,3 +24,4 @@ access_npei_agent_provider_route_template_manager,npei.agent.provider.route.temp
 access_npei_agent_tool_user,npei.agent.tool user,model_npei_agent_tool,npei_agent_harness.group_npei_agent_user,1,0,0,0
 access_npei_agent_tool_manager,npei.agent.tool manager,model_npei_agent_tool,npei_agent_harness.group_npei_agent_manager,1,1,1,1
 access_npei_authorize_provider_manager,npei.authorize.provider manager,model_npei_authorize_provider,npei_agent_harness.group_npei_agent_manager,1,1,1,1
+access_npei_authorize_provider_option_manager,npei.authorize.provider.option manager,model_npei_authorize_provider_option,npei_agent_harness.group_npei_agent_manager,1,1,1,1
