@@ -1,0 +1,65 @@
+# odoo-mcp — read-only Odoo access for harness agents
+
+An MCP stdio server giving one agent preset read access to Odoo over XML-RPC,
+under **one dedicated Odoo account per preset**. Mount it as a row in that
+preset's `agent.cordis.yml`; the harness bridges its tools as
+`mcp__odoo__odoo_search_read`, `…_read`, `…_search_count`, `…_fields_get`.
+
+Dependency-free: `node apps/odoo-mcp/server.mjs`, nothing to install.
+
+## Why per preset
+
+`dsh-mcp-client` is mounted by a composition, and each preset is its own
+composition — so the account is a property of the preset. Two presets mount
+two rows with different `env`, and each agent sees only its own Odoo account.
+A preset with no row has no Odoo tools at all.
+
+## Odoo side
+
+1. Create a dedicated user (e.g. `ai-ketoan`), give it **read-only** groups and
+   record rules — the server never calls a write method, but Odoo's own access
+   rights are the real boundary.
+2. Generate an API key for that user (Preferences → Account Security → New API
+   Key) and use it as `ODOO_API_KEY`.
+3. Repeat per preset that needs different visibility.
+
+## Preset row
+
+```yaml
+- id: mcp-odoo
+  name: '@deepseek-ai/dsh-mcp-client'
+  config:
+    serverName: odoo
+    transport: stdio
+    command: node
+    args: ['/home/mit/deepseek-harness/apps/odoo-mcp/server.mjs']
+    env:
+      ODOO_URL: 'https://mtil.mtil.vn'
+      ODOO_DB: 'mtil'
+      ODOO_USER: 'ai-ketoan'
+      # Keep the key out of the composition file: name an environment
+      # variable the harness process already carries (systemd unit, .env).
+      ODOO_API_KEY: !!js process.env.ODOO_KEY_KETOAN ?? ''
+      ODOO_ALLOWED_MODELS: 'res.partner,account.move,account.move.line'
+      ODOO_MAX_ROWS: '200'
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `ODOO_URL` | required | Odoo base URL |
+| `ODOO_DB` | required | database name |
+| `ODOO_USER` | required | login of the AI account |
+| `ODOO_API_KEY` | required | that account's API key (or password) |
+| `ODOO_ALLOWED_MODELS` | every readable model | comma-separated allowlist, refused before any call |
+| `ODOO_MAX_ROWS` | `200` | hard cap per call; a larger `limit` is clamped |
+
+## What the agent can and cannot do
+
+Only four Odoo methods are reachable — `search_read`, `read`, `search_count`,
+`fields_get`. `create`, `write`, `unlink`, and arbitrary model methods are not
+implemented, so no prompt can reach them through this server. Odoo access
+rights and record rules still apply on top, per account.
+
+A tool failure (Odoo `AccessError`, a model outside the allowlist, bad
+credentials) is returned to the model as an error message it can act on, not
+as a transport failure.
