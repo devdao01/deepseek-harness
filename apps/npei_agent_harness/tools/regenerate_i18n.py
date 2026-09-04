@@ -52,6 +52,15 @@ def add(msgid, ref, flag=None):
 def model_slug(name):
     return name.replace('.', '_')
 
+# Base's own labels for the automatic log-access fields; translating them
+# under this module's field records renames them for these models only.
+LOG_ACCESS_LABELS = {
+    'create_uid': 'Created by',
+    'write_uid': 'Last Updated by',
+    'create_date': 'Created on',
+    'write_date': 'Last Updated on',
+}
+
 # ---- python: models, wizards ----------------------------------------------
 def const_str(node):
     return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
@@ -81,13 +90,20 @@ for dirpath, _dirs, files in os.walk(ROOT):
 
         for cls in [n for n in tree.body if isinstance(n, ast.ClassDef)]:
             model_name = None
+            own_name = False
             description = None
             constraints = None
+            # models.Model / models.TransientModel own a table (and therefore
+            # the log-access fields); models.AbstractModel does not.
+            stored = any(isinstance(base, ast.Attribute)
+                         and base.attr in ('Model', 'TransientModel')
+                         for base in cls.bases)
             for stmt in cls.body:
                 if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
                     key = stmt.targets[0].id
                     if key == '_name':
                         model_name = const_str(stmt.value)
+                        own_name = model_name is not None
                     elif key == '_inherit' and model_name is None:
                         # An extension model (res.config.settings) translates
                         # its added fields under the inherited model's name.
@@ -101,6 +117,16 @@ for dirpath, _dirs, files in os.walk(ROOT):
             slug = model_slug(model_name)
             if description:
                 add(description, f'model:ir.model,name:{MOD}.model_{slug}')
+            # Log-access fields come from base but carry a per-model
+            # ir.model.fields record here, so this module can relabel them
+            # for its own models instead of hardcoding `string=` in views.
+            if own_name and stored:
+                # An inherited model's records belong to the module that
+                # declares them, so only this module's own stored models get
+                # relabelled log-access fields.
+                for log_field, source_label in LOG_ACCESS_LABELS.items():
+                    add(source_label,
+                        f'model:ir.model.fields,field_description:{MOD}.field_{slug}__{log_field}')
             if isinstance(constraints, ast.List):
                 for item in constraints.elts:
                     if isinstance(item, ast.Tuple) and len(item.elts) == 3:

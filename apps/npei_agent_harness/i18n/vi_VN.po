@@ -459,6 +459,46 @@ msgid "Copy of default"
 msgstr "Bản sao của mặc định"
 
 #. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_credential__create_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_discover_models__create_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_host_status__create_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_model__create_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__create_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset_subagent__create_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider__create_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider_model__create_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider_route__create_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider_route_template__create_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_session__create_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_setting__create_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_skill__create_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_tool__create_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_authorize_provider__create_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_authorize_provider_option__create_uid
+msgid "Created by"
+msgstr "Người dùng Khởi tạo Dữ liệu*:"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_credential__create_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_discover_models__create_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_host_status__create_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_model__create_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__create_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset_subagent__create_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider__create_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider_model__create_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider_route__create_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider_route_template__create_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_session__create_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_setting__create_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_skill__create_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_tool__create_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_authorize_provider__create_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_authorize_provider_option__create_date
+msgid "Created on"
+msgstr "Thời gian Khởi tạo Dữ liệu*:"
+
+#. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_session_search
 msgid "Creator"
 msgstr "Người tạo"
@@ -909,6 +949,46 @@ msgid "Kind"
 msgstr "Loại"
 
 #. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_credential__write_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_discover_models__write_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_host_status__write_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_model__write_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__write_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset_subagent__write_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider__write_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider_model__write_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider_route__write_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider_route_template__write_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_session__write_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_setting__write_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_skill__write_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_tool__write_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_authorize_provider__write_uid
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_authorize_provider_option__write_uid
+msgid "Last Updated by"
+msgstr "Người dùng Cập nhật Dữ liệu Lần cuối*:"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_credential__write_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_discover_models__write_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_host_status__write_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_model__write_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__write_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset_subagent__write_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider__write_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider_model__write_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider_route__write_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider_route_template__write_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_session__write_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_setting__write_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_skill__write_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_tool__write_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_authorize_provider__write_date
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_authorize_provider_option__write_date
+msgid "Last Updated on"
+msgstr "Thời gian Cập nhật Dữ liệu Lần cuối*:"
+
+#. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_session__harness_updated_at
 msgid "Last activity timestamp reported by the harness sync."
 msgstr "Dấu thời gian hoạt động cuối cùng được báo cáo bởi lần đồng bộ harness."
@@ -1068,6 +1148,7 @@ msgstr "NPEI Agent Harness"
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__name
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider_model__name
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider_route_template__name
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_session__name
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_skill__name
 msgid "Name*:"
 msgstr "Tiêu đề*:"
@@ -1088,30 +1169,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_credential__value
 msgid "New Value"
 msgstr "Giá trị mới"
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_credential_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_model_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_provider_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_session_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_setting_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_skill_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_route_template_form
-msgid "Người dùng Cập nhật Dữ liệu Lần cuối*:"
-msgstr "Người dùng Cập nhật Dữ liệu Lần cuối*:"
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_credential_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_model_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_provider_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_session_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_setting_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_skill_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_route_template_form
-msgid "Người dùng Khởi tạo Dữ liệu*:"
-msgstr "Người dùng Khởi tạo Dữ liệu*:"
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_skill.py:0
@@ -2208,37 +2265,12 @@ msgid "This provider has no settings route to declare."
 msgstr "Nhà cung cấp này không có route settings để khai."
 
 #. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_credential_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_model_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_provider_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_session_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_setting_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_skill_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_route_template_form
-msgid "Thời gian Cập nhật Dữ liệu Lần cuối*:"
-msgstr "Thời gian Cập nhật Dữ liệu Lần cuối*:"
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_credential_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_model_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_provider_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_session_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_setting_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_skill_form
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_route_template_form
-msgid "Thời gian Khởi tạo Dữ liệu*:"
-msgstr "Thời gian Khởi tạo Dữ liệu*:"
-
-#. module: npei_agent_harness
 #: model:ir.model.fields,field_description:npei_agent_harness.field_res_config_settings__npei_harness_ticket_secret
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.res_config_settings_view_form_npei
 msgid "Ticket Secret"
 msgstr "Khóa bí mật Ticket"
 
 #. module: npei_agent_harness
-#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_session__name
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_session_form
 msgid "Title"
 msgstr "Tiêu đề"

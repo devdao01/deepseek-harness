@@ -49,7 +49,7 @@ class NpeiAgentSession(models.Model):
              "adopt an existing harness session.", tracking=True
     )
     name = fields.Char(
-        string='Title', tracking=True,
+        string='Name*:', tracking=True,
         help="Pushed to the harness session title on change (session/rename).",
     )
     user_ids = fields.Many2many(

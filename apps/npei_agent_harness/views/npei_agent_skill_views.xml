@@ -56,10 +56,10 @@
                                         <page string="Khởi tạo*">
                                             <group>
                                                 <group>
-                                                    <field name="create_uid" string="Người dùng Khởi tạo Dữ liệu*:" readonly="1"/>
-                                                    <field name="write_uid" string="Người dùng Cập nhật Dữ liệu Lần cuối*:" readonly="1"/>
-                                                    <field name="create_date" string="Thời gian Khởi tạo Dữ liệu*:" readonly="1"/>
-                                                    <field name="write_date" string="Thời gian Cập nhật Dữ liệu Lần cuối*:" readonly="1"/>
+                                                    <field name="create_uid" readonly="1"/>
+                                                    <field name="write_uid" readonly="1"/>
+                                                    <field name="create_date" readonly="1"/>
+                                                    <field name="write_date" readonly="1"/>
                                                 </group>
                                                 <group>
                                                     <field name="active" widget="boolean_toggle" readonly="is_locked"/>
