@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 /**
- * Read-only Odoo MCP server (stdio, XML-RPC).
+ * Odoo MCP server (stdio, XML-RPC), read-only by default.
  *
- * Gives an agent four read tools over one Odoo account: `odoo_search_read`,
- * `odoo_read`, `odoo_search_count`, and `odoo_fields_get`. Writes are not
- * implemented at all — the server speaks only those four Odoo methods, so a
- * model cannot reach `create`, `write`, `unlink`, or an arbitrary model
- * method through it. Odoo's own access rights still apply on top: give the
- * AI account read-only groups and record rules.
+ * Gives an agent four read tools over one Odoo account — `odoo_search_read`,
+ * `odoo_read`, `odoo_search_count`, `odoo_fields_get` — and, only when
+ * `ODOO_ALLOW_WRITE=1`, three write tools: `odoo_create`, `odoo_write`,
+ * `odoo_unlink`. Without that flag the write tools are not listed and their
+ * calls are refused, so a read-only preset cannot reach a write method at
+ * all; arbitrary model methods are never reachable either way. Odoo's own
+ * access rights and record rules apply on top per account — they are the
+ * real boundary for what a write-enabled preset may touch.
  *
  * The whole configuration is environment, so one preset composition can mount
  * this server with its own Odoo account and another preset with a different
@@ -17,6 +19,7 @@
  *   ODOO_DB              the database name           (required)
  *   ODOO_USER            login of the AI account     (required)
  *   ODOO_API_KEY         that account's API key or password (required)
+ *   ODOO_ALLOW_WRITE     '1'/'true' lists and permits create/write/unlink
  *   ODOO_ALLOWED_MODELS  comma-separated allowlist; empty = every model the
  *                        account may read
  *   ODOO_MAX_ROWS        hard cap per call (default 200)
@@ -30,6 +33,7 @@
 import { createInterface } from 'node:readline'
 
 const PROTOCOL_VERSION = '2024-11-05'
+const ALLOW_WRITE = ['1', 'true', 'yes'].includes((process.env.ODOO_ALLOW_WRITE ?? '').toLowerCase())
 const MAX_ROWS = Math.max(1, Number(process.env.ODOO_MAX_ROWS ?? '200') || 200)
 const ALLOWED_MODELS = (process.env.ODOO_ALLOWED_MODELS ?? '')
   .split(',').map(name => name.trim()).filter(name => name.length > 0)
@@ -330,6 +334,76 @@ const TOOLS = [
   },
 ]
 
+/** The write tools, listed and callable only under ODOO_ALLOW_WRITE. */
+const WRITE_TOOLS = [
+  {
+    name: 'odoo_create',
+    description: 'Create one Odoo record and return its id. Relational fields take ids '
+      + '(many2one: the id; many2many: [[6,0,[ids]]]). Check odoo_fields_get for required fields first.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        model: { type: 'string' },
+        values: { type: 'object', description: 'Field values for the new record' },
+      },
+      required: ['model', 'values'],
+    },
+    run: async (args) => {
+      assertModel(args.model)
+      if (typeof args.values !== 'object' || args.values === null || Array.isArray(args.values)) {
+        throw new Error('values must be an object of field values')
+      }
+      return await execute(args.model, 'create', [args.values], {})
+    },
+  },
+  {
+    name: 'odoo_write',
+    description: 'Update named fields on existing Odoo records by id. Returns true on success.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        model: { type: 'string' },
+        ids: { type: 'array', items: { type: 'integer' }, description: 'Record ids to update' },
+        values: { type: 'object', description: 'Field values to set on every listed record' },
+      },
+      required: ['model', 'ids', 'values'],
+    },
+    run: async (args) => {
+      assertModel(args.model)
+      const ids = requireIds(args.ids)
+      if (typeof args.values !== 'object' || args.values === null || Array.isArray(args.values)) {
+        throw new Error('values must be an object of field values')
+      }
+      return await execute(args.model, 'write', [ids, args.values], {})
+    },
+  },
+  {
+    name: 'odoo_unlink',
+    description: 'Delete Odoo records by id. Irreversible; returns true on success. '
+      + 'Prefer archiving (odoo_write with {"active": false}) when the model has an active field.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        model: { type: 'string' },
+        ids: { type: 'array', items: { type: 'integer' }, description: 'Record ids to delete' },
+      },
+      required: ['model', 'ids'],
+    },
+    run: async (args) => {
+      assertModel(args.model)
+      return await execute(args.model, 'unlink', [requireIds(args.ids)], {})
+    },
+  },
+]
+
+/** Validate and bound a caller-supplied id list. */
+function requireIds(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) throw new Error('ids must be a non-empty array of record ids')
+  return ids.slice(0, MAX_ROWS).map(Number)
+}
+
+const ACTIVE_TOOLS = ALLOW_WRITE ? [...TOOLS, ...WRITE_TOOLS] : TOOLS
+
 // ── MCP stdio loop ─────────────────────────────────────────────────────────
 
 function send(message) {
@@ -362,11 +436,11 @@ async function handle(request) {
       return
     case 'tools/list':
       reply(id, {
-        tools: TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
+        tools: ACTIVE_TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
       })
       return
     case 'tools/call': {
-      const tool = TOOLS.find(candidate => candidate.name === params?.name)
+      const tool = ACTIVE_TOOLS.find(candidate => candidate.name === params?.name)
       if (tool === undefined) {
         replyError(id, `unknown tool "${String(params?.name)}"`)
         return
