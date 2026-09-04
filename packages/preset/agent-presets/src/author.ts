@@ -202,7 +202,6 @@ function validateOdooSpec(odoo: AuthorOdooSpec): void {
     url: odoo.url, db: odoo.db, user: odoo.user, apiKey: odoo.apiKey, serverPath: odoo.serverPath,
   })) {
     if (value.trim() === '') throw new Error(`odoo.${field} must be a non-empty string`)
-    // eslint-disable-next-line no-control-regex -- refuses YAML/env-breaking control chars
     if (/[\u0000-\u001f\u007f]/.test(value)) throw new Error(`odoo.${field} must be a single line`)
   }
   if (!/^https?:\/\//.test(odoo.url)) throw new Error('odoo.url must start with http:// or https://')
