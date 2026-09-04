@@ -28,6 +28,15 @@ class ResConfigSettings(models.TransientModel):
         help="Bearer token for the harness. On the harness host it lives at "
              "~/.dsh/api-token. Never exposed to the browser.",
     )
+    npei_harness_spa_path = fields.Char(
+        string='SPA Base Path',
+        config_parameter='npei_agent_harness.spa_path',
+        default='/mtilai2',
+        help="Path the MTIL chat SPA is served under on THIS Odoo domain "
+             "(nginx mount). The session Open Chat button links to "
+             "<this path>/s/<harness session id>. Leave blank to hide that "
+             "button.",
+    )
     npei_harness_ticket_secret = fields.Char(
         string='Ticket Secret',
         config_parameter='npei_agent_harness.ticket_secret',

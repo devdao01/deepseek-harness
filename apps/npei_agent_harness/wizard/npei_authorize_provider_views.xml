@@ -14,6 +14,9 @@
                     <group string="Sign in" invisible="not auth_url">
                         <field name="auth_url" widget="url" readonly="1"
                                text="Open the sign-in page"/>
+                        <button name="action_open_auth_url" type="object"
+                                string="Open URL" class="btn-primary"
+                                icon="fa-external-link"/>
                         <field name="device_code" readonly="1" invisible="not device_code"/>
                         <field name="prompt_message" readonly="1" invisible="not prompt_message"/>
                     </group>

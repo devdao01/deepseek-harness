@@ -17,6 +17,10 @@
                                  help="Bearer token for the harness (~/.dsh/api-token on the harness host). Never exposed to the browser.">
                             <field name="npei_harness_api_token" password="True"/>
                         </setting>
+                        <setting string="SPA Base Path"
+                                 help="Path the MTIL chat SPA is served under on this Odoo domain; the session Open Chat button links to &lt;path&gt;/s/&lt;session id&gt;.">
+                            <field name="npei_harness_spa_path" placeholder="/mtilai2"/>
+                        </setting>
                         <setting string="Ticket Secret"
                                  help="Shared HMAC-SHA256 secret (>= 32 chars) the MTIL Flask API signs per-user tickets with; must equal the harness DSH_TICKET_SECRET. Never exposed to the browser.">
                             <field name="npei_harness_ticket_secret" password="True"/>

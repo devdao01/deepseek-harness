@@ -5,6 +5,9 @@
         <field name="model">npei.agent.session</field>
         <field name="arch" type="xml">
             <tree string="Agent Sessions">
+                <button name="action_open_frontend" type="object"
+                        string="Open Chat" icon="fa-external-link"
+                        invisible="not session_id"/>
                 <field name="seq" widget='handle'/>
                 <field name="seq" optional="show"/>
                 <field name="id" optional="show"/>
@@ -32,6 +35,10 @@
         <field name="arch" type="xml">
             <form string="Agent Session">
                 <header>
+                    <button name="action_open_frontend" type="object"
+                            string="Open Chat" class="btn-primary"
+                            icon="fa-external-link"
+                            invisible="not session_id"/>
                     <button name="act_lock" string="Khóa" type="object" groups="npei_base.npei_group_lock" invisible="is_locked"/>
                     <button name="act_unlock" string="Mở Khóa" type="object" groups="npei_base.npei_group_lock" invisible="not is_locked"/>
                 </header>

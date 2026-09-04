@@ -291,6 +291,25 @@ class NpeiAgentSession(models.Model):
             },
         }
 
+    def action_open_frontend(self):
+        """Open this session in the MTIL chat SPA (new browser tab).
+
+        The URL is relative (``<spa path>/s/<session id>``) so the browser
+        resolves it against the Odoo origin the user is already on — the SPA
+        is served from the same domain by nginx. The path comes from
+        ``npei_agent_harness.spa_path``.
+        """
+        self.ensure_one()
+        if not self.session_id:
+            raise UserError(_("This mapping has no harness session id yet."))
+        path = (self.env['ir.config_parameter'].sudo()
+                .get_param('npei_agent_harness.spa_path') or '/mtilai2').strip()
+        return {
+            'type': 'ir.actions.act_url',
+            'url': '%s/s/%s' % (path.rstrip('/'), self.session_id),
+            'target': 'new',
+        }
+
     def act_lock(self):
         self.write({'is_locked': True})
 

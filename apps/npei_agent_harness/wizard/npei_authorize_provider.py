@@ -200,6 +200,13 @@ class NpeiAuthorizeProvider(models.TransientModel):
         self._poll_budget(client)
         return self._reopen()
 
+    def action_open_auth_url(self):
+        """Open the provider's sign-in page in a new browser tab."""
+        self.ensure_one()
+        if not self.auth_url:
+            raise UserError(_("There is no sign-in URL yet; Start the sign-in first."))
+        return {'type': 'ir.actions.act_url', 'url': self.auth_url, 'target': 'new'}
+
     def action_refresh(self):
         """Poll the running attempt for new notices, prompt, or outcome."""
         self.ensure_one()
