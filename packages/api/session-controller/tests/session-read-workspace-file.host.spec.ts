@@ -140,6 +140,6 @@ describe('session/readWorkspaceFile', () => {
     })
 
     expect(read.ok).toBe(false)
-    if (!read.ok) expect(read.error.code).toBe('session-not-found')
+    if (!read.ok) expect(read.error.code).toBe('session/not-found')
   })
 })

@@ -8,15 +8,16 @@ import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import SessionStore from '@deepseek-ai/dsh-session'
+import SessionStore, { SESSION_FORMAT_VERSION, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import {
   SessionQueryEngine,
   SessionQueryError,
   type SessionSearchHit,
   type SessionSearchRequest,
 } from '@deepseek-ai/dsh-session-query'
-import { createSessionTestRemote } from './test-remote.ts'
+import { createSessionTestRemote, testSessionPersistence } from './test-remote.ts'
 import { SessionAccessStore } from '../src/access.ts'
 import { ApiSessionList } from '../src/list.ts'
 
@@ -29,9 +30,10 @@ function request(query: string): { query: string } {
 
 function header(id: string, cwd: string | null = '/project'): SessionHeader {
   return {
-    version: 0,
+    version: SESSION_FORMAT_VERSION,
     id: sid(id),
     createdAt: 100,
+    isSeeded: false,
     ...(cwd === null ? {} : { cwd }),
   }
 }
@@ -44,7 +46,7 @@ function hit(id: string, index = 0): SessionSearchHit {
     persisted: false,
     bestMatch: {
       sessionId: session.id,
-      seq: index,
+      seq: SessionSeq(index),
       type: 'user/message',
       time: 200 + index,
       surface: 'current',
@@ -57,6 +59,7 @@ async function baseContext(): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SessionStore)
   await ctx.plugin(AgentRegistry)
+  await ctx.plugin(SessionProjectionRegistry)
   return ctx
 }
 
@@ -94,10 +97,10 @@ function installSearchQuery(
 describe('session.search', () => {
   it('rejects search when the query service is absent', async () => {
     const ctx = await baseContext()
-    const list = new ApiSessionList(ctx, 0, new SessionAccessStore(ctx))
+    const list = new ApiSessionList(ctx, new SessionAccessStore(ctx))
 
     await expect(list.search('query', new AbortController().signal)).rejects.toMatchObject({
-      failure: { code: 'internal' },
+      code: 'gateway/internal',
     })
     await ctx.fiber.dispose()
   })
@@ -111,10 +114,9 @@ describe('session.search', () => {
     }), { surfaceOp: 'append' })
     const cold = header('cold', '/cold')
     const legacy = header('legacy', null)
-    ctx.provide('sessionPersistence', {
+    ctx.provide('sessionPersistence', testSessionPersistence(ctx, {
       list: () => Promise.resolve([cold, legacy]),
-      locate: () => undefined,
-    } as never)
+    }) as never)
 
     const searchSessions = vi.fn((
       _request: SessionSearchRequest,
@@ -190,7 +192,7 @@ describe('session.search', () => {
 
     for (const query of ['', '   ', 'contains\0nul', 'x'.repeat(501)]) {
       await expect(remote.search(request(query), new AbortController().signal))
-        .resolves.toMatchObject({ ok: false, error: { code: 'bad-request' } })
+        .resolves.toMatchObject({ ok: false, error: { code: 'gateway/bad-request' } })
     }
     expect(searchSessions).not.toHaveBeenCalled()
     await ctx.fiber.dispose()
@@ -352,7 +354,7 @@ describe('session.search', () => {
 
     expect(response.ok).toBe(false)
     if (response.ok) throw new Error('unreachable')
-    expect(response.error).toMatchObject({ code: 'internal' })
+    expect(response.error).toMatchObject({ code: 'gateway/internal' })
     expect(response.error.message).toContain('100-call work budget')
     expect(searchSessions).toHaveBeenCalledTimes(100)
   })
@@ -456,7 +458,7 @@ describe('session.search', () => {
 
     expect(response.ok).toBe(false)
     if (response.ok) throw new Error('unreachable')
-    expect(response.error.code).toBe('internal')
+    expect(response.error.code).toBe('gateway/internal')
     expect(response.error.message).toContain('100-call work budget')
     expect(response).not.toHaveProperty('value')
     expect(searchSessions).toHaveBeenCalledTimes(100)
@@ -485,7 +487,7 @@ describe('session.search', () => {
 
     expect(response).toMatchObject({
       ok: false,
-      error: { code: 'cancelled' },
+      error: { code: 'gateway/cancelled' },
     })
     expect(searchSessions).toHaveBeenCalledTimes(2)
   })
@@ -506,7 +508,7 @@ describe('session.search', () => {
 
     expect(response).toMatchObject({
       ok: false,
-      error: { code: 'internal' },
+      error: { code: 'gateway/internal' },
     })
     expect(response).not.toHaveProperty('value')
     expect(searchSessions).toHaveBeenCalledOnce()
@@ -530,7 +532,7 @@ describe('session.search', () => {
 
     expect(response).toMatchObject({
       ok: false,
-      error: { code: 'internal' },
+      error: { code: 'gateway/internal' },
     })
     expect(searchSessions).toHaveBeenCalledTimes(2)
     expect(searchSessions.mock.calls.map(([providerRequest]) => (
@@ -557,7 +559,7 @@ describe('session.search', () => {
 
     expect(response).toMatchObject({
       ok: false,
-      error: { code: 'internal' },
+      error: { code: 'gateway/internal' },
     })
     expect(searchSessions.mock.calls.map(([providerRequest]) => providerRequest.limit))
       .toEqual([20, 10, 5, 2, 1])
@@ -583,7 +585,7 @@ describe('session.search', () => {
 
     expect(response).toMatchObject({
       ok: false,
-      error: { code: 'cancelled' },
+      error: { code: 'gateway/cancelled' },
     })
     expect(searchSessions).toHaveBeenCalledOnce()
   })
@@ -602,7 +604,7 @@ describe('session.search', () => {
 
     expect(response.ok).toBe(false)
     if (response.ok) throw new Error('unreachable')
-    expect(response.error).toMatchObject({ code: 'internal' })
+    expect(response.error).toMatchObject({ code: 'gateway/internal' })
     expect(response.error.message).toContain('returned 21 items; maximum is 20')
   })
 
@@ -628,7 +630,7 @@ describe('session.search', () => {
 
     expect(response.ok).toBe(false)
     if (response.ok) throw new Error('unreachable')
-    expect(response.error).toMatchObject({ code: 'internal' })
+    expect(response.error).toMatchObject({ code: 'gateway/internal' })
     expect(response.error.message).toContain('returned 11 items; maximum is 10')
     expect(searchSessions).toHaveBeenCalledTimes(2)
   })
@@ -676,7 +678,7 @@ describe('session.search', () => {
 
     expect(response.ok).toBe(false)
     if (response.ok) throw new Error('unreachable')
-    expect(response.error).toMatchObject({ code: 'internal' })
+    expect(response.error).toMatchObject({ code: 'gateway/internal' })
     expect(response.error.message).toContain('repeated a continuation cursor')
     expect(searchSessions).toHaveBeenCalledTimes(2)
   })
@@ -699,7 +701,7 @@ describe('session.search', () => {
 
     expect(response).toMatchObject({
       ok: false,
-      error: { code: 'internal' },
+      error: { code: 'gateway/internal' },
     })
     expect(response).not.toHaveProperty('value')
     if (response.ok) throw new Error('unreachable')
@@ -754,7 +756,7 @@ describe('session.search', () => {
 
     expect(response).toMatchObject({
       ok: false,
-      error: { code: 'cancelled' },
+      error: { code: 'gateway/cancelled' },
     })
     expect(searchSessions).toHaveBeenCalledTimes(2)
     for (const call of searchSessions.mock.calls) {
@@ -768,10 +770,9 @@ describe('session.search', () => {
       { length: 32_751 },
       (_, index) => header(`cold-${index}`, `/cold-${index}`),
     )
-    ctx.provide('sessionPersistence', {
+    ctx.provide('sessionPersistence', testSessionPersistence(ctx, {
       list: () => Promise.resolve(cold),
-      locate: () => undefined,
-    } as never)
+    }) as never)
     const searchSessions = vi.fn((_request: SessionSearchRequest) => Promise.resolve({
       items: [hit('cold-32750')],
     }))
@@ -802,14 +803,14 @@ describe('session.search', () => {
       controller.abort()
       return Promise.resolve(cold)
     })
-    let locateCalls = 0
-    ctx.provide('sessionPersistence', {
+    let statCalls = 0
+    ctx.provide('sessionPersistence', testSessionPersistence(ctx, {
       list,
-      locate: () => {
-        locateCalls++
-        return undefined
+      stat: () => {
+        statCalls++
+        return Promise.resolve(undefined)
       },
-    } as never)
+    }) as never)
     const searchSessions = vi.fn()
     installSearchQuery(ctx, searchSessions)
 
@@ -820,21 +821,23 @@ describe('session.search', () => {
 
     expect(response).toMatchObject({
       ok: false,
-      error: { code: 'cancelled' },
+      error: { code: 'gateway/cancelled' },
     })
     expect(list).toHaveBeenCalledOnce()
-    expect(locateCalls).toBe(0)
+    expect(statCalls).toBe(0)
     expect(searchSessions).not.toHaveBeenCalled()
   })
 
-  it('does not stat or locate cold artifacts while collecting search visibility', async () => {
+  it('does not stat or open cold artifacts while collecting search visibility', async () => {
     const ctx = await baseContext()
     const cold = Array.from({ length: 16 }, (_, index) => header(`cold-${index}`, `/cold-${index}`))
-    const locate = vi.fn((meta: SessionHeader) => ({ kind: 'jsonl', path: `/logs/${meta.id}.jsonl` }))
-    ctx.provide('sessionPersistence', {
+    const stat = vi.fn()
+    const inspect = vi.fn()
+    ctx.provide('sessionPersistence', testSessionPersistence(ctx, {
       list: () => Promise.resolve(cold),
-      locate,
-    } as never)
+      stat,
+      inspect,
+    }) as never)
     const searchSessions = vi.fn(() => Promise.resolve({ items: [] }))
     installSearchQuery(ctx, searchSessions)
 
@@ -846,7 +849,8 @@ describe('session.search', () => {
       ok: true,
       value: { items: [], hasMore: false },
     })
-    expect(locate).not.toHaveBeenCalled()
+    expect(stat).not.toHaveBeenCalled()
+    expect(inspect).not.toHaveBeenCalled()
     expect(searchSessions).toHaveBeenCalledOnce()
   })
 
@@ -862,7 +866,7 @@ describe('session.search', () => {
     )
     expect(cancelledBeforeLookup).toMatchObject({
       ok: false,
-      error: { code: 'cancelled' },
+      error: { code: 'gateway/cancelled' },
     })
 
     const ctx = await baseContext()
@@ -880,7 +884,7 @@ describe('session.search', () => {
     )
     expect(cancelled).toMatchObject({
       ok: false,
-      error: { code: 'cancelled' },
+      error: { code: 'gateway/cancelled' },
     })
 
     const failed = await remote.search(
@@ -889,7 +893,7 @@ describe('session.search', () => {
     )
     expect(failed.ok).toBe(false)
     if (failed.ok) throw new Error('unreachable')
-    expect(failed.error.code).toBe('internal')
+    expect(failed.error.code).toBe('gateway/internal')
     expect(failed.error.message).toContain('database unavailable')
   })
 })

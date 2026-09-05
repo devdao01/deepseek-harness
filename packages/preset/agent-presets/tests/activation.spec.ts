@@ -21,7 +21,7 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import FileSettingsProvider from '@deepseek-ai/dsh-settings-file'
-import { TypertRemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { describe, expect, it } from 'vitest'
 import { createHmac } from 'node:crypto'
 import { runWithRpcRequest } from '@deepseek-ai/dsh-client-connection'
@@ -109,7 +109,7 @@ describe('preset activation', () => {
     const { ctx } = await harness()
 
     await expect(ctx.agentPresets.remoteExportSetActive('ghost', false))
-      .rejects.toMatchObject({ failure: { code: 'agent-preset-not-found' } })
+      .rejects.toMatchObject({ code: 'agent-preset/not-found' })
   })
 
   it('refuses selecting a deactivated preset for a blank session', async () => {
@@ -118,7 +118,7 @@ describe('preset activation', () => {
     await ctx.agentPresets.remoteExportSetActive('minimal', false)
 
     await expect(ctx.agentPresets.select(agent, 'minimal'))
-      .rejects.toMatchObject({ failure: { code: 'agent-preset-invalid' } })
+      .rejects.toMatchObject({ code: 'agent-preset/invalid' })
   })
 
   it('keeps a running session composed from a preset deactivated afterwards', async () => {
@@ -214,14 +214,14 @@ describe('structured authoring (agentPresets/author)', () => {
 
     await expect(ctx.agentPresets.remoteExportAuthor({
       agentPreset: 'r1', name: 'R', kind: 'router', persona: 'x', subagents: [],
-    })).rejects.toMatchObject({ failure: { code: 'bad-request' } })
+    })).rejects.toMatchObject({ code: 'gateway/bad-request' })
     await expect(ctx.agentPresets.remoteExportAuthor({
       agentPreset: 'r2', name: 'R', kind: 'router', persona: 'x',
       subagents: [{ toolName: 'Bad Name', persona: 'x' }],
-    })).rejects.toMatchObject({ failure: { code: 'bad-request' } })
+    })).rejects.toMatchObject({ code: 'gateway/bad-request' })
     await expect(ctx.agentPresets.remoteExportAuthor({
       agentPreset: 'standard', name: 'X', kind: 'standalone', persona: 'x',
-    })).rejects.toMatchObject({ failure: { code: 'agent-preset-read-only' } })
+    })).rejects.toMatchObject({ code: 'agent-preset/read-only' })
   })
 })
 
@@ -265,10 +265,10 @@ describe('tool catalog and raw compositions', () => {
 
     await expect(ctx.agentPresets.remoteExportWriteRaw({
       agentPreset: 'xau', name: 'X', content: 'not: a list',
-    })).rejects.toMatchObject({ failure: { code: 'bad-request' } })
+    })).rejects.toMatchObject({ code: 'gateway/bad-request' })
     await expect(ctx.agentPresets.remoteExportWriteRaw({
       agentPreset: 'standard', name: 'X', content: raw,
-    })).rejects.toMatchObject({ failure: { code: 'agent-preset-read-only' } })
+    })).rejects.toMatchObject({ code: 'agent-preset/read-only' })
   })
 
   it('accepts raw writes only from the management wildcard once a secret is set', async () => {
@@ -284,11 +284,11 @@ describe('tool catalog and raw compositions', () => {
 
     await expect(ctx.agentPresets.remoteExportWriteRaw({
       agentPreset: 'quan-tri', name: 'X', content: raw,
-    })).rejects.toMatchObject({ failure: { code: 'bad-request' } })
+    })).rejects.toMatchObject({ code: 'gateway/bad-request' })
     await expect(runWithRpcRequest(
       { headers: new Headers({ cookie: `mtil-ticket=${mint('7')}` }) },
       () => ctx.agentPresets.remoteExportWriteRaw({ agentPreset: 'quan-tri', name: 'X', content: raw }),
-    )).rejects.toMatchObject({ failure: { code: 'bad-request' } })
+    )).rejects.toMatchObject({ code: 'gateway/bad-request' })
     await expect(runWithRpcRequest(
       { headers: new Headers({ cookie: `mtil-ticket=${mint('*')}` }) },
       () => ctx.agentPresets.remoteExportWriteRaw({ agentPreset: 'quan-tri', name: 'Quản Trị', content: raw }),
@@ -335,15 +335,15 @@ describe('preset rename', () => {
     const { ctx } = await harness()
 
     await expect(ctx.agentPresets.remoteExportRename('standard', 'Nope'))
-      .rejects.toMatchObject({ failure: { code: 'agent-preset-read-only' } })
+      .rejects.toMatchObject({ code: 'agent-preset/read-only' })
   })
 
   it('refuses an empty name and an unknown preset', async () => {
     const { ctx } = await harness()
 
     await expect(ctx.agentPresets.remoteExportRename('mine', '  '))
-      .rejects.toBeInstanceOf(TypertRemoteFailure)
+      .rejects.toBeInstanceOf(RemoteError)
     await expect(ctx.agentPresets.remoteExportRename('ghost', 'Name'))
-      .rejects.toMatchObject({ failure: { code: 'agent-preset-not-found' } })
+      .rejects.toMatchObject({ code: 'agent-preset/not-found' })
   })
 })

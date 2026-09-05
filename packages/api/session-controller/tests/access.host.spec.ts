@@ -49,7 +49,7 @@ function fakeStorageDomain(): { records: Map<string, unknown> } {
 }
 
 function header(id: string, createdAt = 1000, cwd: string | undefined = '/w'): SessionHeader {
-  return { version: 0, id: SessionId(id), createdAt, ...cwd === undefined ? {} : { cwd } }
+  return { version: 2, id: SessionId(id), createdAt, isSeeded: false, ...cwd === undefined ? {} : { cwd } }
 }
 
 describe('verifyUserTicket', () => {
@@ -157,10 +157,10 @@ describe('session-addressed entry points', () => {
     // Anonymous and an unlisted user read the same not-found the id would
     // get if it did not exist; the wildcard passes the gate (and then reads).
     await expect(controller.page(pageRequest, signal))
-      .rejects.toMatchObject({ failure: { code: 'session-not-found' } })
+      .rejects.toMatchObject({ code: 'session/not-found' })
     const headers7 = new Headers({ cookie: `mtil-ticket=${mint('7', future())}` })
     await expect(runWithRpcRequest({ headers: headers7 }, () => controller.page(pageRequest, signal)))
-      .rejects.toMatchObject({ failure: { code: 'session-not-found' } })
+      .rejects.toMatchObject({ code: 'session/not-found' })
     const headersStar = new Headers({ cookie: `mtil-ticket=${mint('*', future())}` })
     await expect(runWithRpcRequest({ headers: headersStar }, () => controller.page(pageRequest, signal)))
       .resolves.toBeDefined()
@@ -175,7 +175,7 @@ describe('session-addressed entry points', () => {
     const anonymousFollow = controller.follow(followRequest as never, signal)
     await expect((async () => {
       for await (const frame of anonymousFollow) void frame
-    })()).rejects.toMatchObject({ failure: { code: 'session-not-found' } })
+    })()).rejects.toMatchObject({ code: 'session/not-found' })
     const allowedFollow = runWithRpcRequest(
       { headers: headers632 },
       () => controller.follow(followRequest as never, signal),
@@ -213,7 +213,7 @@ describe('session-addressed entry points', () => {
 
     // setAccess is management-plane only once a ticketSecret is configured.
     await expect(controller.setAccess({ sessionId: restricted.id, allowedUsers: [] }))
-      .rejects.toMatchObject({ failure: { code: 'internal' } })
+      .rejects.toMatchObject({ code: 'gateway/internal' })
     await expect(runWithRpcRequest(
       { headers: headersStar },
       () => controller.setAccess({ sessionId: restricted.id, allowedUsers: ['1'] }),
@@ -230,7 +230,7 @@ describe('session list filtering', () => {
     installSessionReadTestServices(ctx)
     ctx.provide('storageDomain', fakeStorageDomain())
     const store = new SessionAccessStore(ctx)
-    const list = new ApiSessionList(ctx, 0, store)
+    const list = new ApiSessionList(ctx, store)
     return { ctx, store, list }
   }
 

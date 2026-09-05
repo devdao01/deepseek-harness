@@ -3,10 +3,12 @@
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { errorChain } from '@deepseek-ai/dsh-llm'
+import type {} from '@deepseek-ai/dsh-client-file-upload'
 import { canOpenNativePath, openNativePath } from '@deepseek-ai/dsh-native-command'
-import type { SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionInspection } from '@deepseek-ai/dsh-session-persistence'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
-import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { currentUserId, SessionAccessStore } from './access.ts'
 import {
   ApiSessionAgentController,
@@ -17,7 +19,7 @@ import { SessionCommandController } from './commands.ts'
 import { SessionControlController } from './control.ts'
 import { SessionHistoryController } from './history.ts'
 import { SessionFileReferences } from './file-references.ts'
-import { ApiSessionList, DEFAULT_COLD_BLANK_PROBE_MAX_BYTES } from './list.ts'
+import { ApiSessionList } from './list.ts'
 import { buildModelCatalog } from './catalog.ts'
 import { installModelSelectionProjection } from './model-selection-projection.ts'
 import { SessionSkillCatalog } from './skill-catalog.ts'
@@ -73,8 +75,6 @@ declare module '@deepseek-ai/cordis' {
 
 /** Session Controller deployment policy. */
 export interface Config {
-  /** Maximum cold Session artifact size eligible for one full projection observation. */
-  readonly coldBlankProbeMaxBytes?: number
   /** Override platform desktop-opener detection. */
   readonly nativeOpen?: boolean
   /**
@@ -107,6 +107,7 @@ export class SessionController extends TypertRemoteService {
     'agentDefaultModel',
     'agents',
     'attachments',
+    'fileUploads',
     'llm',
     'sessions',
     'sessionProjections',
@@ -116,7 +117,6 @@ export class SessionController extends TypertRemoteService {
   ]
 
   static Config: z<Config> = z.object({
-    coldBlankProbeMaxBytes: z.natural().default(DEFAULT_COLD_BLANK_PROBE_MAX_BYTES),
     nativeOpen: z.boolean(),
     presetWorkspaceRoot: z.string(),
     ticketSecret: z.string(),
@@ -135,7 +135,8 @@ export class SessionController extends TypertRemoteService {
 
   /**
    * @param ctx - Host context containing the Session capability assembly.
-   * @param config - cold-list observation policy.
+   * @param config - native-opener deployment policy.
+   * @param internals - host integrations replaceable by direct unit tests.
    */
   constructor(ctx: Context, config: Config, internals: SessionControllerInternals = {}) {
     super(ctx, 'sessionController', { namespace: 'session' })
@@ -144,6 +145,11 @@ export class SessionController extends TypertRemoteService {
     this.access = new SessionAccessStore(ctx)
     this.agents = new ApiSessionAgentController(ctx)
     this.commands = new SessionCommandController(ctx, this.agents, process.cwd(), config.presetWorkspaceRoot)
+    ctx.effect(() => ctx.fileUploads.registerAgentResolver(async (sessionId) => {
+      const result = await this.agents.resolveAgent(sessionId)
+      if ('error' in result) throw result.error
+      return result.agent
+    }), 'session-controller: file-upload Agent resolver')
     this.controlState = new SessionControlController(ctx)
     // Registered before history so reverse-order teardown closes every
     // follower before waiting for already-admitted promotions.
@@ -151,11 +157,7 @@ export class SessionController extends TypertRemoteService {
       await Promise.allSettled([...this.promotions])
     }, 'session-controller.promotions')
     this.history = new SessionHistoryController(ctx, (observation) => { this.promote(observation) })
-    this.listState = new ApiSessionList(
-      ctx,
-      config.coldBlankProbeMaxBytes ?? DEFAULT_COLD_BLANK_PROBE_MAX_BYTES,
-      this.access,
-    )
+    this.listState = new ApiSessionList(ctx, this.access)
     this.openPath = internals.openPath ?? openNativePath
     this.canOpenPath = internals.canOpenPath
       ?? (() => config.nativeOpen ?? (internals.openPath !== undefined || canOpenNativePath()))
@@ -220,10 +222,14 @@ export class SessionController extends TypertRemoteService {
   inspect(
     sessionId: SessionId,
     signal?: AbortSignal,
-  ): Promise<{ meta: SessionHeader; events: SessionEvent[] }> {
+  ): Promise<SessionInspection> {
     const attached = this.ctx.sessions.get(sessionId)
     if (attached !== undefined) {
-      return Promise.resolve({ meta: attached.header, events: [...attached.events] })
+      return Promise.resolve({
+        meta: attached.header,
+        inheritedEventCount: attached.inheritedEventCount,
+        events: attached.snapshotEvents(),
+      })
     }
     return inspectApiSession(this.ctx, sessionId, signal)
   }
@@ -296,11 +302,7 @@ export class SessionController extends TypertRemoteService {
         .find(record => record.header.id === sessionId)?.header
     if (header === undefined) return
     if (await this.access.visibleTo(header, viewer)) return
-    throw new TypertRemoteFailure({
-      code: 'session-not-found',
-      message: `session "${sessionId}" not found`,
-      details: { sessionId },
-    })
+    throw new RemoteError('session/not-found', `session "${sessionId}" not found`, { sessionId })
   }
 
   /** The session an address is read through (a subagent reads via its parent). */
@@ -320,30 +322,21 @@ export class SessionController extends TypertRemoteService {
   async setAccess(request: SessionSetAccessRequest): Promise<SessionSetAccessValue> {
     if (this.ticketSecret !== undefined && this.ticketSecret !== ''
       && currentUserId(this.ticketSecret) !== '*') {
-      throw new TypertRemoteFailure({
-        code: 'internal',
-        message: 'session access lists are administered by the management plane',
-        details: {},
-      })
+      throw new RemoteError('gateway/internal',
+        'session access lists are administered by the management plane', {})
     }
     const header = this.ctx.sessions.get(request.sessionId)?.header
       ?? (await this.ctx.sessionQuery.listSessions())
         .find(record => record.header.id === request.sessionId)?.header
     if (header === undefined) {
-      throw new TypertRemoteFailure({
-        code: 'session-not-found',
-        message: `session "${request.sessionId}" not found`,
-        details: { sessionId: request.sessionId },
-      })
+      throw new RemoteError('session/not-found',
+        `session "${request.sessionId}" not found`, { sessionId: request.sessionId })
     }
     try {
       await this.access.setAllowedUsers(header, request.allowedUsers)
     } catch (error) {
-      throw new TypertRemoteFailure({
-        code: 'internal',
-        message: `failed to store the access list of session "${request.sessionId}": ${String(error)}`,
-        details: {},
-      })
+      throw new RemoteError('gateway/internal',
+        `failed to store the access list of session "${request.sessionId}": ${String(error)}`, {})
     }
     return { allowedUsers: await this.access.allowedUsers(header) }
   }
@@ -382,7 +375,7 @@ export class SessionController extends TypertRemoteService {
    * @param request - path after best-effort Session workspace resolution.
    * @param signal - caller lifetime; abort terminates the native command.
    * @returns confirmation after the native opener accepts the path.
-   * @throws TypertRemoteFailure when the request is invalid, cancelled, or the opener fails.
+   * @throws RemoteError when the request is invalid, cancelled, or the opener fails.
    */
   @Remote('openWorkspacePath')
   async openWorkspacePath(
@@ -390,27 +383,23 @@ export class SessionController extends TypertRemoteService {
     signal: AbortSignal,
   ): Promise<SessionOpenWorkspacePathValue> {
     if (request.path.length === 0) {
-      throw new TypertRemoteFailure({
-        code: 'bad-request',
-        message: 'session.openWorkspacePath requires a non-empty path',
-        details: {},
-      })
+      throw new RemoteError(
+        'gateway/bad-request',
+        'session.openWorkspacePath requires a non-empty path',
+        {},
+      )
     }
     signal.throwIfAborted()
     try {
       await this.openPath(request.path, signal)
       return { opened: true }
     } catch (error: unknown) {
-      if (signal.aborted) {
-        throw new TypertRemoteFailure({
-          code: 'cancelled', message: 'path open was aborted', details: {},
-        })
-      }
-      throw new TypertRemoteFailure({
-        code: 'internal',
-        message: `path open failed: ${error instanceof Error ? error.message : String(error)}`,
-        details: {},
-      })
+      if (signal.aborted) throw new RemoteError('gateway/cancelled', 'path open was aborted', {})
+      throw new RemoteError(
+        'gateway/internal',
+        `path open failed: ${error instanceof Error ? error.message : String(error)}`,
+        {},
+      )
     }
   }
 
@@ -480,6 +469,11 @@ export class SessionController extends TypertRemoteService {
     return this.commands.uploadWorkspaceFile(request)
   }
 
+  /**
+   * Read one durable image the Session log references.
+   * @param request - Session and attachment identities used for authorization.
+   * @returns the durable attachment reference and its base64-encoded bytes.
+   */
   @Remote('attachment')
   async attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue> {
     await this.assertViewerMayRead(request.sessionId)
@@ -524,7 +518,8 @@ export class SessionController extends TypertRemoteService {
    * Follow one Session log from its opening or resume cursor.
    * @param request - durable address and last committed sequence already held by the caller.
    * @param signal - cancellation owned by the Remote stream carrier.
-   * @returns a complete opening snapshot followed by gap-free event frames.
+   * @returns a complete opening snapshot followed by gap-free durable event
+   *   frames and optional cursorless assistant-stream frames.
    */
   @Remote({ mode: 'stream' })
   follow(request: SessionFollowRequest, signal: AbortSignal): AsyncIterable<SessionFollowFrame> {
