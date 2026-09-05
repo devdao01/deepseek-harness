@@ -81,6 +81,15 @@ export interface ConnectionConfig {
   trustedHosts?: string[]
   /** Absolute browser-session lifetime in days. Default: 30. */
   cookieMaxAgeDays?: number
+  /**
+   * Fixed launch token for the `/?token=` sign-in URL. Set, the token
+   * survives restarts (bookmarkable, scriptable against a known value);
+   * absent, each process mints a fresh random token, so a leaked URL dies
+   * with the process. 22-128 chars of `A-Za-z0-9_-` (raw base64url, no
+   * URL-encoding ambiguity); anything else fails plugin load. Treat the
+   * configured value like a password.
+   */
+  launchToken?: string
   /** Maximum buffered JSON body for every `/api` request. Default: 300 MiB. */
   maxRequestBodyBytes?: number
 }
@@ -88,6 +97,7 @@ export interface ConnectionConfig {
 export const Config: z<ConnectionConfig> = z.object({
   trustedHosts: z.array(String).default([]),
   cookieMaxAgeDays: z.natural().min(1).default(30),
+  launchToken: z.string().pattern(/^[A-Za-z0-9_-]{22,128}$/),
   maxRequestBodyBytes: z.natural().min(1).default(DEFAULT_MAX_REQUEST_BODY_BYTES),
 })
 
@@ -110,7 +120,7 @@ export async function apply(ctx: Context, config?: ConnectionConfig): Promise<vo
   const connection = new HostConnectionService(
     ctx,
     trustedHosts,
-    await BrowserAuth.create(ctx.root, ctx.credentials, cookieMaxAgeDays),
+    await BrowserAuth.create(ctx.root, ctx.credentials, cookieMaxAgeDays, config?.launchToken),
   )
   const fetchHandler = connection.createSharedFetchHandler(API_PATH)
   const route: WebRoute = {
