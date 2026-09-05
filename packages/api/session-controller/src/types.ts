@@ -389,6 +389,22 @@ export interface SessionOpenWorkspacePathValue {
   readonly opened: true
 }
 
+/** Request reading one file under a Session's workspace for a browser download. */
+export interface SessionReadWorkspaceFileRequest {
+  /** Session whose workspace scopes (and authorizes) the read. */
+  readonly sessionId: SessionId
+  /** File path, absolute or workspace-relative; must stay inside the workspace. */
+  readonly path: string
+}
+
+/** One workspace file's bytes, ready for a client-side download. */
+export interface SessionReadWorkspaceFileValue {
+  /** The file's base name, for the download attribute. */
+  readonly name: string
+  /** File bytes, base64-encoded. */
+  readonly contentBase64: string
+}
+
 /** Client-minted prompt identity used to reconcile optimistic and durable messages. */
 export type SessionRequestId = Branded<'session-request-id'>
 

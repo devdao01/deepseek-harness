@@ -242,6 +242,11 @@ export class FakeApiClient {
           payload,
           this.onOpenWorkspacePath(payload),
         ),
+        readWorkspaceFile: payload => this.remoteResult(
+          'session.readWorkspaceFile',
+          payload,
+          Promise.resolve(ok({ name: 'fake.txt', contentBase64: '' })),
+        ),
         page: request => this.page(request),
         follow: (request, signal) => this.openFollow(request, signal),
         control: signal => this.openControl(signal),

@@ -24,6 +24,8 @@ import { SessionSkillCatalog } from './skill-catalog.ts'
 import type {
   ModelCatalog,
   SessionAttachmentRequest,
+  SessionReadWorkspaceFileRequest,
+  SessionReadWorkspaceFileValue,
   SessionAttachmentValue,
   SessionCancelRequest,
   SessionCancelValue,
@@ -450,6 +452,19 @@ export class SessionController extends TypertRemoteService {
    * @param request - Session and attachment identities used for authorization.
    * @returns the durable attachment reference and base64-encoded bytes.
    */
+  /**
+   * Read one file under a Session's workspace for a browser download.
+   * Viewer-gated like every session-addressed read; the path must stay
+   * inside the Session's workspace directory.
+   * @param request - Session identity and the workspace path to read.
+   * @returns the file's base name and base64-encoded bytes.
+   */
+  @Remote('readWorkspaceFile')
+  async readWorkspaceFile(request: SessionReadWorkspaceFileRequest): Promise<SessionReadWorkspaceFileValue> {
+    await this.assertViewerMayRead(request.sessionId)
+    return this.commands.readWorkspaceFile(request)
+  }
+
   @Remote('attachment')
   async attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue> {
     await this.assertViewerMayRead(request.sessionId)

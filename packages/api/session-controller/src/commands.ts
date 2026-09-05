@@ -1,8 +1,8 @@
 /** Session commands whose activation policy is explicit at each Remote method. */
 
 import { randomUUID } from 'node:crypto'
-import { mkdir } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { mkdir, readFile, stat } from 'node:fs/promises'
+import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { expandHomePath } from '@deepseek-ai/dsh-home-paths'
 import type { Agent, ModelSelection as AgentModelSelection } from '@deepseek-ai/dsh-agent'
@@ -31,6 +31,8 @@ import {
 } from './agent.ts'
 import type {
   SessionAttachmentRequest,
+  SessionReadWorkspaceFileRequest,
+  SessionReadWorkspaceFileValue,
   SessionAttachmentValue,
   SessionCancelRequest,
   SessionCancelValue,
@@ -47,6 +49,9 @@ import type {
   SessionUpdateQueueRequest,
   SessionUpdateQueueValue,
 } from './types.ts'
+
+/** Download cap: a download surface, not a file-transfer service. */
+const MAX_WORKSPACE_FILE_BYTES = 100 * 1024 * 1024
 
 interface SessionReadState {
   readonly id: SessionId
@@ -453,6 +458,47 @@ export class SessionCommandController {
       return { accepted: true }
     }
     return hasImage ? this.agents.serializeImageAdmission(agent, admit) : admit()
+  }
+
+  /**
+   * Read one workspace file for a browser download.
+   *
+   * The path is resolved against the Session's cwd and MUST stay inside it —
+   * this endpoint returns bytes to the viewer, so unlike the native opener a
+   * traversal outside the workspace would be an exfiltration primitive. The
+   * result is size-capped: a download surface, not a file transfer service.
+   * @param request - Session identity and the workspace path to read.
+   * @returns the file's base name and base64-encoded bytes.
+   */
+  async readWorkspaceFile(request: SessionReadWorkspaceFileRequest): Promise<SessionReadWorkspaceFileValue> {
+    let source: SessionReadState
+    try {
+      source = await this.readSessionState(request.sessionId)
+    } catch (error) {
+      if (error instanceof ApiSessionNotFound) {
+        reject('session-not-found', error.message, { sessionId: request.sessionId })
+      }
+      reject('internal', `workspace read unavailable for session "${request.sessionId}": ${String(error)}`, {})
+    }
+    const cwd = source.header.cwd
+    if (cwd === undefined) {
+      reject('bad-request', 'this session has no workspace directory to read from', {})
+    }
+    const target = resolve(cwd, request.path)
+    const containment = relative(cwd, target)
+    if (containment.startsWith('..') || isAbsolute(containment)) {
+      reject('bad-request', `path escapes the session workspace: ${request.path}`, {})
+    }
+    const info = await stat(target).catch((error: unknown) => {
+      reject('bad-request', `cannot read ${request.path}: ${String(error)}`, {})
+    })
+    if (!info.isFile()) reject('bad-request', `not a file: ${request.path}`, {})
+    if (info.size > MAX_WORKSPACE_FILE_BYTES) {
+      reject('bad-request',
+        `file is ${String(info.size)} bytes; downloads are capped at ${String(MAX_WORKSPACE_FILE_BYTES)}`, {})
+    }
+    const bytes = await readFile(target)
+    return { name: basename(target), contentBase64: bytes.toString('base64') }
   }
 
   /**

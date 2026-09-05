@@ -32,6 +32,20 @@ import { createChatStore } from './stores.ts'
 import { TranscriptViewPolicy } from './transcript-view.ts'
 import { CHAT_SETTINGS_NAMESPACE, type ChatSettings } from '../chat-settings.ts'
 
+const mtilDownloadsFiles = (): boolean =>
+  (globalThis as { __MTIL_UI__?: { downloadFiles?: boolean } }).__MTIL_UI__?.downloadFiles === true
+
+/** Hand base64 bytes to the browser as a named download. */
+function downloadToBrowser(name: string, contentBase64: string): void {
+  const bytes = Uint8Array.from(atob(contentBase64), character => character.codePointAt(0) ?? 0)
+  const url = URL.createObjectURL(new Blob([bytes]))
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = name
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
 const CHAT_NODE_INJECT: ChatNodeTurnDataInjected = {
   hooks: {
     turnData: ({ useChat }, nodeKey) => function useTurnData(key) {
@@ -119,6 +133,16 @@ export function apply(ctx: Context): void {
           fileMentions: (owner: TurnTailOwnerProps) => ctx.get('chatFileMentions')?.forClosing(owner),
           openFile: async (path) => {
             const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
+            if (mtilDownloadsFiles()) {
+              // Remote web deployment: the Host has no desktop, and opening
+              // there would not reach the viewer anyway — download instead.
+              const read = await ctx.remote.session.readWorkspaceFile({
+                sessionId, path: resolveWorkspacePath(cwd, path),
+              })
+              if (!read.ok) throw new Error(`file download failed: ${read.error.message}`)
+              downloadToBrowser(read.value.name, read.value.contentBase64)
+              return
+            }
             const result = await ctx.remote.session.openWorkspacePath({
               path: resolveWorkspacePath(cwd, path),
             })
