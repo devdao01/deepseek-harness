@@ -247,6 +247,11 @@ export class FakeApiClient {
           payload,
           Promise.resolve(ok({ name: 'fake.txt', contentBase64: '' })),
         ),
+        uploadWorkspaceFile: payload => this.remoteResult(
+          'session.uploadWorkspaceFile',
+          payload,
+          Promise.resolve(ok({ savedPath: 'uploads/fake.txt' })),
+        ),
         page: request => this.page(request),
         follow: (request, signal) => this.openFollow(request, signal),
         control: signal => this.openControl(signal),

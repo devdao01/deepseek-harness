@@ -1,7 +1,7 @@
 /** Session commands whose activation policy is explicit at each Remote method. */
 
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, stat } from 'node:fs/promises'
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { expandHomePath } from '@deepseek-ai/dsh-home-paths'
@@ -33,6 +33,8 @@ import type {
   SessionAttachmentRequest,
   SessionReadWorkspaceFileRequest,
   SessionReadWorkspaceFileValue,
+  SessionUploadWorkspaceFileRequest,
+  SessionUploadWorkspaceFileValue,
   SessionAttachmentValue,
   SessionCancelRequest,
   SessionCancelValue,
@@ -52,6 +54,10 @@ import type {
 
 /** Download cap: a download surface, not a file-transfer service. */
 const MAX_WORKSPACE_FILE_BYTES = 100 * 1024 * 1024
+
+/** Upload cap, and the workspace directory uploads land in. */
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+const UPLOAD_DIR = 'uploads'
 
 interface SessionReadState {
   readonly id: SessionId
@@ -499,6 +505,55 @@ export class SessionCommandController {
     }
     const bytes = await readFile(target)
     return { name: basename(target), contentBase64: bytes.toString('base64') }
+  }
+
+  /**
+   * Store one uploaded file under the Session's workspace.
+   *
+   * Only the base name of the uploader's file name is kept (a path or a
+   * hidden-file prefix in it cannot place the file elsewhere), the write
+   * stays under `uploads/` inside the Session's cwd, and a name collision
+   * gets a numbered suffix instead of overwriting. Size-capped like the
+   * download side.
+   * @param request - Session identity, file name, and base64 bytes.
+   * @returns the workspace-relative path the agent can read.
+   */
+  async uploadWorkspaceFile(request: SessionUploadWorkspaceFileRequest): Promise<SessionUploadWorkspaceFileValue> {
+    let source: SessionReadState
+    try {
+      source = await this.readSessionState(request.sessionId)
+    } catch (error) {
+      if (error instanceof ApiSessionNotFound) {
+        reject('session-not-found', error.message, { sessionId: request.sessionId })
+      }
+      reject('internal', `workspace upload unavailable for session "${request.sessionId}": ${String(error)}`, {})
+    }
+    const cwd = source.header.cwd
+    if (cwd === undefined) {
+      reject('bad-request', 'this session has no workspace directory to upload into', {})
+    }
+    const clean = basename(request.name).replace(/[\u0000-\u001f]/g, '').replace(/^\.+/, '')
+    if (clean === '') reject('bad-request', `unusable file name: ${request.name}`, {})
+    const bytes = Buffer.from(request.contentBase64, 'base64')
+    if (bytes.byteLength > MAX_UPLOAD_BYTES) {
+      reject('bad-request',
+        `file is ${String(bytes.byteLength)} bytes; uploads are capped at ${String(MAX_UPLOAD_BYTES)}`, {})
+    }
+    const directory = join(cwd, UPLOAD_DIR)
+    await mkdir(directory, { recursive: true })
+    let candidate = clean
+    for (let attempt = 1; ; attempt += 1) {
+      const target = join(directory, candidate)
+      const exists = await stat(target).then(() => true, () => false)
+      if (!exists) {
+        await writeFile(target, bytes, { flag: 'wx' })
+        return { savedPath: `${UPLOAD_DIR}/${candidate}` }
+      }
+      const dot = clean.lastIndexOf('.')
+      candidate = dot > 0
+        ? `${clean.slice(0, dot)}-${String(attempt)}${clean.slice(dot)}`
+        : `${clean}-${String(attempt)}`
+    }
   }
 
   /**

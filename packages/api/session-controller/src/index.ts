@@ -26,6 +26,8 @@ import type {
   SessionAttachmentRequest,
   SessionReadWorkspaceFileRequest,
   SessionReadWorkspaceFileValue,
+  SessionUploadWorkspaceFileRequest,
+  SessionUploadWorkspaceFileValue,
   SessionAttachmentValue,
   SessionCancelRequest,
   SessionCancelValue,
@@ -463,6 +465,19 @@ export class SessionController extends TypertRemoteService {
   async readWorkspaceFile(request: SessionReadWorkspaceFileRequest): Promise<SessionReadWorkspaceFileValue> {
     await this.assertViewerMayRead(request.sessionId)
     return this.commands.readWorkspaceFile(request)
+  }
+
+  /**
+   * Store one uploaded file under a Session's workspace (`uploads/`).
+   * Viewer-gated like every session-addressed call; the agent then reads
+   * the returned workspace-relative path with its ordinary file tools.
+   * @param request - Session identity, file name, and base64 bytes.
+   * @returns the workspace-relative path the file landed at.
+   */
+  @Remote('uploadWorkspaceFile')
+  async uploadWorkspaceFile(request: SessionUploadWorkspaceFileRequest): Promise<SessionUploadWorkspaceFileValue> {
+    await this.assertViewerMayRead(request.sessionId)
+    return this.commands.uploadWorkspaceFile(request)
   }
 
   @Remote('attachment')
