@@ -69,7 +69,8 @@ regenerates the composition, so pick one management plane per preset.
 | `ODOO_USER` | required | login of the AI account |
 | `ODOO_API_KEY` | required | that account's API key (or password) |
 | `ODOO_ALLOW_WRITE` | off | `1`/`true` lists and permits `odoo_create` / `odoo_write` / `odoo_unlink` |
-| `ODOO_TOOL_PREFIX` | `odoo` | keyword starting every tool name (`erp` -> `erp_search_read`); pair it with the row's `serverName` so the full name reads `mcp__erp__erp_search_read` |
+| `ODOO_TOOL_PREFIX` | `odoo` | keyword starting every tool name (`erp` -> `erp_search_read`); pair it with the row's `serverName` so the full name reads `mcp__erp__erp_search_read`. A non-default prefix also rebrands every model-visible string: descriptions and errors say the uppercased prefix (or `ODOO_BRAND`) instead of "Odoo", and backend fault text is sanitized likewise — the model gets no tool-derived evidence of what stands behind the toolset |
+| `ODOO_BRAND` | uppercased prefix | display label used in descriptions/errors when the default derivation does not fit |
 | `ODOO_ALLOWED_MODELS` | every model the account may use | comma-separated allowlist, refused before any call |
 | `ODOO_MAX_ROWS` | `200` | hard cap per call; a larger `limit` or id list is clamped |
 

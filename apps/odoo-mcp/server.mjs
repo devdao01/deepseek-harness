@@ -40,6 +40,10 @@ const TOOL_PREFIX = process.env.ODOO_TOOL_PREFIX ?? 'odoo'
 if (!/^[a-z0-9][a-z0-9_-]{0,23}$/.test(TOOL_PREFIX)) {
   throw new Error(`odoo-mcp: ODOO_TOOL_PREFIX ${JSON.stringify(TOOL_PREFIX)} must be a short lowercase slug`)
 }
+// The system label the MODEL sees in descriptions and errors. A rebranded
+// prefix rebrands the label too, so no model-visible string says "Odoo" —
+// the model then has no ground to confirm what stands behind the tools.
+const BRAND = process.env.ODOO_BRAND ?? (TOOL_PREFIX === 'odoo' ? 'Odoo' : TOOL_PREFIX.toUpperCase())
 const MAX_ROWS = Math.max(1, Number(process.env.ODOO_MAX_ROWS ?? '200') || 200)
 const ALLOWED_MODELS = (process.env.ODOO_ALLOWED_MODELS ?? '')
   .split(',').map(name => name.trim()).filter(name => name.length > 0)
@@ -201,10 +205,14 @@ function parseResponse(xml) {
   cursor.at += '<value>'.length
   const value = parseValue(cursor)
   if (faultAt !== -1) {
-    const message = typeof value === 'object' && value !== null
+    let message = typeof value === 'object' && value !== null
       ? String(value.faultString ?? JSON.stringify(value))
       : String(value)
-    throw new Error(`Odoo refused the call: ${message}`)
+    // The backend's own fault text names its implementation (module paths
+    // like odoo.exceptions.*); under a rebrand that would hand the model the
+    // very word the deployment hides.
+    if (BRAND !== 'Odoo') message = message.replace(/odoo/gi, BRAND)
+    throw new Error(`${BRAND} refused the call: ${message}`)
   }
   return value
 }
@@ -218,7 +226,7 @@ async function xmlRpc(endpoint, method, params) {
   })
   const text = await response.text()
   if (!response.ok) {
-    throw new Error(`Odoo endpoint answered HTTP ${String(response.status)}: ${text.slice(0, 200)}`)
+    throw new Error(`${BRAND} endpoint answered HTTP ${String(response.status)}: ${text.slice(0, 200)}`)
   }
   return parseResponse(text)
 }
@@ -230,7 +238,7 @@ async function uid(conn) {
   const value = await xmlRpc(`${conn.url}/xmlrpc/2/common`, 'authenticate',
     [conn.db, conn.user, conn.key, {}])
   if (typeof value !== 'number' || value === 0 || Number.isNaN(value)) {
-    throw new Error('Odoo rejected the credentials (check ODOO_DB, ODOO_USER, ODOO_API_KEY)')
+    throw new Error(`${BRAND} rejected the credentials (ask the administrator to check the connection settings)`)
   }
   cachedUid = value
   return value
@@ -240,7 +248,7 @@ async function uid(conn) {
 function assertModel(model) {
   if (typeof model !== 'string' || model.trim() === '') throw new Error('model is required')
   if (ALLOWED_MODELS.length > 0 && !ALLOWED_MODELS.includes(model)) {
-    throw new Error(`model "${model}" is not in ODOO_ALLOWED_MODELS (${ALLOWED_MODELS.join(', ')})`)
+    throw new Error(`model "${model}" is not allowed here; allowed: ${ALLOWED_MODELS.join(', ')}`)
   }
 }
 
@@ -257,13 +265,13 @@ async function execute(model, method, args, kwargs) {
 const TOOLS = [
   {
     name: `${TOOL_PREFIX}_search_read`,
-    description: 'Search Odoo records and read their fields in one call (read-only). '
-      + 'Domain is Odoo domain syntax, e.g. [["state","=","sale"],["amount_total",">",1000]].',
+    description: `Search ${BRAND} records and read their fields in one call (read-only). `
+      + 'Domain syntax example: [["state","=","sale"],["amount_total",">",1000]].',
     inputSchema: {
       type: 'object',
       properties: {
-        model: { type: 'string', description: 'Odoo model, e.g. res.partner or sale.order' },
-        domain: { type: 'array', description: 'Odoo search domain; omit for all readable records', items: {} },
+        model: { type: 'string', description: `${BRAND} data model, e.g. res.partner or sale.order` },
+        domain: { type: 'array', description: 'Search domain; omit for all readable records', items: {} },
         fields: { type: 'array', description: 'Field names to read; omit for a small default set', items: { type: 'string' } },
         limit: { type: 'integer', description: `Maximum records (capped at ${String(MAX_ROWS)})` },
         offset: { type: 'integer', description: 'Records to skip, for paging' },
@@ -285,7 +293,7 @@ const TOOLS = [
   },
   {
     name: `${TOOL_PREFIX}_read`,
-    description: 'Read named fields of Odoo records by id (read-only).',
+    description: `Read named fields of ${BRAND} records by id (read-only).`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -304,7 +312,7 @@ const TOOLS = [
   },
   {
     name: `${TOOL_PREFIX}_search_count`,
-    description: 'Count Odoo records matching a domain (read-only).',
+    description: `Count ${BRAND} records matching a domain (read-only).`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -344,7 +352,7 @@ const TOOLS = [
 const WRITE_TOOLS = [
   {
     name: `${TOOL_PREFIX}_create`,
-    description: 'Create one Odoo record and return its id. Relational fields take ids '
+    description: `Create one ${BRAND} record and return its id. Relational fields take ids `
       + `(many2one: the id; many2many: [[6,0,[ids]]]). Check ${TOOL_PREFIX}_fields_get for required fields first.`,
     inputSchema: {
       type: 'object',
@@ -364,7 +372,7 @@ const WRITE_TOOLS = [
   },
   {
     name: `${TOOL_PREFIX}_write`,
-    description: 'Update named fields on existing Odoo records by id. Returns true on success.',
+    description: `Update named fields on existing ${BRAND} records by id. Returns true on success.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -385,7 +393,7 @@ const WRITE_TOOLS = [
   },
   {
     name: `${TOOL_PREFIX}_unlink`,
-    description: 'Delete Odoo records by id. Irreversible; returns true on success. '
+    description: `Delete ${BRAND} records by id. Irreversible; returns true on success. `
       + `Prefer archiving (${TOOL_PREFIX}_write with {"active": false}) when the model has an active field.`,
     inputSchema: {
       type: 'object',
