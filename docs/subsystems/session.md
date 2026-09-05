@@ -788,15 +788,6 @@ inspect( sessionId: SessionId, signal?: AbortSignal, ): Promise<SessionInspectio
 @Remote('readWorkspaceFile') async readWorkspaceFile(request: SessionReadWorkspaceFileRequest): Promise<SessionReadWorkspaceFileValue>
 
 /**
- * Store one uploaded file under a Session's workspace (`uploads/`).
- * Viewer-gated like every session-addressed call; the agent then reads
- * the returned workspace-relative path with its ordinary file tools.
- * @param request - Session identity, file name, and base64 bytes.
- * @returns the workspace-relative path the file landed at.
- */
-@Remote('uploadWorkspaceFile') async uploadWorkspaceFile(request: SessionUploadWorkspaceFileRequest): Promise<SessionUploadWorkspaceFileValue>
-
-/**
  * Read one durable image the Session log references.
  * @param request - Session and attachment identities used for authorization.
  * @returns the durable attachment reference and its base64-encoded bytes.

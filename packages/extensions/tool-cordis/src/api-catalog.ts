@@ -1554,12 +1554,6 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the file\'s base name and base64-encoded bytes.',
       },
       {
-        signature: '@Remote(\'uploadWorkspaceFile\') async uploadWorkspaceFile(request: SessionUploadWorkspaceFileRequest): Promise<SessionUploadWorkspaceFileValue>',
-        description: 'Store one uploaded file under a Session\'s workspace (`uploads/`). Viewer-gated like every session-addressed call; the agent then reads the returned workspace-relative path with its ordinary file tools.',
-        parameters: [{ name: 'request', description: 'Session identity, file name, and base64 bytes.' }],
-        returns: 'the workspace-relative path the file landed at.',
-      },
-      {
         signature: '@Remote(\'attachment\') async attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue>',
         description: 'Read one durable image the Session log references.',
         parameters: [{ name: 'request', description: 'Session and attachment identities used for authorization.' }],
@@ -5543,14 +5537,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionUpdateQueueValue',
     declaration: 'export interface SessionUpdateQueueValue {\n    readonly accepted: true;\n}',
-  },
-  {
-    name: 'SessionUploadWorkspaceFileRequest',
-    declaration: 'export interface SessionUploadWorkspaceFileRequest {\n    readonly sessionId: SessionId;\n    readonly name: string;\n    readonly contentBase64: string;\n}',
-  },
-  {
-    name: 'SessionUploadWorkspaceFileValue',
-    declaration: 'export interface SessionUploadWorkspaceFileValue {\n    readonly savedPath: string;\n}',
   },
   {
     name: 'SessionWireEvent',

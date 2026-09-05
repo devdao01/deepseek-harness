@@ -394,21 +394,6 @@ export interface SessionReadWorkspaceFileValue {
   readonly contentBase64: string
 }
 
-/** Request storing one uploaded file under a Session's workspace. */
-export interface SessionUploadWorkspaceFileRequest {
-  /** Session whose workspace receives (and authorizes) the upload. */
-  readonly sessionId: SessionId
-  /** The uploader's file name; only its base name is kept. */
-  readonly name: string
-  /** File bytes, base64-encoded. */
-  readonly contentBase64: string
-}
-
-/** Where an uploaded file landed, workspace-relative so the agent can read it. */
-export interface SessionUploadWorkspaceFileValue {
-  /** Path relative to the Session's workspace, e.g. `uploads/report.pdf`. */
-  readonly savedPath: string
-}
 
 /** Client-minted prompt identity used to reconcile optimistic and durable messages. */
 export type SessionRequestId = Branded<'session-request-id'>

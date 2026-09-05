@@ -690,8 +690,6 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   SessionSetAccessValue: 'MTIL session access list value is owned by packages/api/session-controller/README.md',
   SessionReadWorkspaceFileRequest: 'MTIL workspace download request is owned by packages/api/session-controller/README.md',
   SessionReadWorkspaceFileValue: 'MTIL workspace download value is owned by packages/api/session-controller/README.md',
-  SessionUploadWorkspaceFileRequest: 'MTIL workspace upload request is owned by packages/api/session-controller/README.md',
-  SessionUploadWorkspaceFileValue: 'MTIL workspace upload value is owned by packages/api/session-controller/README.md',
   AuthorizationListValue: 'MTIL provider sign-in flow list is owned by packages/api/settings-controller/README.md',
   AuthorizationBeginValue: 'MTIL provider sign-in attempt handle is owned by packages/api/settings-controller/README.md',
   AuthorizationAttemptState: 'MTIL provider sign-in attempt state is owned by packages/api/settings-controller/README.md',

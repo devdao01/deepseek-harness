@@ -85,52 +85,6 @@ describe('session/readWorkspaceFile', () => {
     expect(missing.ok).toBe(false)
   })
 
-  it('stores an upload under uploads/ and suffixes a collision', async () => {
-    const { remote, cwd } = await scaffold()
-    const created = await remote.create({ cwd })
-    if (!created.ok) throw new Error('create failed')
-    const content = Buffer.from('dữ liệu tải lên').toString('base64')
-
-    const first = await remote.uploadWorkspaceFile({
-      sessionId: created.value.sessionId,
-      name: '../evil/../báo cáo.pdf',
-      contentBase64: content,
-    })
-    if (!first.ok) throw new Error(`upload failed: ${first.error.message}`)
-    expect(first.value.savedPath).toBe('uploads/báo cáo.pdf')
-
-    const second = await remote.uploadWorkspaceFile({
-      sessionId: created.value.sessionId,
-      name: 'báo cáo.pdf',
-      contentBase64: content,
-    })
-    if (!second.ok) throw new Error(`second upload failed: ${second.error.message}`)
-    expect(second.value.savedPath).toBe('uploads/báo cáo-1.pdf')
-
-    // The agent-facing read path round-trips the stored bytes.
-    const read = await remote.readWorkspaceFile({
-      sessionId: created.value.sessionId,
-      path: first.value.savedPath,
-    })
-    if (!read.ok) throw new Error('read back failed')
-    expect(Buffer.from(read.value.contentBase64, 'base64').toString()).toBe('dữ liệu tải lên')
-  })
-
-  it('refuses an upload whose name reduces to nothing', async () => {
-    const { remote, cwd } = await scaffold()
-    const created = await remote.create({ cwd })
-    if (!created.ok) throw new Error('create failed')
-
-    const upload = await remote.uploadWorkspaceFile({
-      sessionId: created.value.sessionId,
-      name: '...',
-      contentBase64: 'eA==',
-    })
-
-    expect(upload.ok).toBe(false)
-    if (!upload.ok) expect(upload.error.message).toContain('unusable')
-  })
-
   it('answers an unknown session with session-not-found', async () => {
     const { remote } = await scaffold()
 

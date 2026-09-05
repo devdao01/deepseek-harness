@@ -35,8 +35,6 @@ import type {
   SessionAttachmentRequest,
   SessionReadWorkspaceFileRequest,
   SessionReadWorkspaceFileValue,
-  SessionUploadWorkspaceFileRequest,
-  SessionUploadWorkspaceFileValue,
   SessionAttachmentValue,
   SessionCancelRequest,
   SessionCancelValue,
@@ -78,7 +76,6 @@ export interface TestSessionRemote {
   prompt(request: SessionPromptRequest, signal?: AbortSignal): Promise<RemoteResult<SessionPromptValue>>
   attachment(request: SessionAttachmentRequest): Promise<RemoteResult<SessionAttachmentValue>>
   readWorkspaceFile(request: SessionReadWorkspaceFileRequest): Promise<RemoteResult<SessionReadWorkspaceFileValue>>
-  uploadWorkspaceFile(request: SessionUploadWorkspaceFileRequest): Promise<RemoteResult<SessionUploadWorkspaceFileValue>>
   updateQueue(request: SessionUpdateQueueRequest): Promise<RemoteResult<SessionUpdateQueueValue>>
   cancel(request: SessionCancelRequest): Promise<RemoteResult<SessionCancelValue>>
   openWorkspacePath(
@@ -354,7 +351,6 @@ export function createSessionTestRemote(
     ),
     attachment: request => remoteResult(() => direct.attachment(request)),
     readWorkspaceFile: request => remoteResult(() => direct.readWorkspaceFile(request)),
-    uploadWorkspaceFile: request => remoteResult(() => direct.uploadWorkspaceFile(request)),
     updateQueue: request => remoteResult(() => direct.updateQueue(request)),
     cancel: request => remoteResult(() => direct.cancel(request)),
     openWorkspacePath: (request, signal = new AbortController().signal) => remoteResult(
