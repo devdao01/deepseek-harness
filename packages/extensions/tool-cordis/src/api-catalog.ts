@@ -148,6 +148,41 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the rows and the authoring capability.',
       },
       {
+        signature: '@Remote(\'author\') async remoteExportAuthor(request: AuthorPresetRequest): Promise<void>',
+        description: 'Create or rewrite one structured locally authored preset.\n\nThe composition is GENERATED from the deployment\'s default preset plus the request\'s bounded spec (persona, bash/web flags, router departments) — the caller supplies no composition text or plugin names, so authoring grants no capability the default composition did not already carry. An existing user preset is rewritten in place: sessions already composed keep their generation, new sessions get the new one. A shipped preset id is refused.',
+        parameters: [{ name: 'request', description: 'the preset identity, display text, and composition spec.' }],
+        returns: 'once the preset is stored.',
+        throws: ['{RemoteError} `bad-request` for an unusable spec, `agent-preset-read-only` for a shipped id, or `agent-preset-invalid` for an unusable preset id.'],
+      },
+      {
+        signature: '@Remote(\'toolCatalog\') async remoteExportToolCatalog(): Promise<AgentPresetToolCatalog>',
+        description: 'The tools the deployment\'s default composition registers, for authoring pickers to offer as `toolFilter` grants.',
+        parameters: [],
+        returns: 'one entry per visible tool of the default preset\'s standing mount.',
+        throws: ['{RemoteError} when the default preset cannot compose.'],
+      },
+      {
+        signature: '@Remote(\'writeRaw\') async remoteExportWriteRaw(request: WriteRawPresetRequest): Promise<void>',
+        description: 'Replace one user preset\'s raw composition text.\n\nUNLIKE every other authoring path, the caller supplies the composition — and with it arbitrary plugin names, which is shell-equivalent trust. With a configured `ticketSecret` only the `*` management wildcard (the Odoo plane, server-side) may call; without one the deployment is a trusted single-operator setup and the call is open like the rest of authoring. The content must parse as a top-level list of plugin rows; deeper health (unresolvable plugin names) still surfaces as a broken roster row.',
+        parameters: [{ name: 'request', description: 'preset identity, display text, and the full composition.' }],
+        returns: 'once the preset is stored.',
+        throws: ['{RemoteError} `bad-request` for refused callers or unusable content, `agent-preset-read-only` for a shipped id.'],
+      },
+      {
+        signature: '@Remote(\'rename\') async remoteExportRename(agentPreset: string, name: string, description?: string): Promise<void>',
+        description: 'Rewrite one locally authored preset\'s display text. The id — and with it every id-derived path — never changes; a shipped preset is refused.',
+        parameters: [{ name: 'agentPreset', description: 'the preset id.' }, { name: 'name', description: 'the new display name.' }, { name: 'description', description: 'replacement description; omitted keeps the current one.' }],
+        returns: 'once the metadata is stored.',
+        throws: ['{RemoteError} `bad-request`, `agent-preset-not-found`, or `agent-preset-read-only` when the rename is refused.'],
+      },
+      {
+        signature: '@Remote(\'setActive\') async remoteExportSetActive(agentPreset: string, active: boolean): Promise<void>',
+        description: 'Activate or deactivate one preset for pickers and new selection.\n\nThe state lives in the `agent-presets` settings namespace, so it covers shipped read-only presets too and hot-reloads like the default. Sessions already composed from a deactivated preset keep running and resuming.',
+        parameters: [{ name: 'agentPreset', description: 'the preset id.' }, { name: 'active', description: 'whether pickers may offer the preset again.' }],
+        returns: 'once the state is stored.',
+        throws: ['{RemoteError} `bad-request`, `agent-preset-not-found`, or `internal` when no settings service is mounted.'],
+      },
+      {
         signature: 'async compositionInventory(): Promise<AgentPresetComposition[]>',
         description: 'Every preset\'s composition as flattened plugin rows, for plugin-listing surfaces beside the roster\'s own picker.\n\nA preset with a live standing mount answers from its newest generation\'s Loader entries — the composition new sessions join — even when the file behind it has since been edited into an unreadable state: the mount is what sessions actually run, so the broken verdict only applies to a preset nothing composed. One never composed since boot answers from its file, with `!!js` disabled gates evaluated against the Loader context so both answers reflect the same host. Reading never mounts: an unmounted preset is parsed, not composed, so listing a preset\'s plugins cannot activate them early. A composition that stopped reading between discovery\'s health verdict and this read is reported broken with the raced reason rather than dropped.',
         parameters: [],
@@ -195,15 +230,15 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         throws: ['{RemoteError} `gateway/bad-request` for an empty id, or `agent-preset/not-found` when no configured root supplies it.'],
       },
       {
-        signature: 'async copy(from: string, id: string, name?: string): Promise<void>',
+        signature: 'async copy(from: string, id: string, name?: string, description?: string): Promise<void>',
         description: 'Create a locally authored preset by copying an existing one whole.\n\nCopy is the only authoring write. Composition text never crosses this seam: the source is named by id and its directory is copied as it stands, so the copy is exactly as loadable as its source and authoring grants no capability the roster did not already carry. The copy is NOT mounted to validate — a source that mounts today yields a copy that mounts today.',
-        parameters: [{ name: 'from', description: 'the preset the copy starts from; shipped presets are the primary source, so any trust is accepted.' }, { name: 'id', description: 'the new preset\'s id, which becomes its directory name.' }, { name: 'name', description: 'display name for the copy; absent falls back to the id.' }],
+        parameters: [{ name: 'from', description: 'the preset the copy starts from; shipped presets are the primary source, so any trust is accepted.' }, { name: 'id', description: 'the new preset\'s id, which becomes its directory name.' }, { name: 'name', description: 'display name for the copy; absent falls back to the id.' }, { name: 'description', description: 'one sentence on what the copy is for; absent stores none.' }],
         throws: ['when the source is unknown, the id is unusable or already taken, or the deployment configures no writable root.'],
       },
       {
-        signature: '@Remote(\'copy\') async remoteExportCopy(from: string, id: string, name?: string): Promise<void>',
+        signature: '@Remote(\'copy\') async remoteExportCopy(from: string, id: string, name?: string, description?: string): Promise<void>',
         description: 'Copy one preset through the Remote API.',
-        parameters: [{ name: 'from', description: 'the source preset id.' }, { name: 'id', description: 'the new preset id.' }, { name: 'name', description: 'the copy\'s optional display name.' }],
+        parameters: [{ name: 'from', description: 'the source preset id.' }, { name: 'id', description: 'the new preset id.' }, { name: 'name', description: 'the copy\'s optional display name.' }, { name: 'description', description: 'the copy\'s optional description (omitted keeps the source\'s).' }],
         returns: 'once the copy is stored.',
         throws: ['{RemoteError} with the corresponding stable preset code and details when the copy is refused.'],
       },
@@ -1470,13 +1505,19 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'authorized bounded Session search results.',
       },
       {
-        signature: '@Remote(\'create\') create(request: SessionCreateRequest): Promise<SessionCreateValue>',
+        signature: '@Remote(\'create\') async create(request: SessionCreateRequest): Promise<SessionCreateValue>',
         description: 'Create or idempotently adopt one ordinary Session.',
         parameters: [{ name: 'request', description: 'requested identity, location, and Agent preset.' }],
         returns: 'the Session identity and resolved preset when configured.',
       },
       {
-        signature: '@Remote(\'selectModel\') selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue>',
+        signature: '@Remote(\'setAccess\') async setAccess(request: SessionSetAccessRequest): Promise<SessionSetAccessValue>',
+        description: 'Replace one Session\'s allowed-users access list.\n\nWith a configured `ticketSecret` only the `*` management wildcard may write: an ordinary browser could otherwise grant itself access.',
+        parameters: [{ name: 'request', description: 'Session identity and the complete new list.' }],
+        returns: 'the list as stored (empty = unrestricted).',
+      },
+      {
+        signature: '@Remote(\'selectModel\') async selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue>',
         description: 'Select one Session-local model after explicitly resuming the Session.',
         parameters: [{ name: 'request', description: 'Session identity and requested model selection.' }],
         returns: 'the normalized selection installed for the Session.',
@@ -1507,43 +1548,49 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         throws: ['RemoteError when the request is invalid, cancelled, or the opener fails.'],
       },
       {
-        signature: '@Remote(\'rename\') rename(request: SessionRenameRequest): Promise<SessionRenameValue>',
+        signature: '@Remote(\'rename\') async rename(request: SessionRenameRequest): Promise<SessionRenameValue>',
         description: 'Rename one Session after explicitly resuming it.',
         parameters: [{ name: 'request', description: 'Session identity and proposed title.' }],
         returns: 'the accepted title and durable event sequence.',
       },
       {
-        signature: '@Remote(\'fork\') fork(request: SessionForkRequest): Promise<SessionForkValue>',
+        signature: '@Remote(\'fork\') async fork(request: SessionForkRequest): Promise<SessionForkValue>',
         description: 'Fork one cold-readable completed-turn prefix into a new Session.',
         parameters: [{ name: 'request', description: 'source Session and optional event anchor.' }],
         returns: 'the new Session identity.',
       },
       {
-        signature: '@Remote(\'prompt\') prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue>',
+        signature: '@Remote(\'prompt\') async prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue>',
         description: 'Admit one prompt after explicitly resuming its Session.',
         parameters: [{ name: 'request', description: 'Session identity, prompt content, source metadata, and delivery mode.' }, { name: 'signal', description: 'caller cancellation before prompt admission begins.' }],
         returns: 'acknowledgement that the Agent accepted the prompt.',
       },
       {
-        signature: '@Remote(\'attachment\') attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue>',
-        description: 'Read one image proven reachable from the addressed Session log.',
-        parameters: [{ name: 'request', description: 'Session and attachment identities used for authorization.' }],
-        returns: 'the durable attachment reference and base64-encoded bytes.',
+        signature: '@Remote(\'readWorkspaceFile\') async readWorkspaceFile(request: SessionReadWorkspaceFileRequest): Promise<SessionReadWorkspaceFileValue>',
+        description: 'Read one file under a Session\'s workspace for a browser download. Viewer-gated like every session-addressed read; the path must stay inside the Session\'s workspace directory.',
+        parameters: [{ name: 'request', description: 'Session identity and the workspace path to read.' }],
+        returns: 'the file\'s base name and base64-encoded bytes.',
       },
       {
-        signature: '@Remote(\'updateQueue\') updateQueue(request: SessionUpdateQueueRequest): SessionUpdateQueueValue',
+        signature: '@Remote(\'attachment\') async attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue>',
+        description: 'Read one durable image the Session log references.',
+        parameters: [{ name: 'request', description: 'Session and attachment identities used for authorization.' }],
+        returns: 'the durable attachment reference and its base64-encoded bytes.',
+      },
+      {
+        signature: '@Remote(\'updateQueue\') async updateQueue(request: SessionUpdateQueueRequest): Promise<SessionUpdateQueueValue>',
         description: 'Mutate one still-pending queue occurrence on a live Agent.',
         parameters: [{ name: 'request', description: 'Session, queue item, and requested mutation.' }],
         returns: 'acknowledgement that the queue mutation was applied.',
       },
       {
-        signature: '@Remote(\'cancel\') cancel(request: SessionCancelRequest): SessionCancelValue',
+        signature: '@Remote(\'cancel\') async cancel(request: SessionCancelRequest): Promise<SessionCancelValue>',
         description: 'Cancel one active Agent turn without dropping its pending inbox.',
         parameters: [{ name: 'request', description: 'Session whose active Agent turn is cancelled.' }],
         returns: 'acknowledgement that cancellation was requested.',
       },
       {
-        signature: '@Remote(\'page\') page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage>',
+        signature: '@Remote(\'page\') async page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage>',
         description: 'Read one cold-safe, message-aligned Session history page.',
         parameters: [{ name: 'request', description: 'durable address, backward cursor, and page budget.' }, { name: 'signal', description: 'cancellation for persistence reads.' }],
         returns: 'one chronological page.',
@@ -2064,6 +2111,36 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     summary: 'Host service backing the generated `ctx.remote.settings` namespace.',
     description: 'Host service backing the generated `ctx.remote.settings` namespace. Every remote read uses `redactSecrets: true`, so a `role(\'secret\')` field cannot ride a response. Writes expose the settings service\'s merge, replacement, and path-addressed operations, and classify every provider refusal as `settings/conflict` or `settings/rejected` with the service\'s message.',
     methods: [
+      {
+        signature: '@Remote listAuthorizations(): AuthorizationListValue',
+        description: 'List the credential flows this deployment can authorize (e.g. a provider sign-in). Empty when no authorization seam is mounted.',
+        parameters: [],
+        returns: 'one entry per registered flow.',
+      },
+      {
+        signature: '@Remote beginAuthorization(key: string, method: string | undefined): AuthorizationBeginValue',
+        description: 'Start one authorization attempt, detached, and return its id. Poll it for the sign-in URL and the pending prompt; answer with `respondAuthorization`.',
+        parameters: [{ name: 'key', description: 'the credential record to authorize.' }, { name: 'method', description: 'the flow method, or undefined for the flow\'s first.' }],
+        returns: 'the attempt id to poll and respond to.',
+        throws: ['RemoteError when no flow claims the key or none can run.'],
+      },
+      {
+        signature: '@Remote pollAuthorization(attemptId: string): AuthorizationAttemptState',
+        description: 'Read one attempt\'s progress: notices drained since the last poll, the pending prompt (e.g. paste your code), and the settled outcome.',
+        parameters: [{ name: 'attemptId', description: 'the id `beginAuthorization` returned.' }],
+        returns: 'the attempt state, or notices-empty settled-failed for an unknown or reaped id so a poller stops cleanly.',
+      },
+      {
+        signature: '@Remote respondAuthorization(attemptId: string, promptId: string, answer: string): boolean',
+        description: 'Answer the pending prompt of one attempt (the pasted OAuth code/URL, or a chosen option id).',
+        parameters: [{ name: 'attemptId', description: 'the attempt whose prompt to answer.' }, { name: 'promptId', description: 'the prompt id from the last poll.' }, { name: 'answer', description: 'the human\'s text or the chosen option id.' }],
+        returns: 'whether a matching pending prompt received the answer.',
+      },
+      {
+        signature: '@Remote cancelAuthorization(attemptId: string): void',
+        description: 'Withdraw one authorization attempt.',
+        parameters: [{ name: 'attemptId', description: 'the attempt to cancel.' }],
+      },
       {
         signature: '@Remote describe(): SettingsDescribeValue',
         description: 'Describe every registered namespace for a configuration page: redacted layered values plus the serialized schema the page renders its form from.',
@@ -3027,6 +3104,22 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'payload', description: '.error - persistence, setup, or publication failure.' }],
   },
   {
+    name: 'agent-preset/authored',
+    mode: 'emit',
+    signature: '\'agent-preset/authored\'(agentPreset: string): void',
+    summary: 'One locally authored preset was stored on disk (the copy committed).',
+    description: 'One locally authored preset was stored on disk (the copy committed). Consumers prepare per-preset resources — the session controller materializes the preset\'s workspace directory when one is configured.',
+    parameters: [{ name: 'agentPreset', description: 'the id of the preset just authored.' }],
+  },
+  {
+    name: 'agent-preset/renamed',
+    mode: 'emit',
+    signature: '\'agent-preset/renamed\'(agentPreset: string, name: string): void',
+    summary: 'One preset\'s display name was rewritten (the id never changes).',
+    description: 'One preset\'s display name was rewritten (the id never changes). Consumers retitle name-derived presentation — the session controller retitles the preset\'s Workspace group when one is configured.',
+    parameters: [{ name: 'agentPreset', description: 'the id of the renamed preset.' }, { name: 'name', description: 'the new display name.' }],
+  },
+  {
     name: 'agent-preset/selected',
     mode: 'emit',
     signature: '\'agent-preset/selected\'(sessionId: SessionId, agentPreset: string): void',
@@ -3620,7 +3713,15 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'AgentPresetRow',
-    declaration: 'export interface AgentPresetRow {\n    readonly id: string;\n    readonly trust: PresetTrust;\n    readonly isDefault: boolean;\n    readonly name?: string;\n    readonly description?: string;\n    readonly broken?: string;\n}',
+    declaration: 'export interface AgentPresetRow {\n    readonly id: string;\n    readonly trust: PresetTrust;\n    readonly isDefault: boolean;\n    readonly active: boolean;\n    readonly name?: string;\n    readonly description?: string;\n    readonly broken?: string;\n}',
+  },
+  {
+    name: 'AgentPresetToolCatalog',
+    declaration: 'export interface AgentPresetToolCatalog {\n    readonly tools: readonly AgentPresetToolCatalogEntry[];\n}',
+  },
+  {
+    name: 'AgentPresetToolCatalogEntry',
+    declaration: 'export interface AgentPresetToolCatalogEntry {\n    readonly name: string;\n    readonly description: string;\n}',
   },
   {
     name: 'AgentResolver',
@@ -3739,6 +3840,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type AttachmentId = Branded<\'AttachmentId\'>;',
   },
   {
+    name: 'AuthorizationAttemptState',
+    declaration: 'export interface AuthorizationAttemptState {\n    readonly notices: readonly {\n        readonly message: string;\n        readonly url?: string;\n        readonly code?: string;\n    }[];\n    readonly prompt?: {\n        readonly id: string;\n    } & AuthorizationPromptView;\n    readonly settled?: {\n        readonly status: \'authorized\' | \'cancelled\' | \'failed\';\n        readonly message?: string;\n    };\n}',
+  },
+  {
+    name: 'AuthorizationBeginValue',
+    declaration: 'export interface AuthorizationBeginValue {\n    readonly attemptId: string;\n}',
+  },
+  {
     name: 'AuthorizationEntry',
     declaration: 'export interface AuthorizationEntry {\n    key: CredentialKey;\n    label: string;\n    methods: readonly AuthorizationMethod[];\n    inFlight: boolean;\n}',
   },
@@ -3747,8 +3856,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface AuthorizationFlow {\n    readonly key: CredentialKey;\n    readonly label: string;\n    readonly methods: readonly [\n        AuthorizationMethod,\n        ...AuthorizationMethod[]\n    ];\n    run(session: AuthorizationSession): Promise<void>;\n}',
   },
   {
+    name: 'AuthorizationFlowView',
+    declaration: 'export interface AuthorizationFlowView {\n    readonly key: string;\n    readonly label: string;\n    readonly methods: readonly {\n        readonly id: string;\n        readonly label: string;\n    }[];\n    readonly inFlight: boolean;\n}',
+  },
+  {
     name: 'AuthorizationInteraction',
     declaration: 'export interface AuthorizationInteraction {\n    notify(notice: AuthorizationNotice): void;\n    prompt(prompt: AuthorizationPrompt): Promise<string>;\n}',
+  },
+  {
+    name: 'AuthorizationListValue',
+    declaration: 'export interface AuthorizationListValue {\n    readonly flows: readonly AuthorizationFlowView[];\n}',
   },
   {
     name: 'AuthorizationMethod',
@@ -3771,6 +3888,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface AuthorizationPromptOption {\n    id: string;\n    label: string;\n    description?: string;\n}',
   },
   {
+    name: 'AuthorizationPromptOptionView',
+    declaration: 'export interface AuthorizationPromptOptionView {\n    readonly id: string;\n    readonly label: string;\n    readonly description?: string;\n}',
+  },
+  {
+    name: 'AuthorizationPromptView',
+    declaration: 'export type AuthorizationPromptView = {\n    readonly kind: \'text\' | \'secret\';\n    readonly message: string;\n    readonly placeholder?: string;\n} | {\n    readonly kind: \'select\';\n    readonly message: string;\n    readonly options: readonly AuthorizationPromptOptionView[];\n};',
+  },
+  {
     name: 'AuthorizationRequest',
     declaration: 'export interface AuthorizationRequest {\n    key: CredentialKey;\n    method?: string;\n    interaction: AuthorizationInteraction;\n    signal?: AbortSignal;\n}',
   },
@@ -3785,6 +3910,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'AuthorizationStatus',
     declaration: 'export type AuthorizationStatus = \'authorized\' | \'cancelled\';',
+  },
+  {
+    name: 'AuthorPresetOdoo',
+    declaration: 'export interface AuthorPresetOdoo {\n    readonly url: string;\n    readonly db: string;\n    readonly user: string;\n    readonly apiKey: string;\n    readonly allowWrite?: boolean;\n    readonly allowedModels?: readonly string[];\n    readonly maxRows?: number;\n    readonly toolPrefix?: string;\n}',
+  },
+  {
+    name: 'AuthorPresetRequest',
+    declaration: 'export interface AuthorPresetRequest {\n    readonly agentPreset: string;\n    readonly name: string;\n    readonly description?: string;\n    readonly kind: \'standalone\' | \'router\';\n    readonly persona: string;\n    readonly allowBash?: boolean;\n    readonly allowWeb?: boolean;\n    readonly subagents?: readonly AuthorPresetSubagent[];\n    readonly odoo?: AuthorPresetOdoo;\n}',
+  },
+  {
+    name: 'AuthorPresetSubagent',
+    declaration: 'export interface AuthorPresetSubagent {\n    readonly toolName: string;\n    readonly persona: string;\n    readonly allowBash?: boolean;\n    readonly allowWeb?: boolean;\n    readonly tools?: readonly string[];\n}',
   },
   {
     name: 'BackendRegistry',
@@ -5351,6 +5488,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface SessionQueuedItem {\n    readonly id: MessageId;\n    readonly placement: \'queued\' | \'steering\' | \'context\';\n    readonly rpcId?: SessionRequestId;\n    readonly message: {\n        readonly id: MessageId;\n        readonly content: readonly JsonValue[];\n    };\n}',
   },
   {
+    name: 'SessionReadWorkspaceFileRequest',
+    declaration: 'export interface SessionReadWorkspaceFileRequest {\n    readonly sessionId: SessionId;\n    readonly path: string;\n}',
+  },
+  {
+    name: 'SessionReadWorkspaceFileValue',
+    declaration: 'export interface SessionReadWorkspaceFileValue {\n    readonly name: string;\n    readonly contentBase64: string;\n}',
+  },
+  {
     name: 'SessionRecord',
     declaration: 'export interface SessionRecord {\n    header: SessionHeader;\n    live: boolean;\n    persisted: boolean;\n}',
   },
@@ -5431,6 +5576,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type SessionSeqCursor = SessionSeq | -1;',
   },
   {
+    name: 'SessionSetAccessRequest',
+    declaration: 'export interface SessionSetAccessRequest {\n    readonly sessionId: SessionId;\n    readonly allowedUsers: readonly string[];\n}',
+  },
+  {
+    name: 'SessionSetAccessValue',
+    declaration: 'export interface SessionSetAccessValue {\n    readonly allowedUsers: readonly string[];\n}',
+  },
+  {
     name: 'SessionStartSource',
     declaration: 'export type SessionStartSource = \'startup\' | \'resume\' | \'clear\' | \'compact\';',
   },
@@ -5440,7 +5593,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionSummary',
-    declaration: 'export interface SessionSummary {\n    readonly sessionId: SessionId;\n    readonly updatedAt: number;\n    readonly running: boolean;\n    readonly blank: boolean;\n    readonly parentSessionId?: SessionId;\n    readonly origin?: \'subagent\';\n    readonly cwd?: string;\n    readonly projections?: SessionProjectionHints;\n}',
+    declaration: 'export interface SessionSummary {\n    readonly sessionId: SessionId;\n    readonly updatedAt: number;\n    readonly running: boolean;\n    readonly blank: boolean;\n    readonly parentSessionId?: SessionId;\n    readonly origin?: \'subagent\';\n    readonly cwd?: string;\n    readonly projections?: SessionProjectionHints;\n    readonly allowedUsers?: readonly string[];\n}',
   },
   {
     name: 'SessionSurface',
@@ -6509,6 +6662,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'WorkspaceView',
     declaration: 'export interface WorkspaceView {\n    readonly workspaceId: WorkspaceId;\n    readonly path: string;\n    readonly title: string;\n    readonly sessionIds: readonly SessionId[];\n    readonly createdAt: string;\n    readonly updatedAt: string;\n}',
+  },
+  {
+    name: 'WriteRawPresetRequest',
+    declaration: 'export interface WriteRawPresetRequest {\n    readonly agentPreset: string;\n    readonly name: string;\n    readonly description?: string;\n    readonly content: string;\n}',
   },
 ]
 

@@ -93,6 +93,8 @@ export function SidebarRoot({
   selectPanel,
   usePanels,
   usePanelInfo,
+  exitSession,
+  hideNewSession,
   t,
   renderSlot,
 }: SidebarRootComponentProps) {
@@ -184,8 +186,8 @@ export function SidebarRoot({
           <button
             type="button"
             className={clsx(css.brand, css.wide)}
-            aria-label={t('session.new.label')}
-            onClick={() => { startSession() }}
+            aria-label={exitSession === undefined ? t('session.new.label') : t('brand.exit.label')}
+            onClick={() => { (exitSession ?? startSession)() }}
           >
             <span className={css.brandIdentity} aria-hidden="true">
               <span className={css.brandMark}>
@@ -206,6 +208,9 @@ export function SidebarRoot({
             </span>
           </button>
         )}
+        {/* Deployment header actions between the brand and the collapse
+            toggle; an empty slot renders nothing. */}
+        {wide && renderSlot('sidebar.header.actions', {})}
         {/* Rail resting state is the whale mark; hovering swaps in the panel
             icon (the expand affordance, figma sidebar-hover flow). */}
         <Tooltip label={collapsed ? t('toggle.open') : t('toggle.collapse')} delayMs={500}>
@@ -227,17 +232,19 @@ export function SidebarRoot({
       </div>
 
       {/* Expanded, the button carries its own label — tooltip only on the rail. */}
-      <Tooltip label={t('session.new.label')} delayMs={500} disabled={wide}>
-        <button
-          type="button"
-          className={css.newSession}
-          aria-label={t('session.new.label')}
-          onClick={() => { startSession() }}
-        >
-          <IconNewChatOutline16 size={wide ? 14 : 18} />
-          {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
-        </button>
-      </Tooltip>
+      {hideNewSession !== true && (
+        <Tooltip label={t('session.new.label')} delayMs={500} disabled={wide}>
+          <button
+            type="button"
+            className={css.newSession}
+            aria-label={t('session.new.label')}
+            onClick={() => { startSession() }}
+          >
+            <IconNewChatOutline16 size={wide ? 14 : 18} />
+            {wide && <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>}
+          </button>
+        </Tooltip>
+      )}
 
       {panels.length > 0 && (
         <nav className={css.panelList} aria-label={t('panels.label')}>

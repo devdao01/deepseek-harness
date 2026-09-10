@@ -18,6 +18,7 @@ import {
   type SessionSearchRequest,
 } from '@deepseek-ai/dsh-session-query'
 import { createSessionTestRemote, testSessionPersistence } from './test-remote.ts'
+import { SessionAccessStore } from '../src/access.ts'
 import { ApiSessionList } from '../src/list.ts'
 
 const sid = (value: string): SessionId => value as SessionId
@@ -96,7 +97,7 @@ function installSearchQuery(
 describe('session.search', () => {
   it('rejects search when the query service is absent', async () => {
     const ctx = await baseContext()
-    const list = new ApiSessionList(ctx)
+    const list = new ApiSessionList(ctx, new SessionAccessStore(ctx))
 
     await expect(list.search('query', new AbortController().signal)).rejects.toMatchObject({
       code: 'gateway/internal',

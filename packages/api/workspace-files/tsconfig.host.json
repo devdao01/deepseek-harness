@@ -18,6 +18,9 @@
       "path": "../../../vendor/schemastery"
     },
     {
+      "path": "../session-controller/tsconfig.host.json"
+    },
+    {
       "path": "../../core/session"
     },
     {

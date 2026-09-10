@@ -90,7 +90,7 @@ function buildPreset(dept) {
           '- id: persona',
           "  name: '@deepseek-ai/dsh-persona'",
           '  config:',
-          '    text: >-',
+          '    prefix: >-',
           ...dept.persona.split('\n').map(l => '      ' + l),
           '',
         )

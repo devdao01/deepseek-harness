@@ -190,8 +190,9 @@ export class BrowserAuth {
     processOwner: object,
     private readonly secret: Buffer,
     maxAgeDays: number,
+    fixedLaunchToken: string | undefined,
   ) {
-    this.launchToken = processLaunchToken(processOwner)
+    this.launchToken = fixedLaunchToken ?? processLaunchToken(processOwner)
     this.maxAgeMilliseconds = maxAgeDays * DAY_MILLISECONDS
     if (!Number.isSafeInteger(this.maxAgeMilliseconds)
       || !Number.isSafeInteger(Date.now() + this.maxAgeMilliseconds)) {
@@ -205,14 +206,17 @@ export class BrowserAuth {
    * @param processOwner - root application context retaining one token across Connection reloads.
    * @param credentials - persistent credential provider for the Web profile.
    * @param maxAgeDays - positive absolute browser-cookie lifetime in days.
-   * @returns initialized authentication owner with the process owner's launch token.
+   * @param fixedLaunchToken - deployment-configured launch token; absent, a
+   * fresh random token is minted per process.
+   * @returns initialized authentication owner with this process's launch token.
    */
   static async create(
     processOwner: object,
     credentials: CredentialProvider,
     maxAgeDays: number,
+    fixedLaunchToken?: string,
   ): Promise<BrowserAuth> {
-    return new BrowserAuth(processOwner, await initializeSecret(credentials), maxAgeDays)
+    return new BrowserAuth(processOwner, await initializeSecret(credentials), maxAgeDays, fixedLaunchToken)
   }
 
   /**

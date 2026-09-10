@@ -29,6 +29,8 @@ Mount this package as a Loader entry in a profile that serves browser configurat
 
 `settings.describe()` returns deployment facts and every namespace under `redactSecrets: true`. `settings.update`, `settings.replace`, and `settings.mutate` expose the settings service's three write operations and return the namespace's new redacted view; stale writes use `settings-conflict` and other provider refusals use `settings-rejected`.
 
+`settings.listAuthorizations()`, `beginAuthorization(key, method)`, `pollAuthorization(attemptId)`, `respondAuthorization(attemptId, promptId, answer)`, and `cancelAuthorization(attemptId)` bridge the interactive `ctx.authorization` seam onto a request/response transport. An authorization flow (a provider sign-in such as ChatGPT OAuth) is a long-lived conversation — it opens a URL, then blocks waiting for a pasted code — so `begin` runs it detached and returns an attempt id; the surface polls for the drained notices (the sign-in URL) and the pending prompt, `respond`s with the pasted code or a chosen option, and polls again for the settled outcome. Secrets never cross: the grant is committed inside the flow through the credential store. `listAuthorizations` is empty when no authorization seam is mounted.
+
 `settings.openSettingsDocument()` prepares the provider-owned document and opens it with the native text-editor intent. `settings.canOpenAgentPresetDirectory()` reports native-opening availability when the preset page becomes visible. `settings.openAgentPresetDirectory(id)` resolves only a user-authored preset and either opens its directory or returns the path when native opening is unavailable; neither open method accepts a browser-supplied filesystem target.
 
 -----

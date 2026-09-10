@@ -21,7 +21,10 @@
  * @module @deepseek-ai/dsh-agent-presets
  */
 
+import { existsSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
 import { evaluate } from '@deepseek-ai/cordis-plugin-loader'
 import z from '@deepseek-ai/schemastery'
@@ -30,15 +33,21 @@ import { bindScopeParent, createScope, scopeOf, type Scope, type ScopeKey, type 
 // Type-only: resolves the `agent/created` lifecycle event this service watches.
 import type {} from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { AgentPresetDocument, AgentPresetRoster } from './types.ts'
+import type { AgentPresetDocument, AgentPresetRoster, AgentPresetToolCatalog, AuthorPresetRequest, WriteRawPresetRequest } from './types.ts'
 import type {} from '@deepseek-ai/dsh-session-projection'
 // Type-only: resolves the registry notification emitted after scope reparenting.
 import type {} from '@deepseek-ai/dsh-tools'
 import type SettingsService from '@deepseek-ai/dsh-settings'
 import type { SettingsScope } from '@deepseek-ai/dsh-settings'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
-import { discoverPresets, SHIPPED_PRESET_ROOT, USER_PRESET_DIR } from './discovery.ts'
-import { copyComposition, deleteComposition, presetExists, readComposition } from './authoring.ts'
+import { currentTicketUserId } from '@deepseek-ai/dsh-client-connection'
+import { load as loadYaml } from 'js-yaml'
+import { discoverPresets, entryListProblem, SHIPPED_PRESET_ROOT, USER_PRESET_DIR } from './discovery.ts'
+import {
+  copyComposition, deleteComposition, presetExists, readComposition,
+  renameComposition, writeAuthoredComposition,
+} from './authoring.ts'
+import { generateComposition, validateAuthorSpec, type AuthorCompositionSpec } from './author.ts'
 import { livePresetMounts, mountPreset, serviceForAgent, standingMountFor } from './mount.ts'
 import {
   fileComposition, mountedCompositionRows,
@@ -61,15 +70,60 @@ function validatePresetId(value: string, field: 'agentPreset' | 'from'): void {
   }
 }
 
+/**
+ * Locate `apps/odoo-mcp/server.mjs` by walking up from this module.
+ *
+ * Host-resolved so a remote author request can never name a script to run;
+ * works from `src/` (tsx source launch) and from built `lib/`, both of which
+ * live under the repository that also carries `apps/odoo-mcp`.
+ * @returns the absolute server script path.
+ * @throws a stable `bad-request` failure when the deployment lacks the script.
+ */
+function resolveOdooMcpServerPath(): string {
+  let dir = dirname(fileURLToPath(import.meta.url))
+  for (let depth = 0; depth < 8; depth += 1) {
+    const candidate = join(dir, 'apps', 'odoo-mcp', 'server.mjs')
+    if (existsSync(candidate)) return candidate
+    dir = dirname(dir)
+  }
+  throw remotePresetFailure('bad-request',
+    'this deployment does not ship apps/odoo-mcp/server.mjs; an Odoo connection cannot be authored', {})
+}
+
+/**
+ * Map the fork's legacy failure vocabulary onto upstream's {@link RemoteError}
+ * codes, so the MTIL Remote surface keeps its call sites while speaking the
+ * 0.1.3 error protocol on the wire.
+ */
+function remotePresetFailure(
+  code: 'bad-request' | 'internal',
+  message: string,
+  _details: Record<never, never>,
+): RemoteError {
+  return new RemoteError(code === 'bad-request' ? 'gateway/bad-request' : 'gateway/internal', message, {})
+}
+
+/** Rethrow a domain RemoteError untouched; wrap anything else as internal. */
+function rejectPreset(error: unknown, _agentPreset: string, fallbackMessage: string): never {
+  if (error instanceof Error && (error as { isDSHRemoteError?: true }).isDSHRemoteError === true) throw error
+  throw new RemoteError('gateway/internal', fallbackMessage, {})
+}
+
 /** The user-writable slice of this plugin's config. */
 export interface AgentPresetSettings {
   /** Preset mounted when a session names none. */
   default?: string
+  /**
+   * Preset ids withheld from pickers and from new selection. Sessions already
+   * composed from a listed preset keep running and resuming on it.
+   */
+  disabled?: string[]
 }
 
 /** Runtime schema for the user-writable slice. */
 export const AgentPresetSettingsSchema: z<AgentPresetSettings> = z.object({
   default: z.string(),
+  disabled: z.array(z.string()),
 })
 
 export { COMPOSITION_FILE, discoverPresets, scanRoot, SHIPPED_PRESET_ROOT } from './discovery.ts'
@@ -109,6 +163,7 @@ export class AgentPresets extends TypertRemoteService {
     })).default([]),
     includeShippedRoot: z.boolean().default(true),
     includeUserRoot: z.boolean().default(true),
+    ticketSecret: z.string(),
   }) as z<Config>
 
   /**
@@ -260,17 +315,241 @@ export class AgentPresets extends TypertRemoteService {
   @Remote('list')
   async remoteExportList(): Promise<AgentPresetRoster> {
     const defaultId = this.defaultId
+    const disabled = this.disabledIds
     return {
       presets: (await this.list()).map(preset => ({
         id: preset.id,
         trust: preset.trust,
         isDefault: preset.id === defaultId,
+        active: !disabled.has(preset.id),
         ...preset.name === undefined ? {} : { name: preset.name },
         ...preset.description === undefined ? {} : { description: preset.description },
         ...preset.broken === undefined ? {} : { broken: preset.broken },
       })),
       authorable: this.authorable,
     }
+  }
+
+  /** Preset ids currently withheld from pickers and new selection. */
+  get disabledIds(): ReadonlySet<string> {
+    return new Set(this.settings?.get().disabled ?? [])
+  }
+
+  /**
+   * Create or rewrite one structured locally authored preset.
+   *
+   * The composition is GENERATED from the deployment's default preset plus
+   * the request's bounded spec (persona, bash/web flags, router departments)
+   * — the caller supplies no composition text or plugin names, so authoring
+   * grants no capability the default composition did not already carry. An
+   * existing user preset is rewritten in place: sessions already composed
+   * keep their generation, new sessions get the new one. A shipped preset id
+   * is refused.
+   * @param request - the preset identity, display text, and composition spec.
+   * @returns once the preset is stored.
+   * @throws {RemoteError} `bad-request` for an unusable spec,
+   * `agent-preset-read-only` for a shipped id, or `agent-preset-invalid` for
+   * an unusable preset id.
+   */
+  @Remote('author')
+  async remoteExportAuthor(request: AuthorPresetRequest): Promise<void> {
+    validatePresetId(request.agentPreset, 'agentPreset')
+    if (request.name.trim() === '') {
+      throw remotePresetFailure('bad-request', 'name must be a non-empty string', {})
+    }
+    const spec: AuthorCompositionSpec = {
+      kind: request.kind,
+      persona: request.persona,
+      ...request.allowBash === undefined ? {} : { allowBash: request.allowBash },
+      ...request.allowWeb === undefined ? {} : { allowWeb: request.allowWeb },
+      ...request.subagents === undefined ? {} : { subagents: request.subagents },
+      ...request.odoo === undefined ? {} : {
+        odoo: { ...request.odoo, serverPath: resolveOdooMcpServerPath() },
+      },
+    }
+    try {
+      validateAuthorSpec(spec)
+    } catch (error: unknown) {
+      throw remotePresetFailure('bad-request', error instanceof Error ? error.message : String(error), {})
+    }
+    try {
+      const base = await this.read(this.defaultId)
+      const existing = (await this.list()).find(preset => preset.id === request.agentPreset)
+      await writeAuthoredComposition(
+        this.resolvedRoots,
+        request.agentPreset,
+        generateComposition(base, spec),
+        {
+          name: request.name,
+          ...request.description === undefined ? {} : { description: request.description },
+        },
+        existing,
+      )
+      this.standing.delete(request.agentPreset)
+      try {
+        if (existing === undefined) {
+          this.ctx.emit('agent-preset/authored', request.agentPreset)
+        } else {
+          this.ctx.emit('agent-preset/renamed', request.agentPreset, request.name)
+        }
+      } catch (error: unknown) {
+        this.ctx.logger.warn(`agent-presets: author notification listener failed for "${request.agentPreset}": ${String(error)}`)
+      }
+    } catch (error: unknown) {
+      rejectPreset(error, request.agentPreset, `agent preset "${request.agentPreset}": ${String(error)}`)
+    }
+  }
+
+  /**
+   * The tools the deployment's default composition registers, for authoring
+   * pickers to offer as `toolFilter` grants.
+   * @returns one entry per visible tool of the default preset's standing mount.
+   * @throws {RemoteError} when the default preset cannot compose.
+   */
+  @Remote('toolCatalog')
+  async remoteExportToolCatalog(): Promise<AgentPresetToolCatalog> {
+    const tools = this.ctx.get('tools')
+    if (tools === undefined) {
+      throw remotePresetFailure('internal', 'no tool registry is mounted', {})
+    }
+    try {
+      const key = await this.standingKeyFor()
+      return {
+        tools: tools.schemas(key).map(schema => ({
+          name: schema.name,
+          description: schema.description ?? '',
+        })),
+      }
+    } catch (error: unknown) {
+      rejectPreset(error, this.defaultId, `agent preset "${this.defaultId}": ${String(error)}`)
+    }
+  }
+
+  /**
+   * Replace one user preset's raw composition text.
+   *
+   * UNLIKE every other authoring path, the caller supplies the composition —
+   * and with it arbitrary plugin names, which is shell-equivalent trust. With
+   * a configured `ticketSecret` only the `*` management wildcard (the Odoo
+   * plane, server-side) may call; without one the deployment is a trusted
+   * single-operator setup and the call is open like the rest of authoring.
+   * The content must parse as a top-level list of plugin rows; deeper health
+   * (unresolvable plugin names) still surfaces as a broken roster row.
+   * @param request - preset identity, display text, and the full composition.
+   * @returns once the preset is stored.
+   * @throws {RemoteError} `bad-request` for refused callers or
+   * unusable content, `agent-preset-read-only` for a shipped id.
+   */
+  @Remote('writeRaw')
+  async remoteExportWriteRaw(request: WriteRawPresetRequest): Promise<void> {
+    validatePresetId(request.agentPreset, 'agentPreset')
+    const secret = this.config.ticketSecret
+    if (secret !== undefined && secret !== '' && currentTicketUserId(secret) !== '*') {
+      throw remotePresetFailure('bad-request', 'raw compositions are administered by the management plane', {})
+    }
+    if (request.name.trim() === '') {
+      throw remotePresetFailure('bad-request', 'name must be a non-empty string', {})
+    }
+    let parsed: unknown
+    try {
+      parsed = loadYaml(request.content)
+    } catch (error: unknown) {
+      throw remotePresetFailure('bad-request', `content is not valid YAML: ${String(error)}`, {})
+    }
+    const problem = entryListProblem(parsed)
+    if (problem !== undefined) {
+      throw remotePresetFailure('bad-request', `content is not a composition: ${problem}`, {})
+    }
+    try {
+      const existing = (await this.list()).find(preset => preset.id === request.agentPreset)
+      await writeAuthoredComposition(
+        this.resolvedRoots,
+        request.agentPreset,
+        request.content.endsWith('\n') ? request.content : `${request.content}\n`,
+        {
+          name: request.name,
+          ...request.description === undefined ? {} : { description: request.description },
+        },
+        existing,
+      )
+      this.standing.delete(request.agentPreset)
+      try {
+        if (existing === undefined) {
+          this.ctx.emit('agent-preset/authored', request.agentPreset)
+        } else {
+          this.ctx.emit('agent-preset/renamed', request.agentPreset, request.name)
+        }
+      } catch (error: unknown) {
+        this.ctx.logger.warn(`agent-presets: writeRaw notification listener failed for "${request.agentPreset}": ${String(error)}`)
+      }
+    } catch (error: unknown) {
+      rejectPreset(error, request.agentPreset, `agent preset "${request.agentPreset}": ${String(error)}`)
+    }
+  }
+
+  /**
+   * Rewrite one locally authored preset's display text. The id — and with it
+   * every id-derived path — never changes; a shipped preset is refused.
+   * @param agentPreset - the preset id.
+   * @param name - the new display name.
+   * @param description - replacement description; omitted keeps the current one.
+   * @returns once the metadata is stored.
+   * @throws {RemoteError} `bad-request`, `agent-preset-not-found`, or
+   * `agent-preset-read-only` when the rename is refused.
+   */
+  @Remote('rename')
+  async remoteExportRename(agentPreset: string, name: string, description?: string): Promise<void> {
+    validatePresetId(agentPreset, 'agentPreset')
+    if (name.trim() === '') {
+      throw remotePresetFailure('bad-request', 'name must be a non-empty string', {})
+    }
+    try {
+      await renameComposition(this.resolvedRoots, await this.resolve(agentPreset), name, description)
+    } catch (error: unknown) {
+      rejectPreset(error, agentPreset, `agent preset "${agentPreset}": ${String(error)}`)
+    }
+    try {
+      this.ctx.emit('agent-preset/renamed', agentPreset, name)
+    } catch (error: unknown) {
+      this.ctx.logger.warn(`agent-presets: agent-preset/renamed listener failed for "${agentPreset}": ${String(error)}`)
+    }
+  }
+
+  /**
+   * Activate or deactivate one preset for pickers and new selection.
+   *
+   * The state lives in the `agent-presets` settings namespace, so it covers
+   * shipped read-only presets too and hot-reloads like the default. Sessions
+   * already composed from a deactivated preset keep running and resuming.
+   * @param agentPreset - the preset id.
+   * @param active - whether pickers may offer the preset again.
+   * @returns once the state is stored.
+   * @throws {RemoteError} `bad-request`, `agent-preset-not-found`, or
+   * `internal` when no settings service is mounted.
+   */
+  @Remote('setActive')
+  async remoteExportSetActive(agentPreset: string, active: boolean): Promise<void> {
+    validatePresetId(agentPreset, 'agentPreset')
+    try {
+      await this.resolve(agentPreset)
+    } catch (error: unknown) {
+      rejectPreset(error, agentPreset, `agent preset "${agentPreset}": ${String(error)}`)
+    }
+    if (this.settingsService === undefined) {
+      throw remotePresetFailure('internal', 'preset activation is unavailable: this deployment mounts no settings service', {})
+    }
+    const disabled = new Set(this.settings?.get().disabled ?? [])
+    if (active) {
+      disabled.delete(agentPreset)
+    } else {
+      disabled.add(agentPreset)
+    }
+    await this.settingsService.mutate(
+      SETTINGS_NAMESPACE,
+      disabled.size === 0
+        ? [{ op: 'unset', path: ['disabled'] }]
+        : [{ op: 'set', path: ['disabled'], value: [...disabled].sort() }],
+    )
   }
 
   /**
@@ -534,10 +813,11 @@ export class AgentPresets extends TypertRemoteService {
    * primary source, so any trust is accepted.
    * @param id - the new preset's id, which becomes its directory name.
    * @param name - display name for the copy; absent falls back to the id.
+   * @param description - one sentence on what the copy is for; absent stores none.
    * @throws when the source is unknown, the id is unusable or already taken,
    * or the deployment configures no writable root.
    */
-  async copy(from: string, id: string, name?: string): Promise<void> {
+  async copy(from: string, id: string, name?: string, description?: string): Promise<void> {
     const source = await this.resolve(from)
     // The roster check refuses ids any root supplies — shipped ones included,
     // since a user directory named like a shipped preset is shadowed by it.
@@ -545,11 +825,16 @@ export class AgentPresets extends TypertRemoteService {
     if ((await this.list()).some(preset => preset.id === id)) {
       throw presetExists(id)
     }
-    await copyComposition(this.resolvedRoots, source, id, name)
+    await copyComposition(this.resolvedRoots, source, id, name, description)
     // A settled mount under this id can only be stale (its preset was deleted
     // from disk outside `remove`); the new preset must not inherit it. Every
     // session already joined keeps the generation it runs on regardless.
     this.standing.delete(id)
+    try {
+      this.ctx.emit('agent-preset/authored', id)
+    } catch (error: unknown) {
+      this.ctx.logger.warn(`agent-presets: agent-preset/authored listener failed for "${id}": ${String(error)}`)
+    }
   }
 
   /**
@@ -557,15 +842,16 @@ export class AgentPresets extends TypertRemoteService {
    * @param from - the source preset id.
    * @param id - the new preset id.
    * @param name - the copy's optional display name.
+   * @param description - the copy's optional description (omitted keeps the source's).
    * @returns once the copy is stored.
    * @throws {RemoteError} with the corresponding stable preset code and
    * details when the copy is refused.
    */
   @Remote('copy')
-  async remoteExportCopy(from: string, id: string, name?: string): Promise<void> {
+  async remoteExportCopy(from: string, id: string, name?: string, description?: string): Promise<void> {
     validatePresetId(from, 'from')
     validatePresetId(id, 'agentPreset')
-    await this.copy(from, id, name)
+    await this.copy(from, id, name, description)
   }
 
   /**
@@ -719,6 +1005,13 @@ export class AgentPresets extends TypertRemoteService {
         `session "${agent.id}" has already started; its agent preset is fixed`,
         { sessionId: agent.id, agentPreset },
       )
+    }
+    // Deactivation withholds NEW selection only; resume and running sessions
+    // keep their composition, so the check lives here and not in the mount.
+    if (this.disabledIds.has(agentPreset)) {
+      throw new RemoteError('agent-preset/invalid',
+        `agent-presets: preset "${agentPreset}" cannot compose: the preset is deactivated`,
+        { agentPreset, reason: 'the preset is deactivated' })
     }
     const preset = await this.recompose(agent.ctx, agentPreset)
     // Recorded only after the swap committed: the log states what the agent

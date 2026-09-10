@@ -12,13 +12,14 @@
  * @module @deepseek-ai/dsh-agent-presets/authoring
  */
 
-import { chmod, cp, readdir, readFile, rm, stat } from 'node:fs/promises'
+import { chmod, cp, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { expandHomePath } from '@deepseek-ai/dsh-home-paths'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
-import { METADATA_FILE, renderPresetMetadata } from './metadata.ts'
+import { METADATA_FILE, readPresetMetadata, renderPresetMetadata, type PresetMetadata } from './metadata.ts'
 import { PRESET_ID, type AgentPreset, type PresetRoot } from './preset.ts'
+import { COMPOSITION_FILE } from './discovery.ts'
 
 /**
  * Refuse one authoring request the deployment does not allow.
@@ -120,6 +121,7 @@ async function tightenModes(dir: string): Promise<void> {
  * @param source - the resolved preset the copy starts from.
  * @param id - the new preset's id, which becomes its directory name.
  * @param name - display name for the copy; omitted falls back to the id.
+ * @param description - description for the copy; omitted keeps the source's.
  * @returns the absolute path of the new preset directory.
  * @throws when the id is unusable or already occupied on disk, or the
  * deployment configures no writable root.
@@ -129,6 +131,7 @@ export async function copyComposition(
   source: AgentPreset,
   id: string,
   name?: string,
+  description?: string,
 ): Promise<string> {
   if (!PRESET_ID.test(id)) {
     const reason = `preset id ${JSON.stringify(id)} must match ${String(PRESET_ID)} — `
@@ -145,9 +148,10 @@ export async function copyComposition(
       recursive: true, dereference: true, force: false, errorOnExist: true,
     })
     await tightenModes(dir)
+    const copiedDescription = description ?? source.description
     const rendered = renderPresetMetadata({
       ...name === undefined ? {} : { name },
-      ...source.description === undefined ? {} : { description: source.description },
+      ...copiedDescription === undefined ? {} : { description: copiedDescription },
     })
     const metadataPath = join(dir, METADATA_FILE)
     if (rendered === undefined) {
@@ -188,4 +192,93 @@ export async function deleteComposition(
     throw notWritable(preset.id, 'it does not live under the writable preset root')
   }
   await rm(dir, { recursive: true, force: true })
+}
+
+/**
+ * Store one generated composition as a locally authored preset.
+ *
+ * Creating claims a fresh directory under the writable root; rewriting an
+ * existing preset replaces its composition and metadata in place (sessions
+ * already composed keep the generation they run on — the standing mount's
+ * file stamp starts a new generation for sessions created afterwards).
+ * @param roots - the configured roots.
+ * @param id - the preset id (directory name).
+ * @param content - the generated `agent.cordis.yml` text.
+ * @param metadata - display metadata to store beside it.
+ * @param existing - the resolved preset when rewriting; undefined creates.
+ * @throws when the id is unusable or taken (create), or the preset ships
+ * with the deployment or lies outside the writable root (rewrite).
+ */
+export async function writeAuthoredComposition(
+  roots: readonly PresetRoot[],
+  id: string,
+  content: string,
+  metadata: PresetMetadata,
+  existing?: AgentPreset,
+): Promise<void> {
+  const dir = join(writableRoot(roots, id), id)
+  if (existing === undefined) {
+    if (!PRESET_ID.test(id)) {
+      throw new RemoteError('agent-preset/invalid',
+        `agent-presets: preset id "${id}" must match ${String(PRESET_ID)}`,
+        { agentPreset: id, reason: `preset id must match ${String(PRESET_ID)}` })
+    }
+    if (await occupied(dir)) throw presetExists(id)
+    await mkdir(dir, { recursive: true, mode: 0o700 })
+  } else {
+    if (existing.trust !== 'user') {
+      throw notWritable(id, 'it ships with the deployment')
+    }
+    if (!isAbsolute(existing.path) || !existing.path.startsWith(dir)) {
+      throw notWritable(id, 'it does not live under the writable preset root')
+    }
+  }
+  await writeFileAtomic(join(dir, COMPOSITION_FILE), content, { mode: 0o600, dirMode: 0o700 })
+  const rendered = renderPresetMetadata(metadata)
+  const metadataPath = join(dir, METADATA_FILE)
+  if (rendered === undefined) {
+    await rm(metadataPath, { force: true })
+  } else {
+    await writeFileAtomic(metadataPath, rendered, { mode: 0o600, dirMode: 0o700 })
+  }
+}
+
+/**
+ * Rewrite a locally authored preset's display text.
+ *
+ * Display-only by design: the id is the directory name and stays fixed, so
+ * everything keyed by id — standing mounts, session headers, and any
+ * deployment path derived from the preset id — is untouched. The roster
+ * `order` is preserved; the description only changes when one is given.
+ * @param roots - the configured roots.
+ * @param preset - the resolved preset to rename.
+ * @param name - the new display name; empty falls back to the id at render.
+ * @param description - replacement description; omitted keeps the current one.
+ * @throws when the preset ships with the deployment or lies outside the writable root.
+ */
+export async function renameComposition(
+  roots: readonly PresetRoot[],
+  preset: AgentPreset,
+  name: string,
+  description?: string,
+): Promise<void> {
+  if (preset.trust !== 'user') {
+    throw notWritable(preset.id, 'it ships with the deployment')
+  }
+  const dir = join(writableRoot(roots, preset.id), preset.id)
+  if (!isAbsolute(preset.path) || !preset.path.startsWith(dir)) {
+    throw notWritable(preset.id, 'it does not live under the writable preset root')
+  }
+  const current = await readPresetMetadata(dir)
+  const rendered = renderPresetMetadata({
+    ...current,
+    name,
+    ...description === undefined ? {} : { description },
+  })
+  const metadataPath = join(dir, METADATA_FILE)
+  if (rendered === undefined) {
+    await rm(metadataPath, { force: true })
+  } else {
+    await writeFileAtomic(metadataPath, rendered, { mode: 0o600, dirMode: 0o700 })
+  }
 }

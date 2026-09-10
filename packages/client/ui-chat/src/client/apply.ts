@@ -2,13 +2,15 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+// The MTIL download branch reads workspace bytes through the Remote namespace.
+import type {} from '@deepseek-ai/dsh-api-workspace-files/remote'
 import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 // The `file` entry of `SidebarRightResourceParamsMap`, which types `{ params: { line } }` below.
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client'
-import { fileAddressFor } from '@deepseek-ai/dsh-util-workspace-path'
+import { fileAddressFor, resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 // Type-only service and declaration merges used by the apply world.
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -34,6 +36,20 @@ import { createChatStore } from './stores.ts'
 import { TranscriptViewPolicy } from './transcript-view.ts'
 import { CHAT_SETTINGS_NAMESPACE, type ChatSettings } from '../chat-settings.ts'
 import { useTurnDataValue } from './chat/use-turn-data.ts'
+
+const mtilDownloadsFiles = (): boolean =>
+  (globalThis as { __MTIL_UI__?: { downloadFiles?: boolean } }).__MTIL_UI__?.downloadFiles === true
+
+/** Hand base64 bytes to the browser as a named download. */
+function downloadToBrowser(name: string, contentBase64: string): void {
+  const bytes = Uint8Array.from(atob(contentBase64), character => character.codePointAt(0) ?? 0)
+  const url = URL.createObjectURL(new Blob([bytes]))
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = name
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
 
 const CHAT_NODE_INJECT: ChatNodeTurnDataInjected = {
   hooks: {
@@ -131,6 +147,16 @@ export function apply(ctx: Context): void {
           // to land.
           openFile: async (path, options) => {
             const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
+            if (mtilDownloadsFiles()) {
+              // Remote web deployment: the Host has no desktop, and a preview
+              // pane is not what this deployment offers — download instead.
+              const read = await ctx.remote.workspaceFiles.readAll(
+                sessionId, resolveWorkspacePath(cwd, path), new AbortController().signal,
+              )
+              if (!read.ok) throw new Error(`file download failed: ${read.error.message}`)
+              downloadToBrowser(read.value.absolutePath.split(/[/\\]/).pop() ?? 'download', read.value.data)
+              return
+            }
             const url = fileAddressFor(sessionId, cwd, path)
             if (options?.line === undefined) ctx.sidebarRight.openResource(url)
             else ctx.sidebarRight.openResource(url, { params: { line: options.line } })

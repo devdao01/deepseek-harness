@@ -15,7 +15,7 @@ import { en, zh, type SidebarKey } from './locales.ts'
 
 export type {
   SidebarBrandMarkOwnerProps, SidebarBrandNameOwnerProps, SidebarFooterActionOwnerProps,
-  SidebarPanelIconOwnerProps, SidebarPanelMetadata,
+  SidebarHeaderActionOwnerProps, SidebarPanelIconOwnerProps, SidebarPanelMetadata,
   SidebarRootComponentProps, SidebarRootInjected, SidebarSectionOwnerProps, SidebarSettingsOwnerProps,
 } from './contract/slots.ts'
 export type { SidebarKey } from './locales.ts'
@@ -60,14 +60,29 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.slots.subscribe('sidebar.panellist', syncPanels), 'ui-sidebar: panel entries')
   ctx.effect(() => ctx.locale.subscribe(syncPanels), 'ui-sidebar: panel labels')
 
-  const injectProps = (): SidebarRootInjected => ({
-    // The shell's New Session button rides the Workspace UI's shared action
-    // (current Session Workspace, then recent Workspace).
-    startSession: (workspaceId) => { workspaceNavigation.startSession(workspaceId) },
-    toggleSidebar: () => { ctx.layout.toggleSidebar() },
-    selectPanel: (id) => { ctx.layout.selectPanel(id) },
-    hooks: { panels },
-  })
+  const injectProps = (): SidebarRootInjected => {
+    // MTIL frontend-only flags: set by the standalone SPA bootstrap before
+    // boot; absent on the harness-served original, which keeps stock behavior.
+    const mtil = (globalThis as {
+      __MTIL_UI__?: { brandClearsSession?: boolean; hideNewSession?: boolean }
+    }).__MTIL_UI__
+    return {
+      // The shell's New Session button rides the Workspace UI's shared action
+      // (current Session Workspace, then recent Workspace).
+      startSession: (workspaceId) => { workspaceNavigation.startSession(workspaceId) },
+      toggleSidebar: () => { ctx.layout.toggleSidebar() },
+      selectPanel: (id) => { ctx.layout.selectPanel(id) },
+      hooks: { panels },
+      ...(mtil?.brandClearsSession === true
+        ? {
+          exitSession: () => {
+            (ctx.get('sessions') as { clear(): void } | undefined)?.clear()
+          },
+        }
+        : {}),
+      ...(mtil?.hideNewSession === true ? { hideNewSession: true } : {}),
+    }
+  }
   ctx.slots.inject('sidebar', () => ctx.slots.register({
     name: 'sidebar',
     locale: NS,
@@ -75,6 +90,7 @@ export function apply(ctx: ClientContext): void {
       'sidebar.brand.mark': { kind: 'single', scope: 'root' },
       'sidebar.brand.name': { kind: 'single', scope: 'root' },
       'sidebar.panellist': { kind: 'list', scope: 'root' },
+      'sidebar.header.actions': { kind: 'list', scope: 'root' },
       'sidebar.workspaces': { kind: 'single', scope: 'root' },
       'sidebar.settings': { kind: 'single', scope: 'root' },
       'sidebar.footer.action': { kind: 'list', scope: 'root' },

@@ -140,6 +140,20 @@ describe('BrowserAuth', () => {
     })
   })
 
+  it('serves a configured fixed token across process owners (restart-stable)', async () => {
+    const fixed = 'mtil-fixed-launch-token_0123456789'
+    const store = new RecordCredentials()
+    const first = await BrowserAuth.create({}, credentials(store), 30, fixed)
+    const second = await BrowserAuth.create({}, credentials(store), 30, fixed)
+
+    // Both "processes" advertise the same URL, and the exchange works on each.
+    expect(first.authenticatedUrl('http://127.0.0.1:3080'))
+      .toBe(second.authenticatedUrl('http://127.0.0.1:3080'))
+    expect(first.authenticatedUrl('http://127.0.0.1:3080')).toContain(`token=${fixed}`)
+    const { cookie } = exchange(second)
+    expect(cookie.length).toBeGreaterThan(0)
+  })
+
   it('accepts the cookie for index serving and gives every unauthenticated request one response', async () => {
     const auth = await createAuth(new RecordCredentials())
     const { cookie } = exchange(auth)

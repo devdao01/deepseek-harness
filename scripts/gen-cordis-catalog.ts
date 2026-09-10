@@ -694,6 +694,18 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   InsertTextRequest: 'event-local request contract is owned by packages/client/ui-input-trigger/src/types.ts',
   AgentHandle: 'agent ownership handle is owned by packages/core/agent/README.md',
   AgentPreset: 'discovered preset record is owned by packages/preset/agent-presets/README.md',
+  // MTIL fork: management-plane payloads documented by the fork's own surfaces
+  // (docs/MTIL-FORK.md and the Odoo module), not by a catalog page.
+  AuthorPresetRequest: 'MTIL structured authoring request is owned by packages/preset/agent-presets/README.md',
+  AgentPresetToolCatalog: 'MTIL grantable-tool catalog is owned by packages/preset/agent-presets/README.md',
+  WriteRawPresetRequest: 'MTIL raw composition request is owned by packages/preset/agent-presets/README.md',
+  SessionSetAccessRequest: 'MTIL session access list request is owned by packages/api/session-controller/README.md',
+  SessionSetAccessValue: 'MTIL session access list value is owned by packages/api/session-controller/README.md',
+  SessionReadWorkspaceFileRequest: 'MTIL workspace download request is owned by packages/api/session-controller/README.md',
+  SessionReadWorkspaceFileValue: 'MTIL workspace download value is owned by packages/api/session-controller/README.md',
+  AuthorizationListValue: 'MTIL provider sign-in flow list is owned by packages/api/settings-controller/README.md',
+  AuthorizationBeginValue: 'MTIL provider sign-in attempt handle is owned by packages/api/settings-controller/README.md',
+  AuthorizationAttemptState: 'MTIL provider sign-in attempt state is owned by packages/api/settings-controller/README.md',
   AgentPresetRoster: 'path-free preset roster is owned by packages/preset/agent-presets/README.md',
   AgentPresetDocument: 'preset composition view is owned by packages/preset/agent-presets/README.md',
   AgentPresetComposition: 'flattened composition rows are owned by packages/preset/agent-presets/README.md',

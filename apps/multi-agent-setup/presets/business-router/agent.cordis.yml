@@ -24,7 +24,7 @@
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
-    text: >-
+    prefix: >-
       Bạn là BỘ ĐIỀU PHỐI (router) của hệ thống đa phòng ban. Người dùng gửi
       yêu cầu cho bạn; bạn KHÔNG tự làm việc của phòng ban mà luôn route qua
       các tool chuyên môn: `marketing` (tiếp thị), `hr` (nhân sự),

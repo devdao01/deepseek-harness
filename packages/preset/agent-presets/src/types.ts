@@ -15,12 +15,102 @@ export interface AgentPresetRow {
   readonly trust: PresetTrust
   /** Whether a session naming no preset composes this one. */
   readonly isDefault: boolean
+  /**
+   * Whether pickers offer this preset. A deactivated preset stays mounted for
+   * the sessions already composed from it; only new selection is withheld.
+   */
+  readonly active: boolean
   /** Display name the preset published. */
   readonly name?: string
   /** One sentence on what this preset is for. */
   readonly description?: string
   /** Why this preset cannot compose a session; absent when it can. */
   readonly broken?: string
+}
+
+/** One department subagent of an authored router preset, as the wire carries it. */
+export interface AuthorPresetSubagent {
+  /** Tool name the router calls (lowercase slug; also the department identity). */
+  readonly toolName: string
+  /** Child persona: role, duties, and the skills it owns. */
+  readonly persona: string
+  /** Whether the child may run shell commands. */
+  readonly allowBash?: boolean
+  /** Whether the child may search/fetch the web. */
+  readonly allowWeb?: boolean
+  /**
+   * Explicit tool grant (names per {@link AgentPresetToolCatalog}); present,
+   * it replaces the flag-derived allow list.
+   */
+  readonly tools?: readonly string[]
+}
+
+/** Odoo connection an authored preset mounts (its own dedicated account). */
+export interface AuthorPresetOdoo {
+  /** Odoo base URL, e.g. `https://mtil.mtil.vn`. */
+  readonly url: string
+  /** Database name. */
+  readonly db: string
+  /** Login of the dedicated AI account. */
+  readonly user: string
+  /** That account's API key or password. */
+  readonly apiKey: string
+  /** Whether create/write/unlink tools are offered (Odoo rights still apply). */
+  readonly allowWrite?: boolean
+  /** Model allowlist (e.g. `res.partner`); absent = the account's own scope. */
+  readonly allowedModels?: readonly string[]
+  /** Per-call row cap; the server defaults to 200. */
+  readonly maxRows?: number
+  /** Tool keyword (`erp` -> `mcp__erp__erp_search_read`); default `odoo`. */
+  readonly toolPrefix?: string
+}
+
+/** Request creating or rewriting one structured locally authored preset. */
+export interface AuthorPresetRequest {
+  /** The preset id (directory name); an existing user preset is rewritten. */
+  readonly agentPreset: string
+  /** Display name stored in the preset metadata. */
+  readonly name: string
+  /** Description stored in the preset metadata. */
+  readonly description?: string
+  /** `standalone` = one direct-chat agent; `router` delegates to `subagents`. */
+  readonly kind: 'standalone' | 'router'
+  /** The agent's own persona. */
+  readonly persona: string
+  /** Whether this agent may run shell commands. */
+  readonly allowBash?: boolean
+  /** Whether this agent may search/fetch the web. */
+  readonly allowWeb?: boolean
+  /** Router departments; required (non-empty) for `kind: 'router'`. */
+  readonly subagents?: readonly AuthorPresetSubagent[]
+  /** Odoo connection this preset mounts; absent = no Odoo tools. */
+  readonly odoo?: AuthorPresetOdoo
+}
+
+/** One grantable tool as the authoring catalog lists it. */
+export interface AgentPresetToolCatalogEntry {
+  /** The tool name a `toolFilter.allow` entry grants. */
+  readonly name: string
+  /** The tool's model-facing description (may be long). */
+  readonly description: string
+}
+
+/** The tools the deployment's default composition registers. */
+export interface AgentPresetToolCatalog {
+  /** One entry per visible tool, in registry order. */
+  readonly tools: readonly AgentPresetToolCatalogEntry[]
+}
+
+/** Request replacing one user preset's raw composition (management plane only). */
+export interface WriteRawPresetRequest {
+  /** The preset id (directory name); an existing user preset is rewritten. */
+  readonly agentPreset: string
+  /** Display name stored in the preset metadata. */
+  readonly name: string
+  /** Description stored in the preset metadata. */
+  readonly description?: string
+  /** The complete `agent.cordis.yml` text. */
+  readonly content: string
 }
 
 /** The roster one deployment currently supplies, with its authoring capability. */
@@ -78,6 +168,23 @@ declare module '@deepseek-ai/cordis' {
      * @param agentPreset - the preset recorded by the committed selection.
      */
     'agent-preset/selected'(sessionId: SessionId, agentPreset: string): void
+    /**
+     * One locally authored preset was stored on disk (the copy committed).
+     * Consumers prepare per-preset resources — the session controller
+     * materializes the preset's workspace directory when one is configured.
+     * @mode emit
+     * @param agentPreset - the id of the preset just authored.
+     */
+    'agent-preset/authored'(agentPreset: string): void
+    /**
+     * One preset's display name was rewritten (the id never changes).
+     * Consumers retitle name-derived presentation — the session controller
+     * retitles the preset's Workspace group when one is configured.
+     * @mode emit
+     * @param agentPreset - the id of the renamed preset.
+     * @param name - the new display name.
+     */
+    'agent-preset/renamed'(agentPreset: string, name: string): void
   }
 }
 

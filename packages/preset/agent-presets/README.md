@@ -76,6 +76,12 @@ Authoring is copy-only: creating a preset copies an existing preset's whole dire
 
 A copy is refused when the id is not `[a-z0-9][a-z0-9-]*` (the id becomes a directory name), when the id is already taken (a copy never overwrites), or when the source is unknown. Deleting removes only locally authored presets; presets that ship with the deployment are not removable. A session already running on a deleted preset keeps running on it.
 
+Structured authoring (`agentPresets/author`) creates or rewrites a user-root preset from a bounded spec — persona text, bash/web capability flags, and (for a router) a list of department `dsh-tool-subagent` rows — generated from the deployment's default preset. The caller supplies no composition text or plugin names, so authoring grants no capability the default composition did not already carry; rewriting starts a new generation for sessions created afterwards while running sessions keep theirs.
+
+The authoring catalog (`agentPresets/toolCatalog`) lists the tools the default composition registers, for pickers offering per-department `toolFilter` grants (`subagents[].tools` on `author`). `agentPresets/writeRaw` is the one authoring path whose caller supplies the composition text — and with it arbitrary plugin names, shell-equivalent trust — so with a configured `ticketSecret` it accepts only the `*` management wildcard; content must at least parse as a top-level list of plugin rows.
+
+Rename (`agentPresets/rename`) rewrites only the display name in a locally authored preset's `preset.yml`; the id — and every id-derived path, such as a deployment's per-preset workspace directory — never changes, and shipped presets are refused. Activation (`agentPresets/setActive`) stores deactivated ids in the `agent-presets` settings namespace, so it covers shipped read-only presets and hot-reloads: a deactivated preset stays on the roster with `active: false` for pickers to withhold, is refused for NEW selection, and keeps composing the sessions that already run on it.
+
 ### Switching a session's preset
 
 A session can switch to a different preset only while it has produced nothing — no messages or tool calls. After that, the composition is fixed for the session's life, because swapping tools mid-conversation would leave logged tool calls the new composition cannot make. A committed switch emits `tools/change` because the resolved tool set changed without a registry edit. The switch is also recorded in the session log, so a resumed or forked session rebuilds under the composition it ran.

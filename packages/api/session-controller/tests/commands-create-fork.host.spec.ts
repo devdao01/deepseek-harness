@@ -1,3 +1,7 @@
+import { existsSync } from 'node:fs'
+import { mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentHandle, CreateAgentOptions } from '@deepseek-ai/dsh-agent'
@@ -64,6 +68,135 @@ describe('Session creation failures', () => {
       false,
       undefined,
     )
+    await ctx.fiber.dispose()
+  })
+
+  it('derives the default cwd from the preset id under a configured preset workspace root', async () => {
+    const ctx = await baseContext()
+    ctx.provide('workspaceRegistry', { get: () => undefined, list: () => [] } as never)
+    ctx.provide('agentPresets', { defaultId: 'ho-so-default' } as never)
+    const ensureSession = vi.fn((sessionId: SessionId, cwd: string) => {
+      const session = ctx.sessions.create(sessionId, { meta: { cwd } })
+      return Promise.resolve({ id: sessionId, session } as Agent)
+    })
+    const controller = new SessionCommandController(
+      ctx,
+      controllerAgents({ ensureSession }),
+      '/default-workspace',
+      '/workspace-root',
+    )
+
+    // The requested preset names the subdirectory.
+    const explicit = await controller.create({ agentPreset: 'ho-so-1' })
+    expect(ensureSession).toHaveBeenCalledWith(explicit.sessionId, '/workspace-root/ho-so-1', false, 'ho-so-1')
+
+    // No requested preset falls back to the roster default id.
+    const defaulted = await controller.create({})
+    expect(ensureSession).toHaveBeenCalledWith(defaulted.sessionId, '/workspace-root/ho-so-default', false, undefined)
+
+    // An explicit cwd still wins over the preset-derived default.
+    const explicitCwd = await controller.create({ cwd: '/elsewhere', agentPreset: 'ho-so-1' })
+    expect(ensureSession).toHaveBeenCalledWith(explicitCwd.sessionId, '/elsewhere', false, 'ho-so-1')
+    await ctx.fiber.dispose()
+  })
+
+  it('materializes an authored preset workspace directory under the root', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-preset-ws-'))
+    const ctx = await baseContext()
+    ctx.provide('workspaceRegistry', { get: () => undefined, list: () => [] } as never)
+    void new SessionCommandController(ctx, controllerAgents(), '/default', root)
+
+    ctx.emit('agent-preset/authored', 'ho-so-9')
+    await vi.waitFor(() => {
+      expect(existsSync(join(root, 'ho-so-9'))).toBe(true)
+    })
+    await ctx.fiber.dispose()
+  })
+
+  it('groups preset sessions under a preset-titled Workspace', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-preset-group-'))
+    const ctx = await baseContext()
+    const attached: string[] = []
+    interface FakeWorkspace {
+      id: string
+      path: string
+      title: string
+      attachSession: (id: string) => Promise<void>
+      setTitle: (t: string) => Promise<void>
+    }
+    const workspaces = new Map<string, FakeWorkspace>()
+    const workspaceAt = (path: string, title: string) => ({
+      id: `ws-${workspaces.size}`,
+      path,
+      title,
+      attachSession: (id: string) => { attached.push(id); return Promise.resolve() },
+      setTitle(t: string) { this.title = t; return Promise.resolve() },
+    })
+    ctx.provide('workspaceRegistry', {
+      get: () => undefined,
+      list: () => [...workspaces.values()],
+      resolveByPath: (path: string) => Promise.resolve(workspaces.get(path)),
+      create: (path: string, title: string) => {
+        const workspace = workspaceAt(path, title)
+        workspaces.set(path, workspace)
+        return Promise.resolve(workspace)
+      },
+    } as never)
+    ctx.provide('agentPresets', {
+      defaultId: 'ho-so-1',
+      resolve: (id: string) => Promise.resolve({ id, name: `Tên ${id}` }),
+      list: () => Promise.resolve([{ id: 'ho-so-1' }]),
+    } as never)
+    const ensureSession = vi.fn((sessionId: SessionId, cwd: string) => {
+      const session = ctx.sessions.create(sessionId, { meta: { cwd } })
+      return Promise.resolve({ id: sessionId, session } as Agent)
+    })
+    const controller = new SessionCommandController(ctx, controllerAgents({ ensureSession }), '/default', root)
+
+    // Authoring materializes the directory AND the titled Workspace.
+    ctx.emit('agent-preset/authored', 'ho-so-1')
+    await vi.waitFor(() => {
+      expect(workspaces.get(join(root, 'ho-so-1'))?.title).toBe('Tên ho-so-1')
+    })
+
+    // A create landing in the derived directory attaches to that Workspace.
+    const created = await controller.create({})
+    expect(attached).toEqual([created.sessionId])
+
+    // A display rename retitles the group.
+    ctx.emit('agent-preset/renamed', 'ho-so-1', 'Hồ Sơ Mới')
+    await vi.waitFor(() => {
+      expect(workspaces.get(join(root, 'ho-so-1'))?.title).toBe('Hồ Sơ Mới')
+    })
+
+    // The one-shot reconcile adopts stored sessions sitting in preset dirs.
+    vi.spyOn(ctx.sessionQuery, 'listSessions').mockResolvedValue([{
+      header: { version: 0, id: SessionId('session-old'), createdAt: 1, cwd: join(root, 'ho-so-1') },
+      live: false,
+      persisted: true,
+    }] as never)
+    await controller.reconcilePresetWorkspaces()
+    expect(attached).toContain('session-old')
+    await ctx.fiber.dispose()
+  })
+
+  it('keeps the plain default cwd when no preset id resolves under the root', async () => {
+    const ctx = await baseContext()
+    ctx.provide('workspaceRegistry', { get: () => undefined, list: () => [] } as never)
+    const ensureSession = vi.fn((sessionId: SessionId, cwd: string) => {
+      const session = ctx.sessions.create(sessionId, { meta: { cwd } })
+      return Promise.resolve({ id: sessionId, session } as Agent)
+    })
+    const controller = new SessionCommandController(
+      ctx,
+      controllerAgents({ ensureSession }),
+      '/default-workspace',
+      '/workspace-root',
+    )
+
+    const created = await controller.create({})
+
+    expect(ensureSession).toHaveBeenCalledWith(created.sessionId, '/default-workspace', false, undefined)
     await ctx.fiber.dispose()
   })
 

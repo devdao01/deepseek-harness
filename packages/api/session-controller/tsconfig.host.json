@@ -6,6 +6,7 @@
     "tsBuildInfoFile": "lib/tsconfig.host.tsbuildinfo"
   },
   "files": [
+    "src/access.ts",
     "src/index.ts",
     "src/types.ts",
     "src/remote-events.ts",
@@ -24,6 +25,7 @@
   "references": [
     { "path": "../../../vendor/cordis" },
     { "path": "../../../vendor/schemastery" },
+    { "path": "../../client/connection/tsconfig.host.json" },
     { "path": "../../core/agent" },
     { "path": "../../core/agent-default-model" },
     { "path": "../../core/scope" },
@@ -45,6 +47,7 @@
     { "path": "../../session/session-title" },
     { "path": "../../session-query/session-query" },
     { "path": "../../skill/skill" },
+    { "path": "../../storage/storage-domain" },
     { "path": "../../subagent/subagent" },
     { "path": "../../util/time" },
     { "path": "../../util/values" },

@@ -10,6 +10,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionInspection } from '@deepseek-ai/dsh-session-persistence'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { currentUserId, SessionAccessStore } from './access.ts'
 import {
   ApiSessionAgentController,
   inspectApiSession,
@@ -51,11 +52,14 @@ import type {
   SessionSearchValue,
   SessionSelectModelRequest,
   SessionSelectModelValue,
+  SessionSetAccessRequest,
+  SessionSetAccessValue,
   SessionUpdateQueueRequest,
   SessionUpdateQueueValue,
 } from './types.ts'
 
 export type * from './types.ts'
+export { currentUserId, SessionAccessStore, USER_TICKET_COOKIE, verifyUserTicket } from './access.ts'
 export { ApiSessionNotFound } from './agent.ts'
 export { SessionFileReferences } from './file-references.ts'
 export { SessionSkillCatalog } from './skill-catalog.ts'
@@ -71,6 +75,20 @@ declare module '@deepseek-ai/cordis' {
 export interface Config {
   /** Override platform desktop-opener detection. */
   readonly nativeOpen?: boolean
+  /**
+   * Directory whose `<root>/<presetId>` subdirectory becomes the working
+   * directory of a session created with neither a Workspace nor a cwd
+   * (`~` expands). Unset keeps the process working directory.
+   */
+  readonly presetWorkspaceRoot?: string
+  /**
+   * Shared HMAC-SHA256 secret the deployment's identity provider signs user
+   * tickets with (the `mtil-ticket` cookie). Set, it makes `session/list`
+   * and `session/search` filter by each session's allowed-users record and
+   * tags sessions created by an identified caller. Unset, every caller is
+   * anonymous and only unrestricted sessions are listed.
+   */
+  readonly ticketSecret?: string
 }
 
 /** Host integrations replaceable by direct unit tests. */
@@ -100,9 +118,13 @@ export class SessionController extends TypertRemoteService {
 
   static Config: z<Config> = z.object({
     nativeOpen: z.boolean(),
+    presetWorkspaceRoot: z.string(),
+    ticketSecret: z.string(),
   })
 
   private readonly agents: ApiSessionAgentController
+  private readonly access: SessionAccessStore
+  private readonly ticketSecret: string | undefined
   private readonly commands: SessionCommandController
   private readonly controlState: SessionControlController
   private readonly history: SessionHistoryController
@@ -120,8 +142,10 @@ export class SessionController extends TypertRemoteService {
   constructor(ctx: Context, config: Config, internals: SessionControllerInternals = {}) {
     super(ctx, 'sessionController', { namespace: 'session' })
     installModelSelectionProjection(ctx)
+    this.ticketSecret = config.ticketSecret
+    this.access = new SessionAccessStore(ctx)
     this.agents = new ApiSessionAgentController(ctx)
-    this.commands = new SessionCommandController(ctx, this.agents, process.cwd())
+    this.commands = new SessionCommandController(ctx, this.agents, process.cwd(), config.presetWorkspaceRoot)
     ctx.effect(() => ctx.fileUploads.registerAgentResolver(async (sessionId) => {
       const result = await this.agents.resolveAgent(sessionId)
       if ('error' in result) throw result.error
@@ -134,13 +158,19 @@ export class SessionController extends TypertRemoteService {
       await Promise.allSettled([...this.promotions])
     }, 'session-controller.promotions')
     this.history = new SessionHistoryController(ctx, (observation) => { this.promote(observation) })
-    this.listState = new ApiSessionList(ctx)
+    this.listState = new ApiSessionList(ctx, this.access)
     this.openPath = internals.openPath ?? openNativePath
     this.revealPath = internals.revealPath ?? revealNativePath
     this.canOpenPath = internals.canOpenPath
       ?? (() => config.nativeOpen ?? (internals.openPath !== undefined || canOpenNativePath()))
     ctx.plugin(SessionFileReferences)
-    ctx.plugin(SessionMediaReferences)
+    // `/api/file` takes an absolute path and names no Session, so no access
+    // record can gate it: a ticketed deployment would hand every signed-in
+    // user every file the Host process can read. It stays off there, and the
+    // Session-addressed `workspaceFiles` Remotes serve file content instead.
+    if (this.ticketSecret === undefined || this.ticketSecret === '') {
+      ctx.plugin(SessionMediaReferences)
+    }
     ctx.plugin(SessionSkillCatalog)
 
     ctx.on('session/created', (session) => {
@@ -221,7 +251,10 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('list')
   async list(_request: SessionListRequest, signal: AbortSignal): Promise<SessionListValue> {
-    return { items: await this.listState.list(signal) }
+    // Lazy one-shot: adopt pre-existing preset directories and their stored
+    // sessions into preset Workspaces before the first grouped listing.
+    await this.commands.reconcilePresetWorkspaces()
+    return { items: await this.listState.list(signal, currentUserId(this.ticketSecret)) }
   }
 
   /**
@@ -232,7 +265,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('search')
   search(request: SessionSearchRequest, signal: AbortSignal): Promise<SessionSearchValue> {
-    return this.listState.search(request.query, signal)
+    return this.listState.search(request.query, signal, currentUserId(this.ticketSecret))
   }
 
   /**
@@ -241,8 +274,80 @@ export class SessionController extends TypertRemoteService {
    * @returns the Session identity and resolved preset when configured.
    */
   @Remote('create')
-  create(request: SessionCreateRequest): Promise<SessionCreateValue> {
-    return this.commands.create(request)
+  async create(request: SessionCreateRequest): Promise<SessionCreateValue> {
+    const value = await this.commands.create(request)
+    // An identified caller owns the session it creates. Only an absent record
+    // is written: adopting an existing session must not shrink or replace an
+    // access list some other caller installed. The management wildcard is NOT
+    // an owner — it creates on behalf of others (the Odoo plane pushes the
+    // intended list through setAccess; none pushed = deliberately public).
+    const viewer = currentUserId(this.ticketSecret)
+    if (viewer !== undefined && viewer !== '*') {
+      const header = this.ctx.sessions.get(value.sessionId)?.header
+      if (header !== undefined && (await this.access.allowedUsers(header)).length === 0) {
+        try {
+          await this.access.setAllowedUsers(header, [viewer])
+        } catch (error) {
+          this.ctx.logger.warn(`session "${value.sessionId}" was created but its access record could not be written: ${String(error)}`)
+        }
+      }
+    }
+    return value
+  }
+
+  /**
+   * Refuse a session-addressed read or command from a caller its access
+   * record does not name. Answers `session-not-found` — the same refusal an
+   * unknown id gets — so a restricted id does not leak its existence.
+   * Unrestricted sessions (absent/empty record) pass for every caller, the
+   * `*` management wildcard passes always, and an unknown id passes so the
+   * addressed method reports its own not-found.
+   */
+  private async assertViewerMayRead(sessionId: SessionId): Promise<void> {
+    const viewer = currentUserId(this.ticketSecret)
+    if (viewer === '*') return
+    const header = this.ctx.sessions.get(sessionId)?.header
+      ?? (await this.ctx.sessionQuery.listSessions())
+        .find(record => record.header.id === sessionId)?.header
+    if (header === undefined) return
+    if (await this.access.visibleTo(header, viewer)) return
+    throw new RemoteError('session/not-found', `session "${sessionId}" not found`, { sessionId })
+  }
+
+  /** The session an address is read through (a subagent reads via its parent). */
+  private static addressedSession(address: SessionPageRequest['address']): SessionId {
+    return address.kind === 'session' ? address.sessionId : address.parentSessionId
+  }
+
+  /**
+   * Replace one Session's allowed-users access list.
+   *
+   * With a configured `ticketSecret` only the `*` management wildcard may
+   * write: an ordinary browser could otherwise grant itself access.
+   * @param request - Session identity and the complete new list.
+   * @returns the list as stored (empty = unrestricted).
+   */
+  @Remote('setAccess')
+  async setAccess(request: SessionSetAccessRequest): Promise<SessionSetAccessValue> {
+    if (this.ticketSecret !== undefined && this.ticketSecret !== ''
+      && currentUserId(this.ticketSecret) !== '*') {
+      throw new RemoteError('gateway/internal',
+        'session access lists are administered by the management plane', {})
+    }
+    const header = this.ctx.sessions.get(request.sessionId)?.header
+      ?? (await this.ctx.sessionQuery.listSessions())
+        .find(record => record.header.id === request.sessionId)?.header
+    if (header === undefined) {
+      throw new RemoteError('session/not-found',
+        `session "${request.sessionId}" not found`, { sessionId: request.sessionId })
+    }
+    try {
+      await this.access.setAllowedUsers(header, request.allowedUsers)
+    } catch (error) {
+      throw new RemoteError('gateway/internal',
+        `failed to store the access list of session "${request.sessionId}": ${String(error)}`, {})
+    }
+    return { allowedUsers: await this.access.allowedUsers(header) }
   }
 
   /**
@@ -251,7 +356,8 @@ export class SessionController extends TypertRemoteService {
    * @returns the normalized selection installed for the Session.
    */
   @Remote('selectModel')
-  selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue> {
+  async selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue> {
+    await this.assertViewerMayRead(request.sessionId)
     return this.commands.selectModel(request)
   }
 
@@ -322,7 +428,8 @@ export class SessionController extends TypertRemoteService {
    * @returns the accepted title and durable event sequence.
    */
   @Remote('rename')
-  rename(request: SessionRenameRequest): Promise<SessionRenameValue> {
+  async rename(request: SessionRenameRequest): Promise<SessionRenameValue> {
+    await this.assertViewerMayRead(request.sessionId)
     return this.commands.rename(request)
   }
 
@@ -332,7 +439,8 @@ export class SessionController extends TypertRemoteService {
    * @returns the new Session identity.
    */
   @Remote('fork')
-  fork(request: SessionForkRequest): Promise<SessionForkValue> {
+  async fork(request: SessionForkRequest): Promise<SessionForkValue> {
+    await this.assertViewerMayRead(request.sessionId)
     return this.commands.fork(request)
   }
 
@@ -343,18 +451,20 @@ export class SessionController extends TypertRemoteService {
    * @returns acknowledgement that the Agent accepted the prompt.
    */
   @Remote('prompt')
-  prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue> {
+  async prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue> {
     signal.throwIfAborted()
+    await this.assertViewerMayRead(request.sessionId)
     return this.commands.prompt(request)
   }
 
   /**
-   * Read one image proven reachable from the addressed Session log.
+   * Read one durable image the Session log references.
    * @param request - Session and attachment identities used for authorization.
-   * @returns the durable attachment reference and base64-encoded bytes.
+   * @returns the durable attachment reference and its base64-encoded bytes.
    */
   @Remote('attachment')
-  attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue> {
+  async attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue> {
+    await this.assertViewerMayRead(request.sessionId)
     return this.commands.attachment(request)
   }
 
@@ -364,7 +474,8 @@ export class SessionController extends TypertRemoteService {
    * @returns acknowledgement that the queue mutation was applied.
    */
   @Remote('updateQueue')
-  updateQueue(request: SessionUpdateQueueRequest): SessionUpdateQueueValue {
+  async updateQueue(request: SessionUpdateQueueRequest): Promise<SessionUpdateQueueValue> {
+    await this.assertViewerMayRead(request.sessionId)
     return this.commands.updateQueue(request)
   }
 
@@ -374,7 +485,8 @@ export class SessionController extends TypertRemoteService {
    * @returns acknowledgement that cancellation was requested.
    */
   @Remote('cancel')
-  cancel(request: SessionCancelRequest): SessionCancelValue {
+  async cancel(request: SessionCancelRequest): Promise<SessionCancelValue> {
+    await this.assertViewerMayRead(request.sessionId)
     return this.commands.cancel(request)
   }
 
@@ -385,7 +497,8 @@ export class SessionController extends TypertRemoteService {
    * @returns one chronological page.
    */
   @Remote('page')
-  page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage> {
+  async page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage> {
+    await this.assertViewerMayRead(SessionController.addressedSession(request.address))
     return this.history.page(request, signal)
   }
 
@@ -398,7 +511,18 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote({ mode: 'stream' })
   follow(request: SessionFollowRequest, signal: AbortSignal): AsyncIterable<SessionFollowFrame> {
-    return this.history.follow(request, signal)
+    // Started NOW, not on first iteration: the caller identity is ambient to
+    // this call (the stream carrier binds it around the open), while the
+    // iteration happens later in the carrier's serve loop, outside it.
+    const gate = this.assertViewerMayRead(SessionController.addressedSession(request.address))
+    // A carrier that drops the stream before iterating must not surface the
+    // gate's refusal as an unhandled rejection; awaiting below still throws.
+    gate.catch(() => {})
+    const open = (): AsyncIterable<SessionFollowFrame> => this.history.follow(request, signal)
+    return (async function* gated() {
+      await gate
+      yield* open()
+    })()
   }
 
   /**

@@ -373,11 +373,15 @@ describe('session.history projections block', () => {
     await expect(extra).resolves.toEqual({ done: true, value: undefined })
   })
 
-  it('leaves the imageLimits key absent while no attachment service is composed', async () => {
+  it('carries the imageLimits key once an attachment service is composed', async () => {
+    // MTIL fork: the access gate on every session-addressed read awaits the
+    // stored allow-list, so the attachment service the test harness provides
+    // is registered by the time the opening snapshot is taken. Upstream
+    // answers the snapshot within the same microtask and sees the key absent.
     const { ctx, session } = await harness(true)
     seedMessages(session, 1)
     const snapshot = await opening(remote(ctx), session.id)
-    expect('imageLimits' in snapshot.projections.values).toBe(false)
+    expect('imageLimits' in snapshot.projections.values).toBe(true)
   })
 
   it('never carries the block on loadOlder pages (beforeSeq present)', async () => {
