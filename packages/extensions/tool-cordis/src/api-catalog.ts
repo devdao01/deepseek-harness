@@ -1566,12 +1566,6 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'acknowledgement that the Agent accepted the prompt.',
       },
       {
-        signature: '@Remote(\'readWorkspaceFile\') async readWorkspaceFile(request: SessionReadWorkspaceFileRequest): Promise<SessionReadWorkspaceFileValue>',
-        description: 'Read one file under a Session\'s workspace for a browser download. Viewer-gated like every session-addressed read; the path must stay inside the Session\'s workspace directory.',
-        parameters: [{ name: 'request', description: 'Session identity and the workspace path to read.' }],
-        returns: 'the file\'s base name and base64-encoded bytes.',
-      },
-      {
         signature: '@Remote(\'attachment\') async attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue>',
         description: 'Read one durable image the Session log references.',
         parameters: [{ name: 'request', description: 'Session and attachment identities used for authorization.' }],
@@ -5486,14 +5480,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionQueuedItem',
     declaration: 'export interface SessionQueuedItem {\n    readonly id: MessageId;\n    readonly placement: \'queued\' | \'steering\' | \'context\';\n    readonly rpcId?: SessionRequestId;\n    readonly message: {\n        readonly id: MessageId;\n        readonly content: readonly JsonValue[];\n    };\n}',
-  },
-  {
-    name: 'SessionReadWorkspaceFileRequest',
-    declaration: 'export interface SessionReadWorkspaceFileRequest {\n    readonly sessionId: SessionId;\n    readonly path: string;\n}',
-  },
-  {
-    name: 'SessionReadWorkspaceFileValue',
-    declaration: 'export interface SessionReadWorkspaceFileValue {\n    readonly name: string;\n    readonly contentBase64: string;\n}',
   },
   {
     name: 'SessionRecord',

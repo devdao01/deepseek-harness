@@ -507,6 +507,75 @@ async list(): Promise<AgentPreset[]>
 @Remote('list') async remoteExportList(): Promise<AgentPresetRoster>
 
 /**
+ * Create or rewrite one structured locally authored preset.
+ *
+ * The composition is GENERATED from the deployment's default preset plus
+ * the request's bounded spec (persona, bash/web flags, router departments)
+ * — the caller supplies no composition text or plugin names, so authoring
+ * grants no capability the default composition did not already carry. An
+ * existing user preset is rewritten in place: sessions already composed
+ * keep their generation, new sessions get the new one. A shipped preset id
+ * is refused.
+ * @param request - the preset identity, display text, and composition spec.
+ * @returns once the preset is stored.
+ * @throws {RemoteError} `bad-request` for an unusable spec,
+ * `agent-preset-read-only` for a shipped id, or `agent-preset-invalid` for
+ * an unusable preset id.
+ */
+@Remote('author') async remoteExportAuthor(request: AuthorPresetRequest): Promise<void>
+
+/**
+ * The tools the deployment's default composition registers, for authoring
+ * pickers to offer as `toolFilter` grants.
+ * @returns one entry per visible tool of the default preset's standing mount.
+ * @throws {RemoteError} when the default preset cannot compose.
+ */
+@Remote('toolCatalog') async remoteExportToolCatalog(): Promise<AgentPresetToolCatalog>
+
+/**
+ * Replace one user preset's raw composition text.
+ *
+ * UNLIKE every other authoring path, the caller supplies the composition —
+ * and with it arbitrary plugin names, which is shell-equivalent trust. With
+ * a configured `ticketSecret` only the `*` management wildcard (the Odoo
+ * plane, server-side) may call; without one the deployment is a trusted
+ * single-operator setup and the call is open like the rest of authoring.
+ * The content must parse as a top-level list of plugin rows; deeper health
+ * (unresolvable plugin names) still surfaces as a broken roster row.
+ * @param request - preset identity, display text, and the full composition.
+ * @returns once the preset is stored.
+ * @throws {RemoteError} `bad-request` for refused callers or
+ * unusable content, `agent-preset-read-only` for a shipped id.
+ */
+@Remote('writeRaw') async remoteExportWriteRaw(request: WriteRawPresetRequest): Promise<void>
+
+/**
+ * Rewrite one locally authored preset's display text. The id — and with it
+ * every id-derived path — never changes; a shipped preset is refused.
+ * @param agentPreset - the preset id.
+ * @param name - the new display name.
+ * @param description - replacement description; omitted keeps the current one.
+ * @returns once the metadata is stored.
+ * @throws {RemoteError} `bad-request`, `agent-preset-not-found`, or
+ * `agent-preset-read-only` when the rename is refused.
+ */
+@Remote('rename') async remoteExportRename(agentPreset: string, name: string, description?: string): Promise<void>
+
+/**
+ * Activate or deactivate one preset for pickers and new selection.
+ *
+ * The state lives in the `agent-presets` settings namespace, so it covers
+ * shipped read-only presets too and hot-reloads like the default. Sessions
+ * already composed from a deactivated preset keep running and resuming.
+ * @param agentPreset - the preset id.
+ * @param active - whether pickers may offer the preset again.
+ * @returns once the state is stored.
+ * @throws {RemoteError} `bad-request`, `agent-preset-not-found`, or
+ * `internal` when no settings service is mounted.
+ */
+@Remote('setActive') async remoteExportSetActive(agentPreset: string, active: boolean): Promise<void>
+
+/**
  * Every preset's composition as flattened plugin rows, for plugin-listing
  * surfaces beside the roster's own picker.
  *
@@ -620,21 +689,23 @@ async read(id: string): Promise<string>
  * primary source, so any trust is accepted.
  * @param id - the new preset's id, which becomes its directory name.
  * @param name - display name for the copy; absent falls back to the id.
+ * @param description - one sentence on what the copy is for; absent stores none.
  * @throws when the source is unknown, the id is unusable or already taken,
  * or the deployment configures no writable root.
  */
-async copy(from: string, id: string, name?: string): Promise<void>
+async copy(from: string, id: string, name?: string, description?: string): Promise<void>
 
 /**
  * Copy one preset through the Remote API.
  * @param from - the source preset id.
  * @param id - the new preset id.
  * @param name - the copy's optional display name.
+ * @param description - the copy's optional description (omitted keeps the source's).
  * @returns once the copy is stored.
  * @throws {RemoteError} with the corresponding stable preset code and
  * details when the copy is refused.
  */
-@Remote('copy') async remoteExportCopy(from: string, id: string, name?: string): Promise<void>
+@Remote('copy') async remoteExportCopy(from: string, id: string, name?: string, description?: string): Promise<void>
 
 /**
  * Delete a locally authored preset.
@@ -1250,6 +1321,45 @@ Source: [`packages/core/agent-loop/src/index.ts`](../../packages/core/agent-loop
 <a id="agent-preset-events"></a>
 
 ### `agent-preset/*` events
+
+<a id="agent-presetauthored--emit"></a>
+
+#### `agent-preset/authored` — emit
+
+One locally authored preset was stored on disk (the copy committed). Consumers prepare per-preset resources — the session controller materializes the preset's workspace directory when one is configured.
+
+```ts cordis-catalog
+/**
+ * One locally authored preset was stored on disk (the copy committed).
+ * Consumers prepare per-preset resources — the session controller
+ * materializes the preset's workspace directory when one is configured.
+ * @mode emit
+ * @param agentPreset - the id of the preset just authored.
+ */
+'agent-preset/authored'(agentPreset: string): void
+```
+
+Source: [`packages/preset/agent-presets/src/types.ts`](../../packages/preset/agent-presets/src/types.ts)
+
+<a id="agent-presetrenamed--emit"></a>
+
+#### `agent-preset/renamed` — emit
+
+One preset's display name was rewritten (the id never changes). Consumers retitle name-derived presentation — the session controller retitles the preset's Workspace group when one is configured.
+
+```ts cordis-catalog
+/**
+ * One preset's display name was rewritten (the id never changes).
+ * Consumers retitle name-derived presentation — the session controller
+ * retitles the preset's Workspace group when one is configured.
+ * @mode emit
+ * @param agentPreset - the id of the renamed preset.
+ * @param name - the new display name.
+ */
+'agent-preset/renamed'(agentPreset: string, name: string): void
+```
+
+Source: [`packages/preset/agent-presets/src/types.ts`](../../packages/preset/agent-presets/src/types.ts)
 
 <a id="agent-presetselected--emit"></a>
 

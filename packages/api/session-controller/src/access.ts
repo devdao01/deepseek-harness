@@ -19,7 +19,7 @@
 
 import { z } from 'zod'
 import type { Context } from '@deepseek-ai/cordis'
-import { currentTicketUserId, verifyUserTicket } from '@deepseek-ai/dsh-client-connection'
+import { currentTicketUserId, verifyUserTicket } from '@deepseek-ai/dsh-user-ticket'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionHeader } from '@deepseek-ai/dsh-session'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
@@ -53,7 +53,7 @@ export const sessionAccessDomainSpec = defineDomain({
 
 /**
  * The verified user id of the RPC currently being handled (the canonical
- * implementation lives in dsh-client-connection beside the ambient request).
+ * implementation lives in dsh-user-ticket beside the ambient request).
  * @param secret - the deployment's shared ticket secret; undefined disables
  * identification entirely.
  * @returns the user id, or undefined for the anonymous caller.
@@ -63,7 +63,7 @@ export function currentUserId(secret: string | undefined): string | undefined {
 }
 
 export { verifyUserTicket }
-export { USER_TICKET_COOKIE } from '@deepseek-ai/dsh-client-connection'
+export { USER_TICKET_COOKIE } from '@deepseek-ai/dsh-user-ticket'
 
 /**
  * Durable per-session `allowedUsers` records over the `session_access`

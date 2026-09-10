@@ -7,8 +7,11 @@
  */
 
 import { createHmac } from 'node:crypto'
+import { mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join as joinPath } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { runWithRpcRequest } from '@deepseek-ai/dsh-client-connection'
+import { runWithRpcRequest } from '@deepseek-ai/dsh-user-ticket'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionHeader } from '@deepseek-ai/dsh-session'
 import { describe, expect, it, vi } from 'vitest'
@@ -137,12 +140,9 @@ describe('session-addressed entry points', () => {
       list: () => Promise.resolve([restricted]),
       inspect: () => Promise.resolve({ meta: restricted, events: [] }),
     }) as never)
-    const { mkdtemp } = await import('node:fs/promises')
-    const { tmpdir } = await import('node:os')
-    const { join } = await import('node:path')
     const controller = createSessionTestController(ctx, {
       defaultModelSelection: () => ({ provider: 'fixture', model: 'fixture' }),
-      cwd: await mkdtemp(join(tmpdir(), 'dsh-access-gate-')),
+      cwd: await mkdtemp(joinPath(tmpdir(), 'dsh-access-gate-')),
       ticketSecret: SECRET,
     })
     const store = new SessionAccessStore(ctx)
@@ -172,7 +172,7 @@ describe('session-addressed entry points', () => {
     // upgrade headers around the open, while iteration happens later in its
     // serve loop, outside any ambient scope — exactly what this simulates.
     const followRequest = { address: pageRequest.address, sinceSeq: -1 }
-    const anonymousFollow = controller.follow(followRequest as never, signal)
+    const anonymousFollow = controller.follow(followRequest, signal)
     await expect((async () => {
       for await (const frame of anonymousFollow) void frame
     })()).rejects.toMatchObject({ code: 'session/not-found' })

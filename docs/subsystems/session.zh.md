@@ -737,14 +737,24 @@ inspect( sessionId: SessionId, signal?: AbortSignal, ): Promise<SessionInspectio
  * @param request - requested identity, location, and Agent preset.
  * @returns the Session identity and resolved preset when configured.
  */
-@Remote('create') create(request: SessionCreateRequest): Promise<SessionCreateValue>
+@Remote('create') async create(request: SessionCreateRequest): Promise<SessionCreateValue>
+
+/**
+ * Replace one Session's allowed-users access list.
+ *
+ * With a configured `ticketSecret` only the `*` management wildcard may
+ * write: an ordinary browser could otherwise grant itself access.
+ * @param request - Session identity and the complete new list.
+ * @returns the list as stored (empty = unrestricted).
+ */
+@Remote('setAccess') async setAccess(request: SessionSetAccessRequest): Promise<SessionSetAccessValue>
 
 /**
  * Select one Session-local model after explicitly resuming the Session.
  * @param request - Session identity and requested model selection.
  * @returns the normalized selection installed for the Session.
  */
-@Remote('selectModel') selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue>
+@Remote('selectModel') async selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue>
 
 /**
  * Describe every currently routable model for Host-generation selectors.
@@ -778,14 +788,14 @@ workspaceDesktop(): { name: string; available: boolean; fileManager: 'finder' | 
  * @param request - Session identity and proposed title.
  * @returns the accepted title and durable event sequence.
  */
-@Remote('rename') rename(request: SessionRenameRequest): Promise<SessionRenameValue>
+@Remote('rename') async rename(request: SessionRenameRequest): Promise<SessionRenameValue>
 
 /**
  * Fork one cold-readable completed-turn prefix into a new Session.
  * @param request - source Session and optional event anchor.
  * @returns the new Session identity.
  */
-@Remote('fork') fork(request: SessionForkRequest): Promise<SessionForkValue>
+@Remote('fork') async fork(request: SessionForkRequest): Promise<SessionForkValue>
 
 /**
  * Admit one prompt after explicitly resuming its Session.
@@ -793,28 +803,28 @@ workspaceDesktop(): { name: string; available: boolean; fileManager: 'finder' | 
  * @param signal - caller cancellation before prompt admission begins.
  * @returns acknowledgement that the Agent accepted the prompt.
  */
-@Remote('prompt') prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue>
+@Remote('prompt') async prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue>
 
 /**
- * Read one image proven reachable from the addressed Session log.
+ * Read one durable image the Session log references.
  * @param request - Session and attachment identities used for authorization.
- * @returns the durable attachment reference and base64-encoded bytes.
+ * @returns the durable attachment reference and its base64-encoded bytes.
  */
-@Remote('attachment') attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue>
+@Remote('attachment') async attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue>
 
 /**
  * Mutate one still-pending queue occurrence on a live Agent.
  * @param request - Session, queue item, and requested mutation.
  * @returns acknowledgement that the queue mutation was applied.
  */
-@Remote('updateQueue') updateQueue(request: SessionUpdateQueueRequest): SessionUpdateQueueValue
+@Remote('updateQueue') async updateQueue(request: SessionUpdateQueueRequest): Promise<SessionUpdateQueueValue>
 
 /**
  * Cancel one active Agent turn without dropping its pending inbox.
  * @param request - Session whose active Agent turn is cancelled.
  * @returns acknowledgement that cancellation was requested.
  */
-@Remote('cancel') cancel(request: SessionCancelRequest): SessionCancelValue
+@Remote('cancel') async cancel(request: SessionCancelRequest): Promise<SessionCancelValue>
 
 /**
  * Read one cold-safe, message-aligned Session history page.
@@ -822,7 +832,7 @@ workspaceDesktop(): { name: string; available: boolean; fileManager: 'finder' | 
  * @param signal - cancellation for persistence reads.
  * @returns one chronological page.
  */
-@Remote('page') page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage>
+@Remote('page') async page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage>
 
 /**
  * Follow one Session log from its opening or resume cursor.

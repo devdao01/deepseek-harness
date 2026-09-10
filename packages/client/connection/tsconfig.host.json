@@ -14,12 +14,13 @@
     "src/loopback-hostname.ts",
     "src/recovery-config.ts",
     "src/rpc-host.ts",
-    "src/rpc-request-context.ts",
-    "src/user-ticket.ts",
     "src/rpc-schema.ts",
     "src/rpc.ts"
   ],
   "references": [
+    {
+      "path": "../../util/user-ticket"
+    },
     {
       "path": "../../../vendor/cordis"
     },

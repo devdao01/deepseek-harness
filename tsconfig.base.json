@@ -439,6 +439,7 @@
       "@deepseek-ai/dsh-user-approval": ["./packages/interaction/user-approval/src"],
       "@deepseek-ai/dsh-user-approval/invariant": ["./packages/interaction/user-approval/src/invariant.ts"],
       "@deepseek-ai/dsh-user-questions": ["./packages/interaction/user-questions/src"],
+      "@deepseek-ai/dsh-user-ticket": ["./packages/util/user-ticket/src"],
       "@deepseek-ai/dsh-web": ["./packages/web/web/src"],
       "@deepseek-ai/dsh-web-app": ["./packages/bundle/web-app/src"],
       "@deepseek-ai/dsh-web-fetch-http": ["./packages/web/web-fetch-http/src"],

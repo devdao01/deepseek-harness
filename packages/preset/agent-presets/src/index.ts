@@ -40,7 +40,7 @@ import type {} from '@deepseek-ai/dsh-tools'
 import type SettingsService from '@deepseek-ai/dsh-settings'
 import type { SettingsScope } from '@deepseek-ai/dsh-settings'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
-import { currentTicketUserId } from '@deepseek-ai/dsh-client-connection'
+import { currentTicketUserId } from '@deepseek-ai/dsh-user-ticket'
 import { load as loadYaml } from 'js-yaml'
 import { discoverPresets, entryListProblem, SHIPPED_PRESET_ROOT, USER_PRESET_DIR } from './discovery.ts'
 import {
@@ -417,7 +417,7 @@ export class AgentPresets extends TypertRemoteService {
       return {
         tools: tools.schemas(key).map(schema => ({
           name: schema.name,
-          description: schema.description ?? '',
+          description: schema.description,
         })),
       }
     } catch (error: unknown) {

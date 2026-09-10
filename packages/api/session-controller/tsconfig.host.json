@@ -23,6 +23,9 @@
     "src/skill-catalog.ts"
   ],
   "references": [
+    {
+      "path": "../../util/user-ticket"
+    },
     { "path": "../../../vendor/cordis" },
     { "path": "../../../vendor/schemastery" },
     { "path": "../../client/connection/tsconfig.host.json" },

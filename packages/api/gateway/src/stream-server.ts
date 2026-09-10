@@ -2,7 +2,7 @@
 
 import type { IncomingMessage } from 'node:http'
 import type { Duplex } from 'node:stream'
-import { runWithRpcRequest } from '@deepseek-ai/dsh-client-connection'
+import { runWithRpcRequest } from '@deepseek-ai/dsh-user-ticket'
 import WebSocket, { WebSocketServer, type RawData } from 'ws'
 import {
   parseRemoteStreamClientMessage,

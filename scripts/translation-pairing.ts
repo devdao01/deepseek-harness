@@ -156,6 +156,7 @@ export const TRANSLATION_SCOPE_GLOB_EXCLUDES = [
   'apps/odoo-mcp/**',
   'apps/multi-agent-setup/**',
   'apps/npei_agent_harness/**',
+  'packages/util/user-ticket/**',
   '.agents/notes/implemented/feature/2026-08-30-preset-activation-rename-and-preset-workspace-root.md',
   '.agents/notes/implemented/feature/2026-08-30-session-access-records-and-user-tickets.md',
   '**/node_modules/**',

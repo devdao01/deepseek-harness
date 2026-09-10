@@ -8,7 +8,7 @@ import {
   type RpcId as RpcIdType,
 } from './rpc.ts'
 import { clientRequestSchema } from './rpc-schema.ts'
-import { runWithRpcRequest } from './rpc-request-context.ts'
+import { runWithRpcRequest } from '@deepseek-ai/dsh-user-ticket'
 import { bridge } from './http-bridge.ts'
 import { isTrustedApiRequest } from './api-request-trust.ts'
 import { API_PATH } from './api-path.ts'

@@ -75,6 +75,7 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
+    "@deepseek-ai/dsh-user-ticket": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-agent": "workspace:^",
     "@deepseek-ai/dsh-agent-default-model": "workspace:^",
@@ -120,6 +121,7 @@
     }
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-user-ticket": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-agent": "workspace:^",
     "@deepseek-ai/dsh-agent-default-model": "workspace:^",

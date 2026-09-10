@@ -284,6 +284,48 @@ Host service backing the generated `ctx.remote.settings` namespace. Every remote
 
 ```ts cordis-catalog
 /**
+ * List the credential flows this deployment can authorize (e.g. a provider
+ * sign-in). Empty when no authorization seam is mounted.
+ * @returns one entry per registered flow.
+ */
+@Remote listAuthorizations(): AuthorizationListValue
+
+/**
+ * Start one authorization attempt, detached, and return its id. Poll it for
+ * the sign-in URL and the pending prompt; answer with `respondAuthorization`.
+ * @param key - the credential record to authorize.
+ * @param method - the flow method, or undefined for the flow's first.
+ * @returns the attempt id to poll and respond to.
+ * @throws RemoteError when no flow claims the key or none can run.
+ */
+@Remote beginAuthorization(key: string, method: string | undefined): AuthorizationBeginValue
+
+/**
+ * Read one attempt's progress: notices drained since the last poll, the
+ * pending prompt (e.g. paste your code), and the settled outcome.
+ * @param attemptId - the id `beginAuthorization` returned.
+ * @returns the attempt state, or notices-empty settled-failed for an
+ * unknown or reaped id so a poller stops cleanly.
+ */
+@Remote pollAuthorization(attemptId: string): AuthorizationAttemptState
+
+/**
+ * Answer the pending prompt of one attempt (the pasted OAuth code/URL, or a
+ * chosen option id).
+ * @param attemptId - the attempt whose prompt to answer.
+ * @param promptId - the prompt id from the last poll.
+ * @param answer - the human's text or the chosen option id.
+ * @returns whether a matching pending prompt received the answer.
+ */
+@Remote respondAuthorization(attemptId: string, promptId: string, answer: string): boolean
+
+/**
+ * Withdraw one authorization attempt.
+ * @param attemptId - the attempt to cancel.
+ */
+@Remote cancelAuthorization(attemptId: string): void
+
+/**
  * Describe every registered namespace for a configuration page: redacted
  * layered values plus the serialized schema the page renders its form from.
  * @returns provider writability, local-document presence, and one view per namespace.
