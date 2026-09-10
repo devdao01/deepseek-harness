@@ -1,0 +1,6 @@
+name: Business Router
+description: >-
+  Agent điều phối đa phòng ban: nhận yêu cầu từ người dùng, route cho các agent
+  chuyên môn (marketing, hr, accounting, reporting) qua tools, thu kết quả và
+  báo lại người dùng. Mỗi phòng ban có persona + bộ tools + skill riêng.
+order: 10

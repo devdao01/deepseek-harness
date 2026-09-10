@@ -1,1 +1,9 @@
 */agents/openai.yaml
+
+# Skills installed from external catalogs stay machine-local: they ship their own
+# AGENTS.md cross-links to files the installer prunes, which verify-md-links rejects.
+frontend-design/
+odoo-17/
+vercel-react-best-practices/
+vercel-react-native-skills/
+vercel-react-view-transitions/

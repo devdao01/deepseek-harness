@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="module_category_npei_agent" model="ir.module.category">
+        <field name="name">Manage Agent</field>
+        <field name="description">DeepSeek Harness gateway and session ACL</field>
+        <field name="sequence">20</field>
+    </record>
+
+    <record id="group_npei_agent_user" model="res.groups">
+        <field name="name">Agent User</field>
+        <field name="category_id" ref="module_category_npei_agent"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="group_npei_agent_manager" model="res.groups">
+        <field name="name">Agent Manager</field>
+        <field name="category_id" ref="module_category_npei_agent"/>
+        <field name="implied_ids" eval="[(4, ref('npei_agent_harness.group_npei_agent_user'))]"/>
+    </record>
+
+    <!-- Grant the admin the Manager group at install so the "MTIL Agent" menu
+         is visible immediately; without any member of group_npei_agent_user
+         the group-restricted root menu would be hidden from everyone,
+         including admin, until a group is assigned by hand. -->
+    <record id="base.user_admin" model="res.users">
+        <field name="groups_id" eval="[(4, ref('npei_agent_harness.group_npei_agent_manager'))]"/>
+    </record>
+</odoo>

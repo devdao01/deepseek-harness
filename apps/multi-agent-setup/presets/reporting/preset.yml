@@ -1,0 +1,4 @@
+name: Reporting Agent
+description: >-
+  Agent reporting độc lập — người dùng nhắn trực tiếp, không cần agent cha.
+order: 23
