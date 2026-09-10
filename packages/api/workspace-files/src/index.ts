@@ -29,7 +29,6 @@ import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { Remote, RemoteError, TypertRemoteService, type TypertLookup } from '@deepseek-ai/dsh-typert-protocol'
-import { currentUserId, SessionAccessStore } from '@deepseek-ai/dsh-api-session-controller'
 import { WorkspaceChangeFeed } from './changes.ts'
 import type {
   WorkspaceByteRange,
@@ -82,14 +81,6 @@ export interface Config {
   readonly maxLines: number
   /** Cap on returned directory entries; the rest is dropped and reported cut. */
   readonly maxEntries: number
-  /**
-   * Shared HMAC-SHA256 secret the deployment's identity provider signs user
-   * tickets with, matching the Session Controller's. Set, a Session whose
-   * access record does not name the calling user resolves to nothing, so
-   * every method here refuses it the way an unknown Session is refused.
-   * Unset, file reads follow the composed filesystem alone.
-   */
-  readonly ticketSecret?: string
 }
 
 /** One page cut from a decoded text stream. */
@@ -196,7 +187,6 @@ export class WorkspaceFiles extends TypertRemoteService {
     maxFileBytes: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER - 1).default(32 * 1024 * 1024),
     maxLines: z.number().step(1).min(1).default(5000),
     maxEntries: z.number().step(1).min(1).default(2000),
-    ticketSecret: z.string(),
   })
 
   private readonly feed: WorkspaceChangeFeed
@@ -208,7 +198,6 @@ export class WorkspaceFiles extends TypertRemoteService {
   constructor(ctx: Context, private readonly config: Config) {
     super(ctx, 'workspaceFiles')
     this.feed = new WorkspaceChangeFeed(ctx)
-    const access = new SessionAccessStore(ctx)
     ctx.inject(['sessions', 'typert'], (scope) => {
       scope.typert.lookups.register('workspaceFileScope', {
         parameter: 'workspaceFileScope',
@@ -222,11 +211,6 @@ export class WorkspaceFiles extends TypertRemoteService {
             : undefined
           const header = live ?? stored?.header
           if (header === undefined) return undefined
-          // A Session the caller may not read resolves to nothing, so every
-          // method refuses it exactly as it refuses an unknown Session — the
-          // same refusal the Session Controller's own gate produces, and for
-          // the same reason: a restricted id must not leak its existence.
-          if (!await access.visibleTo(header, currentUserId(config.ticketSecret))) return undefined
           return {
             sessionId,
             workspaceRoot: header.cwd ?? scope.sandboxPolicy.workspaceRoot,
