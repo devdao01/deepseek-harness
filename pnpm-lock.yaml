@@ -583,6 +583,28 @@ importers:
         specifier: workspace:^
         version: link:../web
 
+  apps/frontend:
+    dependencies:
+      '@deepseek-ai/dsh-client-web':
+        specifier: link:../../packages/client/web
+        version: link:../../packages/client/web
+    devDependencies:
+      '@deepseek-ai/dsh-client-modules':
+        specifier: link:../../packages/client/modules
+        version: link:../../packages/client/modules
+      '@deepseek-ai/dsh-host-webserver':
+        specifier: link:../../packages/host/webserver
+        version: link:../../packages/host/webserver
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vite:
+        specifier: ^6.0.0
+        version: 6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)
+
   apps/web:
     devDependencies:
       '@deepseek-ai/cordis-plugin-group':
