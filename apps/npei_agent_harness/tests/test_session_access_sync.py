@@ -8,6 +8,7 @@ title change, and the ``session/list {"_request": {}}`` mirror sync.
 """
 from unittest.mock import patch
 
+from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase
 
 
@@ -69,6 +70,37 @@ class TestSessionAccessSync(TransactionCase):
         self.assertTrue(self.Session._user_can_access('session-priv', self.user_a))
         self.assertFalse(self.Session._user_can_access('session-priv', self.user_b))
         self.assertTrue(self.Session._user_can_access('session-priv', record.create_uid))
+
+    # ------------------------------------------------------------------
+    # Open in the SPA
+    # ------------------------------------------------------------------
+    def test_open_frontend_carries_the_launch_token(self):
+        params = self.env['ir.config_parameter'].sudo()
+        params.set_param('npei_agent_harness.spa_path', '/mtilai2/')
+        params.set_param('npei_agent_harness.api_token', 'tok en/+1')
+        record = self.Session.create({'session_id': 'session-open'})
+        action = record.action_open_frontend()
+        self.assertEqual(action['type'], 'ir.actions.act_url')
+        self.assertEqual(action['target'], 'new')
+        self.assertEqual(
+            action['url'], '/mtilai2/s/session-open?token=tok%20en%2F%2B1')
+
+    def test_open_frontend_without_a_token_stays_cookie_only(self):
+        params = self.env['ir.config_parameter'].sudo()
+        params.set_param('npei_agent_harness.spa_path', '/mtilai2')
+        params.set_param('npei_agent_harness.api_token', '')
+        record = self.Session.create({'session_id': 'session-open-2'})
+        self.assertEqual(
+            record.action_open_frontend()['url'], '/mtilai2/s/session-open-2')
+
+    def test_open_frontend_without_a_session_id_fails_loud(self):
+        preset = self.env['npei.agent.preset'].with_context(npei_syncing=True).create(
+            {'name': 'Open', 'preset_id': 'open', 'trust': 'system'})
+        record = self.Session.with_context(npei_syncing=True).create(
+            {'name': 'Unmapped', 'preset_id': preset.id})
+        self.assertFalse(record.session_id)
+        with self.assertRaises(UserError):
+            record.action_open_frontend()
 
     # ------------------------------------------------------------------
     # Harness effects

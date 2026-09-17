@@ -25,9 +25,12 @@ harness list only into mappings whose local set is empty.
 import logging
 import uuid
 from datetime import datetime
+from urllib.parse import quote
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
+
+from .harness_client import CONFIG_API_TOKEN
 
 _logger = logging.getLogger(__name__)
 
@@ -298,15 +301,30 @@ class NpeiAgentSession(models.Model):
         resolves it against the Odoo origin the user is already on — the SPA
         is served from the same domain by nginx. The path comes from
         ``npei_agent_harness.spa_path``.
+
+        A configured launch token rides along as ``?token=``: the SPA hands it
+        to the harness auth bridge, which mints this browser's harness cookie
+        and 303s back to the app root, and the SPA re-enters ``/s/<session
+        id>`` afterwards. Without it a browser holding no harness cookie
+        cannot read ``/api/boot.payload`` and the tab stops at the
+        unauthenticated screen. This is the one place the module hands the
+        token to a browser, and that token authenticates the whole harness:
+        everyone allowed to press this button receives it, and it stays in
+        that browser's history. Leave the token unset to keep the previous
+        cookie-only behaviour.
         """
         self.ensure_one()
         if not self.session_id:
             raise UserError(_("This mapping has no harness session id yet."))
-        path = (self.env['ir.config_parameter'].sudo()
-                .get_param('npei_agent_harness.spa_path') or '/mtilai2').strip()
+        params = self.env['ir.config_parameter'].sudo()
+        path = (params.get_param('npei_agent_harness.spa_path') or '/mtilai2').strip()
+        url = '%s/s/%s' % (path.rstrip('/'), self.session_id)
+        token = (params.get_param(CONFIG_API_TOKEN) or '').strip()
+        if token:
+            url = '%s?token=%s' % (url, quote(token, safe=''))
         return {
             'type': 'ir.actions.act_url',
-            'url': '%s/s/%s' % (path.rstrip('/'), self.session_id),
+            'url': url,
             'target': 'new',
         }
 
