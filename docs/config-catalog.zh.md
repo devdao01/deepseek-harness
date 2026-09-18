@@ -137,6 +137,14 @@ export interface Config {
    */
   includeShippedRoot: boolean
   /**
+   * Shared HMAC-SHA256 secret user tickets (`mtil-ticket` cookie) are
+   * verified with. Set, `agentPresets/writeRaw` — the one authoring path
+   * whose caller supplies plugin names — accepts only the `*` management
+   * wildcard. Unset, the deployment is a trusted single-operator setup and
+   * the call is open like the rest of authoring.
+   */
+  ticketSecret?: string
+  /**
    * Append the harness home's `USER_PRESET_DIR` as a `user` root, after every
    * configured root. False mounts a roster without the derived writable root.
    */
@@ -212,10 +220,24 @@ export interface Config {
 export interface Config {
   /** Override platform desktop-opener detection. */
   readonly nativeOpen?: boolean
+  /**
+   * Directory whose `<root>/<presetId>` subdirectory becomes the working
+   * directory of a session created with neither a Workspace nor a cwd
+   * (`~` expands). Unset keeps the process working directory.
+   */
+  readonly presetWorkspaceRoot?: string
+  /**
+   * Shared HMAC-SHA256 secret the deployment's identity provider signs user
+   * tickets with (the `mtil-ticket` cookie). Set, it makes `session/list`
+   * and `session/search` filter by each session's allowed-users record and
+   * tags sessions created by an identified caller. Unset, every caller is
+   * anonymous and only unrestricted sessions are listed.
+   */
+  readonly ticketSecret?: string
 }
 ```
 
-来源：[`packages/api/session-controller/src/index.ts:69`](../packages/api/session-controller/src/index.ts)
+来源：[`packages/api/session-controller/src/index.ts:75`](../packages/api/session-controller/src/index.ts)
 
 <a id="deepseek-aidsh-api-settings-controller"></a>
 
@@ -229,7 +251,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/api/settings-controller/src/index.ts:36`](../packages/api/settings-controller/src/index.ts)
+来源：[`packages/api/settings-controller/src/index.ts:40`](../packages/api/settings-controller/src/index.ts)
 
 <a id="deepseek-aidsh-api-workspace-files"></a>
 
@@ -363,6 +385,15 @@ export interface ConnectionConfig {
   trustedHosts?: string[]
   /** Absolute browser-session lifetime in days. Default: 30. */
   cookieMaxAgeDays?: number
+  /**
+   * Fixed launch token for the `/?token=` sign-in URL. Set, the token
+   * survives restarts (bookmarkable, scriptable against a known value);
+   * absent, each process mints a fresh random token, so a leaked URL dies
+   * with the process. 22-128 chars of `A-Za-z0-9_-` (raw base64url, no
+   * URL-encoding ambiguity); anything else fails plugin load. Treat the
+   * configured value like a password.
+   */
+  launchToken?: string
   /** Maximum buffered JSON body for every `/api` request. Default: 300 MiB. */
   maxRequestBodyBytes?: number
 }
@@ -385,7 +416,7 @@ export interface ConnectionRecoveryConfig {
 }
 ```
 
-来源： [`packages/client/connection/src/index.ts:72`](../packages/client/connection/src/index.ts)
+来源： [`packages/client/connection/src/index.ts:78`](../packages/client/connection/src/index.ts)
 
 <a id="deepseek-aidsh-client-hmr"></a>
 
@@ -3598,6 +3629,7 @@ export interface Config {
 - `@deepseek-ai/dsh-typert-generator`（[`packages/typert/generator/src/index.ts`](../packages/typert/generator/src/index.ts)）
 - `@deepseek-ai/dsh-typert-protocol`（[`packages/typert/protocol/src/index.ts`](../packages/typert/protocol/src/index.ts)）
 - `@deepseek-ai/dsh-typert-registry`（[`packages/typert/registry/src/index.ts`](../packages/typert/registry/src/index.ts)）
+- `@deepseek-ai/dsh-user-ticket`（[`packages/util/user-ticket/src/index.ts`](../packages/util/user-ticket/src/index.ts)）
 - `@deepseek-ai/dsh-util-crypto`（[`packages/util/crypto/src/index.ts`](../packages/util/crypto/src/index.ts)）
 - `@deepseek-ai/dsh-util-time`（[`packages/util/time/src/index.ts`](../packages/util/time/src/index.ts)）
 - `@deepseek-ai/dsh-util-values`（[`packages/util/values/src/index.ts`](../packages/util/values/src/index.ts)）
