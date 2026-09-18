@@ -30,6 +30,10 @@ Only a Host carrier does this, once per unary RPC dispatch. `dsh-client-connecti
 ```ts
 import { runWithRpcRequest } from '@deepseek-ai/dsh-user-ticket'
 
+declare const request: Request
+declare const dispatch: (payload: unknown) => Promise<unknown>
+declare const payload: unknown
+
 const result = await runWithRpcRequest({ headers: request.headers }, () => dispatch(payload))
 ```
 
@@ -39,6 +43,8 @@ A Remote method reads the ticket user id with the deployment's shared secret:
 
 ```ts
 import { currentTicketUserId } from '@deepseek-ai/dsh-user-ticket'
+
+declare const config: { ticketSecret?: string }
 
 const viewer = currentTicketUserId(config.ticketSecret)
 ```
