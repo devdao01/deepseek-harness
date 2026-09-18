@@ -180,6 +180,42 @@ describe('Session creation failures', () => {
     await ctx.fiber.dispose()
   })
 
+  it('retitles a preset Workspace whose stored title lags the preset name', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-preset-retitle-'))
+    const ctx = await baseContext()
+    const dir = join(root, 'standard')
+    // Created back when the preset file still carried its previous name; a
+    // file edit on disk emits no rename event, so only ensure() can catch up.
+    const stale = {
+      id: 'ws-stale',
+      path: dir,
+      title: '标准模式',
+      attachSession: () => Promise.resolve(),
+      setTitle(t: string) { this.title = t; return Promise.resolve() },
+    }
+    const created: string[] = []
+    ctx.provide('workspaceRegistry', {
+      get: () => undefined,
+      list: () => [stale],
+      resolveByPath: (path: string) => Promise.resolve(path === dir ? stale : undefined),
+      create: (path: string) => { created.push(path); return Promise.resolve(stale) },
+    } as never)
+    ctx.provide('agentPresets', {
+      defaultId: 'standard',
+      resolve: (id: string) => Promise.resolve({ id, name: 'Standard mode' }),
+      list: () => Promise.resolve([{ id: 'standard' }]),
+    } as never)
+    vi.spyOn(ctx.sessionQuery, 'listSessions').mockResolvedValue([] as never)
+    const controller = new SessionCommandController(ctx, controllerAgents({}), '/default', root)
+
+    await controller.reconcilePresetWorkspaces()
+
+    expect(stale.title).toBe('Standard mode')
+    // The existing group is reused, never recreated beside itself.
+    expect(created).toEqual([])
+    await ctx.fiber.dispose()
+  })
+
   it('keeps the plain default cwd when no preset id resolves under the root', async () => {
     const ctx = await baseContext()
     ctx.provide('workspaceRegistry', { get: () => undefined, list: () => [] } as never)

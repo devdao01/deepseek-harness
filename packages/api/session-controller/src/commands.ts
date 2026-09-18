@@ -125,8 +125,6 @@ export class SessionCommandController {
     const dir = this.presetDefaultCwd(presetId)
     if (dir === undefined || presetId === undefined) return undefined
     try {
-      const existing = await this.ctx.workspaceRegistry.resolveByPath(dir)
-      if (existing !== undefined) return existing
       let name: string | undefined
       try {
         name = (await this.ctx.get('agentPresets')?.resolve(presetId))?.name
@@ -134,7 +132,20 @@ export class SessionCommandController {
         // An unknown or unreadable preset still gets its directory grouped; the
         // id is the display fallback everywhere else too.
       }
-      return await this.ctx.workspaceRegistry.create(dir, name ?? presetId)
+      const existing = await this.ctx.workspaceRegistry.resolveByPath(dir)
+      if (existing === undefined) return await this.ctx.workspaceRegistry.create(dir, name ?? presetId)
+      // The stored title is a snapshot of the preset name at creation, and a
+      // preset file edited on disk emits no `agent-preset/renamed`, so the
+      // group would otherwise keep the old name forever. The preset owns the
+      // title here as well; a failed retitle still returns the group.
+      if (name !== undefined && existing.title !== name) {
+        try {
+          await existing.setTitle(name)
+        } catch (error) {
+          this.ctx.logger.warn(`session-controller: could not retitle the workspace of preset "${presetId}": ${String(error)}`)
+        }
+      }
+      return existing
     } catch (error) {
       this.ctx.logger.warn(`session-controller: could not ensure the workspace of preset "${presetId}" at ${dir}: ${String(error)}`)
       return undefined
