@@ -13,6 +13,14 @@ import css from './ConversationRoot.module.css'
 /** Full props composed from the slot contract. */
 export type ConversationRootProps = ConversationSlotProps
 
+/**
+ * MTIL frontend-only flag: the deployment creates every Session in Odoo, so
+ * this frontend offers no way to start one. Absent on the harness-served
+ * original, which keeps stock behavior.
+ */
+const mtilHidesNewSession = (): boolean =>
+  (globalThis as { __MTIL_UI__?: { hideNewSession?: boolean } }).__MTIL_UI__?.hideNewSession === true
+
 /** localStorage key for the dragged transcript width preference (px). */
 const WIDTH_PREF_KEY = 'dsh.conversation.contentWidth'
 /** Floor for a dragged content width; matches the layout center-column minimum. */
@@ -290,6 +298,16 @@ export function ConversationRoot({
           ? undefined
           : workspaceLabel(cwd)))
 
+  // Where Odoo owns Session lifecycle the chip row goes: its picker retargets
+  // a blank Session's Workspace, which mints a Session in the Workspace that
+  // has no blank one yet. Nothing selected drops the composer as well — with
+  // no picker there is no way out of its inert state, and a hero that only
+  // greets is the intended dead end: pick a Session in the sidebar. A blank
+  // Session that IS selected keeps the composer, because typing the first
+  // prompt into it is exactly what the deployment created it for.
+  const mtilWithholdsStart = mtilHidesNewSession()
+  const mtilNothingToStart = sessionId === undefined && mtilWithholdsStart
+
   const heroWorkspaceRow = (
     <div className={css.heroWorkspaceRow}>
       <WorkspaceChip
@@ -346,9 +364,9 @@ export function ConversationRoot({
   const composerBar = (
     <div className={clsx(css.composerStack, hero && css.composerHero)}>
       {hero && <HeroShell t={t} renderSlot={renderSlot} />}
-      {hero && heroWorkspaceRow}
+      {hero && !mtilWithholdsStart && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
-      {inputBar}
+      {!mtilNothingToStart && inputBar}
     </div>
   )
 

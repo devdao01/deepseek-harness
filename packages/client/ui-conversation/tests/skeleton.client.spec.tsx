@@ -126,6 +126,8 @@ function mount(
     composerBlock?: { reason: string }
     /** Mutable view ledger used by registration-order regressions. */
     viewTabs?: ViewTab[]
+    /** Cold start: nothing selected, the state a visitor lands on. */
+    noSession?: boolean
   } = {},
 ) {
   const root = sid('root')
@@ -299,7 +301,7 @@ function mount(
   )) as ConversationRootProps['renderSlotChain']
   const props: ConversationRootProps = {
     usePanelInfo: selector => selector({ activePanelId: null }),
-    sessionId: SID,
+    ...(options.noSession === true ? { sessionId: undefined } : { sessionId: SID }),
     SessionProvider: ({ children }) => children,
     useSession,
     useConversation,
@@ -493,6 +495,36 @@ describe('ConversationRoot resident composer', () => {
     act(() => { owner.onPick(wid('second')) })
     expect(b.retargetWorkspace).toHaveBeenCalledWith(wid('second'))
     expect(b.view.getByText('Selected Folder')).toBeTruthy()
+  })
+
+  it('MTIL cold start: the hero greets and offers nothing to start', () => {
+    const prior = (globalThis as { __MTIL_UI__?: unknown }).__MTIL_UI__
+    ;(globalThis as { __MTIL_UI__?: unknown }).__MTIL_UI__ = { hideNewSession: true }
+    try {
+      const b = mount(sessionSnapshotOf({ blank: true }), undefined, undefined, { noSession: true })
+      // The headline stays — it is the whole screen the visitor gets.
+      expect(b.view.getByText('探索未至之境')).toBeTruthy()
+      // No workspace chip, so no picker, so no Session minted from here; and
+      // no composer, whose inert state would otherwise have no way out.
+      expect(b.view.queryByRole('button', { name: '选择工作区' })).toBeNull()
+      expect(b.view.queryByRole('textbox')).toBeNull()
+    } finally {
+      ;(globalThis as { __MTIL_UI__?: unknown }).__MTIL_UI__ = prior
+    }
+  })
+
+  it('MTIL blank Session: the composer survives so the first prompt can be typed', () => {
+    const prior = (globalThis as { __MTIL_UI__?: unknown }).__MTIL_UI__
+    ;(globalThis as { __MTIL_UI__?: unknown }).__MTIL_UI__ = { hideNewSession: true }
+    try {
+      const b = mount(sessionSnapshotOf({ blank: true }))
+      // Odoo created this Session; typing into it is what it exists for.
+      expect(b.view.getByRole('textbox')).toBeTruthy()
+      // The chip still goes: retargeting its Workspace mints a Session.
+      expect(b.view.queryByRole('button', { name: '选择工作区' })).toBeNull()
+    } finally {
+      ;(globalThis as { __MTIL_UI__?: unknown }).__MTIL_UI__ = prior
+    }
   })
 
   it('keeps a rejected first prompt engaging instead of returning to the Hero', () => {

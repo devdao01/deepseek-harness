@@ -333,6 +333,39 @@ describe('workspace browser rows', () => {
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
+  it('withholds both row menus under the MTIL lifecycle flags', () => {
+    const prior = (globalThis as { __MTIL_UI__?: unknown }).__MTIL_UI__
+    ;(globalThis as { __MTIL_UI__?: unknown }).__MTIL_UI__ = {
+      hideWorkspaceActions: true, hideSessionActions: true,
+    }
+    try {
+      const group: GroupNode = {
+        key: 'project', workspaceId: wid('project'), cwd: '/projects/project', createdAt: 0, label: 'Project',
+        sessionCount: 0, expanded: false, containsCurrent: false, sessions: [],
+      }
+      // Actions are still supplied: the flag withholds the affordance, it does
+      // not depend on the browser withholding the callbacks.
+      render(<ProjectRowItem
+        group={group} onToggle={vi.fn()} onCreate={vi.fn()}
+        actions={{ rename: vi.fn(), delete: vi.fn() }} t={t}
+      />)
+      expect(screen.queryByRole('button', { name: '工作区“Project”的操作' })).toBeNull()
+      cleanup()
+
+      const node: SessionNode = {
+        id: sid('session'), title: 'Session', blank: false, running: false,
+        runningSubagentCount: 0, completed: false, hasActiveSchedule: false, updatedAt: 0,
+      }
+      render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+        onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} t={t} />)
+      expect(screen.queryByRole('button', { name: '会话“Session”的操作' })).toBeNull()
+      // The row itself still opens: only the verbs are gone.
+      expect(screen.getByText('Session')).toBeTruthy()
+    } finally {
+      ;(globalThis as { __MTIL_UI__?: unknown }).__MTIL_UI__ = prior
+    }
+  })
+
   it('workspace hover card shows its details and copies the full directory path', async () => {
     vi.useFakeTimers()
     const writeText = vi.fn(async () => {})

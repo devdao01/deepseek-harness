@@ -26,6 +26,20 @@ import css from './Rows.module.css'
 const mtilHidesNewSession = (): boolean =>
   (globalThis as { __MTIL_UI__?: { hideNewSession?: boolean } }).__MTIL_UI__?.hideNewSession === true
 
+/**
+ * MTIL frontend-only flags: the deployment owns Workspace and Session
+ * lifecycle in Odoo, so the SPA withholds the row verbs that would edit it
+ * from this side. Each hides its row's whole menu, because every item the
+ * menu could offer is gone. Absent on the harness-served original.
+ */
+const mtilHidesWorkspaceActions = (): boolean =>
+  (globalThis as { __MTIL_UI__?: { hideWorkspaceActions?: boolean } })
+    .__MTIL_UI__?.hideWorkspaceActions === true
+
+const mtilHidesSessionActions = (): boolean =>
+  (globalThis as { __MTIL_UI__?: { hideSessionActions?: boolean } })
+    .__MTIL_UI__?.hideSessionActions === true
+
 /** The standard locale seat, prop-passed from the browser root. */
 type RowTranslate = WorkspaceBrowserProps['t']
 
@@ -163,7 +177,7 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, drag, home,
         <span className={css.title}>{label}</span>
       </span>
       <span className={css.rowActions}>
-        {actions !== undefined && (
+        {actions !== undefined && !mtilHidesWorkspaceActions() && (
           <Menu
             open={menuOpen}
             onClose={() => { setMenuOpen(false) }}
@@ -480,7 +494,7 @@ export function SessionNodeItem({
           (rename/fork/archive) would all act on content that does not
           exist — both trailing cells stay off until the first prompt. */}
       {!row.blank && <span className={css.time}>{timeLabel(row.updatedAt, now, t)}</span>}
-      {!row.blank && (
+      {!row.blank && !mtilHidesSessionActions() && (
         <span className={css.rowActions}>
           <Menu
             open={menuOpen}
