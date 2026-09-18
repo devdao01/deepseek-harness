@@ -74,8 +74,8 @@ class ResConfigSettings(models.TransientModel):
         }
 
     def action_clear_data(self):
-        """Delete every persistent ``npei.agent.*`` record except the XML-seeded
-        provider route templates.
+        """Delete every persistent ``npei.agent.*`` record, archived ones
+        included, except the XML-seeded provider route templates.
 
         System-only (``base.group_system``): a destructive maintenance reset of
         the Odoo-side mirror/ACL/config records. It does NOT touch the harness —
@@ -107,7 +107,11 @@ class ResConfigSettings(models.TransientModel):
             # table. Neither participates in the reset.
             if model._transient or model._abstract:
                 continue
-            records = model.sudo().with_context(npei_syncing=True).search([])
+            # active_test=False: eight of these models carry an `active` field,
+            # so a default search would leave every archived record behind — a
+            # reset that keeps rows is worse than no reset.
+            records = model.sudo().with_context(
+                npei_syncing=True, active_test=False).search([])
             if name == TEMPLATE_MODEL:
                 records = records.filtered(lambda r: r.id not in kept_template_ids)
             deleted += len(records)

@@ -610,6 +610,22 @@ class TestConfigManagement(TransactionCase):
         # A local reset makes no harness call.
         self.assertEqual(self._calls, [])
 
+    def test_clear_data_deletes_archived_records_too(self):
+        self.env.user.groups_id = [
+            (4, self.env.ref('base.group_system').id)]
+        archived_setting = self.env['npei.agent.setting'].create(
+            {'ns': 'zzz-arch', 'active': False})
+        archived_provider = self._make_provider(ns='llm-arch')
+        archived_provider.active = False
+        self._calls.clear()
+
+        self.env['res.config.settings'].create({}).action_clear_data()
+
+        # A default search hides archived rows, so a reset that forgets
+        # active_test=False silently keeps them.
+        self.assertFalse(archived_setting.exists())
+        self.assertFalse(archived_provider.exists())
+
     def test_clear_data_denied_for_non_system(self):
         settings = self.env['res.config.settings'].create({})
         plain = self.env['res.users'].browse(15)
