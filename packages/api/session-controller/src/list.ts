@@ -128,6 +128,9 @@ export class ApiSessionList {
   /**
    * Read every visible attached and persisted Session without activating an Agent.
    * @param signal - optional cancellation for persistence reads.
+   * @param viewer - verified ticket user id; `'*'` is the management wildcard
+   * that sees every session with its record attached, and undefined is the
+   * anonymous caller, who sees unrestricted sessions only.
    * @returns visible Session summaries ordered by activity.
    */
   async list(signal?: AbortSignal, viewer?: string): Promise<SessionSummary[]> {
@@ -180,6 +183,7 @@ export class ApiSessionList {
    * Search current visible message content without activating any matching Session.
    * @param query - literal message-content query.
    * @param signal - cancellation for list and search reads.
+   * @param viewer - verified ticket user id, read exactly as {@link ApiSessionList.list} reads it.
    * @returns authorized bounded Session search results.
    */
   async search(query: string, signal: AbortSignal, viewer?: string): Promise<SessionSearchValue> {

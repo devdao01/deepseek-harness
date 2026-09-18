@@ -91,7 +91,10 @@ export class SessionAccessStore {
     }, 'sessionController.accessDomain')
   }
 
-  /** Whether records can be written (a storage domain is mounted and open). */
+  /**
+   * Whether records can be written (a storage domain is mounted and open).
+   * @returns true once the domain's table is open, false when no storage is mounted.
+   */
   async writable(): Promise<boolean> {
     await this.ready
     return this.table !== undefined

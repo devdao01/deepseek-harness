@@ -68,7 +68,10 @@ export class AuthorizationBridge {
 
   constructor(private readonly ctx: Context) {}
 
-  /** One flow a surface can offer to run. */
+  /**
+   * One flow a surface can offer to run.
+   * @returns a summary per registered flow, or empty when no provider is mounted.
+   */
   list(): AuthorizationFlowSummary[] {
     const authorization = this.ctx.get('authorization')
     if (authorization === undefined) return []

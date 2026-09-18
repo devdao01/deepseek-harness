@@ -141,15 +141,18 @@ export class SessionCommandController {
     }
   }
 
+  /** Whether the one-shot backfill below has already run in this process. */
+  private reconciled = false
+
   /**
    * One-shot backfill: group every preset directory that already exists —
    * and every stored session sitting in one — under its preset Workspace.
    * Runs lazily from the first `session/list`, when the roster and the
    * persistence index are both up; presets and sessions created before the
    * grouping feature are otherwise never adopted.
+   * @returns when the backfill finishes, or immediately on a second call and
+   * where no `presetWorkspaceRoot` is configured.
    */
-  private reconciled = false
-
   async reconcilePresetWorkspaces(): Promise<void> {
     if (this.reconciled || this.presetWorkspaceRoot === undefined) return
     this.reconciled = true
