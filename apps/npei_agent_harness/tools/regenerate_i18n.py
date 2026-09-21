@@ -2,10 +2,10 @@
 
 Run from the repository root:  python3 apps/npei_agent_harness/tools/regenerate_i18n.py
 
-Every PO entry needs `#:` reference lines — Odoo's PoFileReader iterates an
+Every PO entry needs `#:` reference lines — MTIL's PoFileReader iterates an
 entry's occurrences and yields nothing for an entry that has none, so a
 reference-less file imports as zero translations. This scans the module the
-way Odoo's own export does and emits one entry per translatable source term:
+way MTIL's own export does and emits one entry per translatable source term:
 
 * fields (`string=` / `help=` / Selection values) and `_description`
 * `_sql_constraints` messages

@@ -2,7 +2,7 @@
 
 Every place this fork (`main`, base `fb2c4b9e` = `dsh-v0.1.5-rc.2`) diverges from upstream DeepSeek Harness, grouped by how much an upstream merge will hurt. Use it as the checklist when syncing: resolve group 3 by hand first, groups 1–2 mostly self-merge. Keep this file current — a fork change that touches a new upstream file adds a row here in the same PR.
 
-MTIL-only conventions: the deployment is Odoo 17 (module `apps/npei_agent_harness`) + this harness on one Ubuntu host + the standalone SPA (`apps/frontend` submodule) served by nginx under `/mtilai2/`. Per-user identity arrives as the HMAC `mtil-ticket` cookie minted by Odoo; `u='*'` is the management wildcard.
+MTIL-only conventions: the deployment is Odoo 17 (module `apps/npei_agent_harness`) + this harness on one Ubuntu host + the standalone SPA (`apps/frontend` submodule) served by nginx under `/mtilai2/`. Per-user identity arrives as the HMAC `mtil-ticket` cookie minted by Odoo; `u='*'` is the management wildcard. The product is named **MTIL Harness** wherever the fork owns copy — the SPA's `src/rebrand.ts` rewrites the upstream name at render time, the Odoo module says it outright — and user-facing copy calls the Odoo platform itself MTIL (developer prose, `from odoo` imports, `odoo.conf`, `<odoo>` XML roots, and the `Odoo 17` version stay). Every fork environment variable is `MTIL_*` (the `apps/odoo-mcp` connection set) or `CONFIG_API_MTIL` (the SPA login-gate origin); `server.mjs` refuses to start and `vite.config.ts` refuses to build while an old `ODOO_*` / `CONFIG_API_ODOO` name is still set, because an unset gate origin would otherwise ship a gate-less SPA in silence (renamed 2026-09-21).
 
 ## Group 1 — never conflicts (fork-owned trees)
 
@@ -10,7 +10,7 @@ MTIL-only conventions: the deployment is Odoo 17 (module `apps/npei_agent_harnes
 |---|---|
 | `apps/frontend/` (submodule, repo `devdao01/frontend-deepseek-harness`) | The MTIL SPA: Odoo login gate, `__MTIL_UI__` flags, SPA-private client plugins (`public/mtil-*.js`: router, welcome, brand, i18n, model picker, upload button, DOM rebrand), deploy overlay + build script |
 | `apps/npei_agent_harness/` | Odoo module: session ACL mirror, preset authoring (standalone/router/Odoo connection), provider sign-in wizard, tool/model mirrors, `i18n/vi_VN.po` + `tools/regenerate_i18n.py` |
-| `apps/odoo-mcp/` | Dependency-free MCP stdio server for per-preset Odoo XML-RPC access (read set + `ODOO_ALLOW_WRITE` write set, `ODOO_TOOL_PREFIX` rebrand) |
+| `apps/odoo-mcp/` | Dependency-free MCP stdio server for per-preset Odoo XML-RPC access (read set + `MTIL_ALLOW_WRITE` write set, `MTIL_TOOL_PREFIX` rebrand) |
 | `apps/nginx.conf` | Two-frontend nginx deployment (SPA alias + harness proxy) |
 | `~/.dsh/profiles/web/cordis.patch.yml` (server, from `apps/frontend/deploy/harness-web-lan.patch.yml`) | Deployment overlay: trustedHosts, `ticketSecret`, `presetWorkspaceRoot`, optional fixed `launchToken` |
 

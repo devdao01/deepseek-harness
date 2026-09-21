@@ -118,7 +118,7 @@
         <field name="search_view_id" ref="view_npei_agent_session_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Register a harness session mapping</p>
-            <p>Map a harness session id to the Odoo users allowed to drive it.</p>
+            <p>Map a harness session id to the MTIL users allowed to drive it.</p>
         </field>
     </record>
     <!-- Server action so the sync can run from a menu when the list is empty. -->

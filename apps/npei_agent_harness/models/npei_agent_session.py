@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Odoo-side session registry and ACL.
+"""MTIL-side session registry and ACL.
 
 Each record maps one harness session id to the set of ``res.users`` allowed to
-drive it. The ACL is an **Odoo-plane** control: record rules scope which
+drive it. The ACL is an **MTIL-plane** control: record rules scope which
 mappings a user sees, and :meth:`_user_can_access` re-checks a session-scoped
-proxy call before Odoo forwards it to the harness with the full connection.
+proxy call before MTIL forwards it to the harness with the full connection.
 (The harness itself has no per-user access store — access enforcement lives
-where the per-user identity lives, which is Odoo.)
+where the per-user identity lives, which is MTIL.)
 
 Harness effects (verified wire): a mapping saved without a ``session_id``
 creates the session (``session/create``), a ``name`` change pushes the
@@ -17,9 +17,9 @@ harness access record (``session/setAccess`` — the harness scopes its own
 harness lists (``session/list`` under the management wildcard ticket, rows
 carrying ``allowedUsers``).
 
-Access is defined by ``user_ids`` with Odoo as the authority: a non-empty
+Access is defined by ``user_ids`` with MTIL as the authority: a non-empty
 set restricts the session to those users (plus the creator); an EMPTY set
-makes it public. Odoo pushes the list to the harness; the sync adopts the
+makes it public. MTIL pushes the list to the harness; the sync adopts the
 harness list only into mappings whose local set is empty.
 """
 import logging
@@ -40,7 +40,7 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 class NpeiAgentSession(models.Model):
     _name = 'npei.agent.session'
     _inherit = ['mail.thread', 'mail.activity.mixin']
-    _description = 'DeepSeek Harness Session (Odoo ACL)'
+    _description = 'MTIL Harness Session (MTIL ACL)'
     _order = 'seq, write_date desc'
 
     session_id = fields.Char(
@@ -48,7 +48,7 @@ class NpeiAgentSession(models.Model):
         index=True,
         copy=False,
         help="Opaque session id owned by the harness. Left blank on create, "
-             "Odoo calls session/create and fills it; set it by hand only to "
+             "MTIL calls session/create and fills it; set it by hand only to "
              "adopt an existing harness session.", tracking=True
     )
     name = fields.Char(
@@ -61,7 +61,7 @@ class NpeiAgentSession(models.Model):
         'session_id',
         'user_id',
         string='Allowed Users',
-        help="Users allowed to access this session through the Odoo proxy. "
+        help="Users allowed to access this session through the MTIL proxy. "
              "The record creator (create_uid) is always allowed even when "
              "absent from this list. Leave empty to make the session public.",
         tracking=True
@@ -270,7 +270,7 @@ class NpeiAgentSession(models.Model):
             if existing:
                 if not existing.name and projections.get('title'):
                     vals['name'] = projections['title']
-                # Odoo is the ACL authority: adopt the harness list only into
+                # MTIL is the ACL authority: adopt the harness list only into
                 # a mapping whose local set is still empty.
                 if allowed_users and not existing.user_ids:
                     vals['user_ids'] = [(6, 0, allowed_users.ids)]
@@ -298,7 +298,7 @@ class NpeiAgentSession(models.Model):
         """Open this session in the MTIL chat SPA (new browser tab).
 
         The URL is relative (``<spa path>/s/<session id>``) so the browser
-        resolves it against the Odoo origin the user is already on — the SPA
+        resolves it against the MTIL origin the user is already on — the SPA
         is served from the same domain by nginx. The path comes from
         ``npei_agent_harness.spa_path``.
 

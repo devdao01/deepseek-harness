@@ -4,7 +4,7 @@
 The SPA configures a provider's models by editing the ``models`` array in that
 provider's settings namespace user layer (``settings[ns].user[...path].models``),
 one entry ``{id, name?, contextWindow?, maxTokens?}`` per model, written with
-``settings/mutate``. This model is the Odoo equivalent: each record is one row
+``settings/mutate``. This model is the MTIL equivalent: each record is one row
 of a provider's ``models`` array, and every create/write/unlink recomputes the
 whole array and pushes it back with ``settings/mutate`` on the provider's
 ``settings_ns`` at ``settings_path + ['models']``.
@@ -27,7 +27,7 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 class NpeiAgentProviderModel(models.Model):
     _name = 'npei.agent.provider.model'
     _inherit = ['mail.thread', 'mail.activity.mixin']
-    _description = 'DeepSeek Harness Provider Model (configurable)'
+    _description = 'MTIL Harness Provider Model (configurable)'
     _order = 'seq, provider_id, sequence, id'
 
     provider_id = fields.Many2one(

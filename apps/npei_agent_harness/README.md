@@ -1,8 +1,8 @@
 # NPEI Agent Harness (Odoo 17)
 
-Odoo module that makes **Odoo the single gateway** between the browser SPA and
-the DeepSeek Harness backend. The SPA (served at `/mtilai`) only ever calls
-Odoo; Odoo authenticates to the harness server-side (the launch token printed
+MTIL module that makes **MTIL the single gateway** between the browser SPA and
+the MTIL Harness backend. The SPA (served at `/mtilai`) only ever calls
+MTIL; MTIL authenticates to the harness server-side (the launch token printed
 by `dsh web` is exchanged for the signed `dsh-auth-*` cookie — the harness has
 no Bearer auth) and proxies the call. **The token never reaches the browser.**
 
@@ -12,9 +12,9 @@ Wire notes (verified against the running harness): unary RPC is
 the args field names are the host method's parameter names (`session/list`
 takes `{"_request": {}}`). The launch token changes on every harness restart —
 update it under Settings → MTIL Agent afterwards — and the harness must trust
-the Odoo-facing domain (`--trusted-host`).
+the MTIL-facing domain (`--trusted-host`).
 
-This is the *"Odoo module first"* phase. The frontend gate (loading/denied
+This is the *"MTIL module first"* phase. The frontend gate (loading/denied
 screens driven by `get_config`) and the realtime event proxy are later phases.
 
 > **Module layout / naming.** This module *is* the `npei_agent_harness`
@@ -31,9 +31,9 @@ screens driven by `get_config`) and the realtime event proxy are later phases.
 
 ## Install
 
-1. Add the parent `apps/` directory to Odoo's `addons_path` (see above).
+1. Add the parent `apps/` directory to MTIL's `addons_path` (see above).
 2. Update the apps list and install **NPEI Agent Harness**. Requires only
-   `base` and `web`. Python dependency: `requests` (bundled with Odoo).
+   `base` and `web`. Python dependency: `requests` (bundled with MTIL).
 3. Assign users to **NPEI Agent User** (may use their own sessions) or
    **NPEI Agent Manager** (full CRUD + harness sync) under `Settings → Users`.
 
@@ -52,14 +52,14 @@ If either value is unset, every proxy call fails loud with **HTTP 502**
 
 > The harness trust fence lets a request carrying a valid
 > `Authorization: Bearer <token>` **and no browser marker** through from
-> anywhere. Odoo's server-side `requests` calls have no `Origin`/`sec-fetch-*`
+> anywhere. MTIL's server-side `requests` calls have no `Origin`/`sec-fetch-*`
 > markers, so the token alone authenticates them.
 
 ---
 
 ## Deployment topology (same-origin)
 
-Both Odoo and the SPA are served from `mtil.mtil.vn`, so the Odoo session cookie
+Both MTIL and the SPA are served from `mtil.mtil.vn`, so the MTIL session cookie
 is sent automatically and **no CORS is needed** (and none is emitted). The
 harness gateway is reachable only server-side.
 
@@ -67,7 +67,7 @@ harness gateway is reachable only server-side.
 server {
     server_name mtil.mtil.vn;
 
-    # Odoo web client + backend.
+    # MTIL web client + backend.
     location /web/ {
         proxy_pass http://127.0.0.1:8069;
         proxy_set_header Host $host;
@@ -81,18 +81,18 @@ server {
         try_files $uri $uri/ /mtilai/index.html;
     }
 
-    # SPA ⇆ Odoo gateway (must reach Odoo, same-origin, no CORS).
+    # SPA ⇆ MTIL gateway (must reach MTIL, same-origin, no CORS).
     location /api/mtil/ {
         proxy_pass http://127.0.0.1:8069;
         proxy_set_header Host $host;
-        proxy_set_header Cookie $http_cookie;   # carry the Odoo session
+        proxy_set_header Cookie $http_cookie;   # carry the MTIL session
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 ```
 
-The SPA calls `/api/mtil/...`; Odoo resolves the session cookie into
+The SPA calls `/api/mtil/...`; MTIL resolves the session cookie into
 `request.env.user`, enforces the ACL, and forwards to the harness with the
 server-held Bearer token. The harness `/api` is **not** exposed to the browser.
 
@@ -107,8 +107,8 @@ so these are `type='http'` with explicit status codes.
 
 | Method | Path | ACL | Status codes |
 |---|---|---|---|
-| `POST` | `/api/mtil/get_config` | logged-in Odoo user | `200` authenticated, `401` anonymous |
-| `POST` | `/api/mtil/session_access` | logged-in Odoo user | `200` `{"allowed": bool}`, `401` anonymous |
+| `POST` | `/api/mtil/get_config` | logged-in MTIL user | `200` authenticated, `401` anonymous |
+| `POST` | `/api/mtil/session_access` | logged-in MTIL user | `200` `{"allowed": bool}`, `401` anonymous |
 | `POST` | `/api/mtil/rpc/<path:method>` | session ACL if payload carries a session id | relayed harness status, `401` anonymous, `403` ACL denied, `502` harness unreachable/unconfigured |
 | `GET`  | `/api/mtil/download/<path:kind>` | session ACL (`sessionId` in query) | relayed harness status, `401`, `403`, `502` |
 | `GET/POST` | `/api/mtil/events/<channel>` | — | `501` (deferred, see below) |
@@ -149,11 +149,11 @@ escape or executable files, 404, 400) relay verbatim.
 | Model | Purpose |
 |---|---|
 | `npei.agent.harness.client` | `AbstractModel` HTTP helper: `_get_connection()` (reads the config keys, fails loud), `_rpc(method, payload)` (unary call, unwraps `result.value`). |
-| `npei.agent.session` | Odoo-side ACL. `session_id` (unique, **auto-created**), `name`, `user_ids` (allowed), `preset_id`, `workspace_path`, `active`, plus Odoo's `create_uid`/`create_date`/`write_date`. Choosing a preset defaults `workspace_path` from the preset mirror's recorded `workspace_path` (the absolute `<presetWorkspacesRoot>/<preset id>` the harness provisioned — no re-slugging in Odoo). Saving without a `session_id` calls harness `session.create` (`cwd`=`workspace_path`, `agentPreset`=preset key) and fills the returned id; a blank workspace lets the harness derive it from the preset. A provided id adopts an existing session. Access is defined by `user_ids`; `create_uid` (the creator) is always allowed for Odoo visibility. Helper `_user_can_access(session_id, user)`. SQL `unique(session_id)`. |
-| `npei.agent.preset` | Preset mirror **+ authoring**. `preset_id` (unique, **auto**), `name`, `description`, `workspace_path`, `trust` (`system`/`user`), `active`. Creating a record with only a `name` (no `preset_id`) authors it on the harness: `agentPreset.copy(from=<default>, agentPreset=_slugify(name), name)` — `_slugify` strips Vietnamese diacritics to a hyphen id the harness accepts (`'Hồ Sơ X'`→`ho-so-x`), the provisioned `workspace.path` is stored, `trust` is `user`. `name`/`description` are pushed to the harness via `agentPreset.update` on create and on write (the copy carries no description); editing them in Odoo updates the preset's `preset.yml`. A slug already taken on the harness (e.g. an orphan from an earlier failed create) is rejected up front with a clear message pointing at Sync, not the raw `agent-preset-invalid`; the post-copy display push is best-effort so a transient failure never rolls the record back and orphans the harness copy. A record given a `preset_id` mirrors/adopts; `action_sync_from_harness()` upserts from `agentPreset.list` (with `npei_syncing` so mirrored values are not echoed back). `session_ids` (One2many → sessions on this preset) backs a Sessions smart button. |
+| `npei.agent.session` | MTIL-side ACL. `session_id` (unique, **auto-created**), `name`, `user_ids` (allowed), `preset_id`, `workspace_path`, `active`, plus MTIL's `create_uid`/`create_date`/`write_date`. Choosing a preset defaults `workspace_path` from the preset mirror's recorded `workspace_path` (the absolute `<presetWorkspacesRoot>/<preset id>` the harness provisioned — no re-slugging in MTIL). Saving without a `session_id` calls harness `session.create` (`cwd`=`workspace_path`, `agentPreset`=preset key) and fills the returned id; a blank workspace lets the harness derive it from the preset. A provided id adopts an existing session. Access is defined by `user_ids`; `create_uid` (the creator) is always allowed for MTIL visibility. Helper `_user_can_access(session_id, user)`. SQL `unique(session_id)`. |
+| `npei.agent.preset` | Preset mirror **+ authoring**. `preset_id` (unique, **auto**), `name`, `description`, `workspace_path`, `trust` (`system`/`user`), `active`. Creating a record with only a `name` (no `preset_id`) authors it on the harness: `agentPreset.copy(from=<default>, agentPreset=_slugify(name), name)` — `_slugify` strips Vietnamese diacritics to a hyphen id the harness accepts (`'Hồ Sơ X'`→`ho-so-x`), the provisioned `workspace.path` is stored, `trust` is `user`. `name`/`description` are pushed to the harness via `agentPreset.update` on create and on write (the copy carries no description); editing them in MTIL updates the preset's `preset.yml`. A slug already taken on the harness (e.g. an orphan from an earlier failed create) is rejected up front with a clear message pointing at Sync, not the raw `agent-preset-invalid`; the post-copy display push is best-effort so a transient failure never rolls the record back and orphans the harness copy. A record given a `preset_id` mirrors/adopts; `action_sync_from_harness()` upserts from `agentPreset.list` (with `npei_syncing` so mirrored values are not echoed back). `session_ids` (One2many → sessions on this preset) backs a Sessions smart button. |
 | `npei.agent.skill` | Skill mirror. `skill_key` (unique), `name`, `description`, `source`, `active`. `action_sync_from_harness()` upserts from `skill.list`. |
 | `npei.agent.credential` | Credential-reference mirror + write-only set/unset. `ref` (unique), `configured`/`source`/`writable` (read-only, from `credentials.describe`), `value` (write-only, `store=False`, never persisted). `action_sync_from_harness()` describes every ref; `action_set_value()` pushes `credentials.set({ref, value})` then re-describes and blanks the value; `action_unset()` pushes `credentials.unset({ref})` then re-describes. Manager-only. |
-| `npei.agent.provider` | LLM provider mirror. `provider` (unique), `display_name`, `settings_ns`, `settings_id` (Many2one → `npei.agent.setting`, matched by `settings_ns == ns`), `settings_path` (the harness `settingsPath` joined with `/`), `route_active` (harness `active`), `declared`, Odoo `active` (archive), `model_ids` (configurable), `catalog_model_ids` (resolved). `action_sync_from_harness()` upserts from `llm.providers`, links `settings_id`, and backfills `npei.agent.model.provider_id`. |
+| `npei.agent.provider` | LLM provider mirror. `provider` (unique), `display_name`, `settings_ns`, `settings_id` (Many2one → `npei.agent.setting`, matched by `settings_ns == ns`), `settings_path` (the harness `settingsPath` joined with `/`), `route_active` (harness `active`), `declared`, MTIL `active` (archive), `model_ids` (configurable), `catalog_model_ids` (resolved). `action_sync_from_harness()` upserts from `llm.providers`, links `settings_id`, and backfills `npei.agent.model.provider_id`. |
 | `npei.agent.model` | LLM model catalog mirror (**read-only**). `model_id`, `provider` (raw group id, unique-constraint partner), `provider_id` (Many2one → `npei.agent.provider`, matched by group id == provider id), `name`, `description`, `active`; `unique(provider, model_id)`. `action_sync_from_harness()` upserts each group's models from `llm.models` and links `provider_id` when a provider mirror matches; group `failures` are logged. Syncing providers backfills the link for models synced earlier. |
 | `npei.agent.provider.model` | **Editable** per-provider model catalog (the SPA's model-config equivalent). `provider_id` (M2o provider), `sequence`, `model_id`, `name`, `context_window`, `max_tokens`; `unique(provider_id, model_id)`. Every create/write/unlink recomputes the whole `models` array and pushes it via `settings.mutate({ns: provider.settings_ns, ops:[{op:'set', path: settings_path+['models'], value:[…]}]})`; emptying a provider's rows **unsets** the path (return to the inherited catalog). Optional `context_window`/`max_tokens` of 0 and a blank `name` omit their keys. `action_sync_from_harness()` mirrors each provider's effective `models` (resolved `value`, else raw `user`) into rows under `npei_syncing` so the mirror write is not echoed back. Manager-only writes. |
 | `npei.agent.setting` | Settings-namespace mirror + whole-section replace. `ns` (unique), `applies` (`live`/`restart`), `has_document`, `revision`, `value_json` (redacted resolved value, read-only), `user_json` (raw user section, editable), `provider_ids` (One2many → providers using this namespace). `action_sync_from_harness()` upserts from `settings.describe` and backfills `npei.agent.provider.settings_id`; `action_save()` parses `user_json` and pushes `settings.replace({ns, section, expectedRevision})`, refusing a stale revision with a re-sync hint. Manager-only writes. |
@@ -164,13 +164,13 @@ escape or executable files, 404, 400) relay verbatim.
 | `res.config.settings` | Inherits to surface the two config keys in Settings, a **Test Connection** button (`host.describe`), and a system-only (`base.group_system`) **Clear Data** button. `action_clear_data()` deletes every persistent `npei.agent.*` record except the XML-seeded route templates (kept by their `ir.model.data` external ids); it runs the deletes under `npei_syncing` so session/provider-model unlinks make **no harness call** (the reset works even when the harness is unreachable). |
 
 The harness stays the source of truth for live data; these models are the
-Odoo-side management + ACL layer only.
+MTIL-side management + ACL layer only.
 
 ---
 
 ## ACL model (two layers)
 
-1. **Odoo ORM (this module).**
+1. **MTIL ORM (this module).**
    - ACL (`ir.model.access.csv`): users read presets/skills and CRUD their own
      sessions (no unlink); managers get everything.
    - Record rule on `npei.agent.session`: a non-manager sees a mapping only when
@@ -184,7 +184,7 @@ Odoo-side management + ACL layer only.
    directly with a per-user **ticket** is filtered by the SAME set. It sends
    exactly `user_ids` as `str(res.users.id)`; an archived mapping or an unlink
    sends the empty set (revoke all). The sync is **fail-loud** — an unreachable
-   harness raises and rolls the Odoo write back rather than letting the two
+   harness raises and rolls the MTIL write back rather than letting the two
    planes diverge — and the session form's **Push Access to Harness** button
    (`action_push_access`) re-pushes on demand.
 
@@ -212,10 +212,10 @@ Odoo-side management + ACL layer only.
 
 ## Config-plane management (credentials, providers, models, settings)
 
-The config-plane models let a manager drive the harness configuration from Odoo
+The config-plane models let a manager drive the harness configuration from MTIL
 with the server-side full token. Each action maps to one harness method:
 
-| Odoo action | Harness method + payload |
+| MTIL action | Harness method + payload |
 |---|---|
 | `npei.agent.credential.action_sync_from_harness` | `credentials.describe({refs: [all mirror refs]})` |
 | `npei.agent.credential.action_set_value` | `credentials.set({ref, value})`, then `credentials.describe({refs: [ref]})` |
@@ -235,12 +235,12 @@ Credentials, Settings, and the Configuration → Discover Models / Sync … menu
 manager-only). Each syncable model has an `ir.actions.server` behind a
 Configuration menu item so a sync can run even when the list is empty.
 
-> **Deployment note — unpin the config methods.** Odoo reaches these with the
+> **Deployment note — unpin the config methods.** MTIL reaches these with the
 > harness full token, so the harness deployment must **unpin** `credentials.*`,
 > `settings.*`, and `llm.discoverModels`. The model-catalog reads `llm.providers`
 > and `llm.models` are not pinned. Secrets (the credential `value` and the
-> discover `api_key`) are write-only, non-stored Odoo fields — they are never
-> persisted in an Odoo column, only forwarded to the harness.
+> discover `api_key`) are write-only, non-stored MTIL fields — they are never
+> persisted in an MTIL column, only forwarded to the harness.
 
 ### Adding an OpenAI-compatible provider (e.g. OpenRouter)
 
@@ -269,20 +269,20 @@ the matching protocol and base URL.
 ### Ghi chú (vi)
 
 Nhóm model config-plane cho phép **NPEI Agent Manager** quản lý cấu hình harness
-ngay trong Odoo bằng full token phía máy chủ: credential (`credentials.*`),
+ngay trong MTIL bằng full token phía máy chủ: credential (`credentials.*`),
 provider/model (`llm.providers`/`llm.models`), dò tìm model
 (`llm.discoverModels`) và settings namespace (`settings.describe`/`replace`).
 Bí mật (`value` của credential, `api_key` khi dò model) là trường **write-only,
-không lưu** trong Odoo — chỉ chuyển tiếp cho harness. Deployment harness phải
+không lưu** trong MTIL — chỉ chuyển tiếp cho harness. Deployment harness phải
 **unpin** `credentials.*`, `settings.*` và `llm.discoverModels` để full token của
-Odoo gọi được.
+MTIL gọi được.
 
 ---
 
 ## DEFERRED: WebSocket / SSE event mux proxy
 
 **Not built in this phase.** The harness `WS /api/events.mux` emits **every**
-session's events on one downlink. A per-user ACL therefore requires Odoo to
+session's events on one downlink. A per-user ACL therefore requires MTIL to
 **proxy and filter** that stream down to only the sessions the caller may
 access — a separate design task, not a straight passthrough like the unary
 proxy. `WS /api/events.host` (host lifecycle/workspace frames) is not
@@ -291,18 +291,18 @@ returns **501**.
 
 Two candidate approaches, to be decided in a later phase:
 
-1. **Odoo-side filtered SSE re-emit.** Odoo opens one upstream WS to the harness
+1. **MTIL-side filtered SSE re-emit.** MTIL opens one upstream WS to the harness
    (server-to-server, Bearer token), then re-emits to each browser an
    SSE/WebSocket stream filtered to that user's allowed session ids (computed
    from `npei.agent.session`). Pros: no harness change; single upstream socket.
-   Cons: Odoo must run a long-lived async task and fan-out/filter per connection
-   — awkward inside Odoo's worker model (needs gevent/longpolling or an external
+   Cons: MTIL must run a long-lived async task and fan-out/filter per connection
+   — awkward inside MTIL's worker model (needs gevent/longpolling or an external
    relay process); every `session/subscribed`/`approval`/`question` frame must be
    ACL-checked.
 2. **Harness-side per-user scoped stream.** Add a harness endpoint that accepts a
-   scoping token (or an explicit allow-list Odoo passes) and streams only that
-   user's sessions. Pros: filtering happens at the source; Odoo just tunnels.
-   Cons: requires a harness API change and a way for Odoo to mint/pass a
+   scoping token (or an explicit allow-list MTIL passes) and streams only that
+   user's sessions. Pros: filtering happens at the source; MTIL just tunnels.
+   Cons: requires a harness API change and a way for MTIL to mint/pass a
    per-user scope safely.
 
 ---
@@ -310,7 +310,7 @@ Two candidate approaches, to be decided in a later phase:
 ## Security notes
 
 - CSRF is disabled on these API routes (they are cookie-authenticated,
-  same-origin API calls, not HTML form posts). Odoo's session cookie is
+  same-origin API calls, not HTML form posts). MTIL's session cookie is
   `SameSite=Lax`, which blocks cross-site POSTs; keep it that way and keep the
   deployment same-origin. If cross-origin access is ever introduced, add an
   explicit `Origin`/`sec-fetch-site` check here.

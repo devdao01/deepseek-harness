@@ -40,7 +40,7 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 class NpeiAgentPreset(models.Model):
     _name = 'npei.agent.preset'
     _inherit = ['mail.thread', 'mail.activity.mixin']
-    _description = 'DeepSeek Harness Agent Preset'
+    _description = 'MTIL Harness Agent Preset'
     _order = 'seq, name'
 
     preset_id = fields.Char(
@@ -48,7 +48,7 @@ class NpeiAgentPreset(models.Model):
         index=True,
         copy=False, tracking=True,
         help="Preset id owned by the harness (roster entry id). Left blank on "
-             "create, Odoo derives it from the name and authors the preset on "
+             "create, MTIL derives it from the name and authors the preset on "
              "the harness; set only by the sync/adopt path.",
     )
     name = fields.Char(string='Name*:', required=True, tracking=True)
@@ -83,46 +83,46 @@ class NpeiAgentPreset(models.Model):
         help="Whether this agent may search/fetch the web (standalone/router).",
     )
     odoo_enable = fields.Boolean(
-        string='Connect to Odoo', tracking=True,
-        help="Mount a read (optionally write) Odoo XML-RPC toolset for this "
-             "preset, under the dedicated Odoo account below. Each preset "
+        string='Connect to MTIL', tracking=True,
+        help="Mount a read (optionally write) MTIL XML-RPC toolset for this "
+             "preset, under the dedicated MTIL account below. Each preset "
              "can use a different account; the account's access rights and "
              "record rules are the real boundary.",
     )
     odoo_url = fields.Char(
-        string='Odoo URL', default=lambda self: self._default_odoo_url(),
-        help="Odoo base URL the harness reaches; prefilled with this "
+        string='MTIL URL', default=lambda self: self._default_odoo_url(),
+        help="MTIL base URL the harness reaches; prefilled with this "
              "instance's web.base.url.",
     )
     odoo_db = fields.Char(
-        string='Odoo Database', default=lambda self: self.env.cr.dbname,
+        string='MTIL Database', default=lambda self: self.env.cr.dbname,
         help="Database name; prefilled with this database.",
     )
     odoo_user = fields.Char(
-        string='Odoo AI Account',
+        string='MTIL AI Account',
         help="Login of the dedicated AI account for THIS preset.",
     )
     odoo_api_key = fields.Char(
-        string='Odoo API Key / Password',
+        string='MTIL API Key / Password',
         help="That account's API key (Preferences > Account Security) or its "
-             "password. Stored in Odoo and written into the preset "
+             "password. Stored in MTIL and written into the preset "
              "composition on the harness — anyone who can read either sees "
              "it, so use a dedicated low-privilege account.",
     )
     odoo_allow_write = fields.Boolean(
-        string='Allow Odoo Write',
-        help="Offer odoo_create / odoo_write / odoo_unlink tools. Without "
+        string='Allow MTIL Write',
+        help="Offer create / write / unlink tools. Without "
              "it the preset gets read-only tools; either way the account's "
-             "Odoo access rights still apply.",
+             "MTIL access rights still apply.",
     )
     odoo_tool_prefix = fields.Char(
-        string='Odoo Tool Keyword', default='odoo',
+        string='MTIL Tool Keyword', default='mtil',
         help="Keyword branding the toolset for the model: it becomes the "
              "server name and every tool's leading word (erp -> "
              "mcp__erp__erp_search_read). Lowercase slug, max 24 chars.",
     )
     odoo_allowed_models = fields.Char(
-        string='Odoo Allowed Models',
+        string='MTIL Allowed Models',
         help="Comma-separated model allowlist, e.g. "
              "res.partner,account.move. Empty = everything the account may "
              "use.",
@@ -164,7 +164,7 @@ class NpeiAgentPreset(models.Model):
         string='Trust',
         default='user', tracking=True,
         help="System presets ship with the harness and are read-only there; "
-             "only user presets can be authored or deleted from Odoo.",
+             "only user presets can be authored or deleted from MTIL.",
     )
     active = fields.Boolean(
         default=True, tracking=True,
@@ -221,7 +221,7 @@ class NpeiAgentPreset(models.Model):
 
     @api.model
     def _default_odoo_url(self):
-        """This instance's public URL, for the Odoo connection tab."""
+        """This instance's public URL, for the MTIL connection tab."""
         return (self.env['ir.config_parameter'].sudo()
                 .get_param('web.base.url') or '').strip()
 
@@ -261,7 +261,7 @@ class NpeiAgentPreset(models.Model):
         Copies the default roster entry under ``_slugify(name)`` with the given
         display name (``agentPresets/copy`` — void return; an authored copy is
         always ``user`` trust). Collisions are caught up front against BOTH the
-        Odoo mirror and the harness roster.
+        MTIL mirror and the harness roster.
 
         :param dict vals: the create values, mutated in place.
         :raises UserError: on a blank/unslugifiable name or a colliding id.
@@ -273,13 +273,13 @@ class NpeiAgentPreset(models.Model):
         if not slug:
             raise UserError(_("Cannot derive a preset id from the name %s.", name))
         if self.with_context(active_test=False).search_count([('preset_id', '=', slug)]):
-            raise UserError(_("A preset with id %s already exists in Odoo.", slug))
+            raise UserError(_("A preset with id %s already exists in MTIL.", slug))
         presets = self._harness_presets()
         if any(entry.get('id') == slug for entry in presets):
             raise UserError(_(
                 "A preset '%(slug)s' already exists on the harness (from the "
                 "name '%(name)s'). Pick a different name, or use 'Sync from "
-                "Harness' to adopt it into Odoo.",
+                "Harness' to adopt it into MTIL.",
                 slug=slug, name=name))
         default_id = next((entry.get('id') for entry in presets if entry.get('isDefault')), None)
         if not default_id:
@@ -327,12 +327,12 @@ class NpeiAgentPreset(models.Model):
                 **({'tools': line.tool_ids.mapped('name')} if line.tool_ids else {}),
             } for line in self.subagent_ids]
         if self.odoo_enable:
-            for label, value in (('Odoo URL', self.odoo_url),
-                                 ('Odoo AI Account', self.odoo_user),
-                                 ('Odoo API Key / Password', self.odoo_api_key)):
+            for label, value in (('MTIL URL', self.odoo_url),
+                                 ('MTIL AI Account', self.odoo_user),
+                                 ('MTIL API Key / Password', self.odoo_api_key)):
                 if not (value or '').strip():
                     raise UserError(_(
-                        "Preset %s connects to Odoo but %s is empty.",
+                        "Preset %s connects to MTIL but %s is empty.",
                         self.name, label))
             odoo = {
                 'url': self.odoo_url.strip(),
@@ -343,7 +343,7 @@ class NpeiAgentPreset(models.Model):
             if self.odoo_allow_write:
                 odoo['allowWrite'] = True
             prefix = (self.odoo_tool_prefix or '').strip()
-            if prefix and prefix != 'odoo':
+            if prefix and prefix != 'mtil':
                 odoo['toolPrefix'] = prefix
             models_csv = (self.odoo_allowed_models or '').strip()
             if models_csv:
@@ -386,7 +386,7 @@ class NpeiAgentPreset(models.Model):
                 if not slug:
                     raise UserError(_("Cannot derive a preset id from the name %s.", name))
                 if self.with_context(active_test=False).search_count([('preset_id', '=', slug)]):
-                    raise UserError(_("A preset with id %s already exists in Odoo.", slug))
+                    raise UserError(_("A preset with id %s already exists in MTIL.", slug))
                 if any(e.get('id') == slug for e in self._harness_presets()):
                     raise UserError(_(
                         "A preset '%(slug)s' already exists on the harness.", slug=slug))
@@ -410,7 +410,7 @@ class NpeiAgentPreset(models.Model):
         ``agentPresets/rename`` (system presets are read-only there; their
         display edits stay local).
         ``active`` pushes ``agentPresets/setActive`` for every trust.
-        Fail-loud: a push the harness refused rolls the Odoo write back.
+        Fail-loud: a push the harness refused rolls the MTIL write back.
         Suppressed under ``npei_syncing`` (mirror refresh).
         """
         result = super().write(vals)
@@ -449,7 +449,7 @@ class NpeiAgentPreset(models.Model):
         System presets ship with the deployment (the harness refuses their
         deletion), so only ``user`` rows with a ``preset_id`` push
         ``agentPresets/deletePreset``. Fail-loud: an unreachable harness rolls
-        the Odoo unlink back rather than orphaning the harness preset.
+        the MTIL unlink back rather than orphaning the harness preset.
         """
         if not self.env.context.get('npei_syncing'):
             client = self.env['npei.agent.harness.client'].sudo()
@@ -542,7 +542,7 @@ class NpeiAgentPresetSubagent(models.Model):
     """One router department: a delegation tool spawning a child agent."""
 
     _name = 'npei.agent.preset.subagent'
-    _description = 'DeepSeek Harness Router Sub-agent'
+    _description = 'MTIL Harness Router Sub-agent'
     _order = 'seq, id'
 
     preset_ref = fields.Many2one(

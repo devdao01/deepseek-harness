@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""HTTP client to the DeepSeek Harness ``/api`` gateway.
+"""HTTP client to the MTIL Harness ``/api`` gateway.
 
 Wire facts (verified against the running harness):
 
@@ -8,7 +8,7 @@ Wire facts (verified against the running harness):
   every ``/api`` call must carry that cookie. The launch token is printed by
   ``dsh web`` at startup and changes on every harness restart — update it in
   Settings > MTIL Agent after a restart. The harness must also trust this
-  Odoo-facing domain (``--trusted-host``), because its Host fence rejects
+  MTIL-facing domain (``--trusted-host``), because its Host fence rejects
   unknown authorities with 403.
 * **Unary RPC**: ``POST <base>/api/<namespace>/<method>`` with the envelope
   ``{"type": "client-request", "rpcId": <uuid>, "method": ..., "payload":
@@ -16,7 +16,7 @@ Wire facts (verified against the running harness):
   names (e.g. ``session/list`` takes ``{"_request": {}}``). The response is
   ``{"type": "server-response", "result": {"ok": true, "value": ...}}``.
 
-:class:`HarnessWire` holds that wire logic free of any Odoo import so it can
+:class:`HarnessWire` holds that wire logic free of any MTIL import so it can
 be exercised directly against a harness; :class:`HarnessClient` is the thin
 ``AbstractModel`` adapter reading the connection from ``ir.config_parameter``.
 """
@@ -80,7 +80,7 @@ class HarnessWire:
                 allow_redirects=True,
             )
         except requests.RequestException as exc:
-            raise HarnessWireError('Cannot reach the DeepSeek Harness: %s' % exc)
+            raise HarnessWireError('Cannot reach the MTIL Harness: %s' % exc)
         if response.status_code == 401 or not any(
                 cookie.name.startswith('dsh-auth-') for cookie in self.http.cookies):
             raise HarnessWireError(
@@ -120,7 +120,7 @@ class HarnessWire:
                 self._authenticate()
                 response = self._post_rpc(method, args)
         except requests.RequestException as exc:
-            raise HarnessWireError('Cannot reach the DeepSeek Harness: %s' % exc)
+            raise HarnessWireError('Cannot reach the MTIL Harness: %s' % exc)
         if response.status_code != 200:
             raise HarnessWireError(
                 'Harness call %s failed (HTTP %s): %s'
@@ -176,7 +176,7 @@ class HarnessWire:
             response = self.http.get(
                 '%s/api/boot.payload' % self.base_url, timeout=HARNESS_RPC_TIMEOUT)
         except requests.RequestException as exc:
-            raise HarnessWireError('Cannot reach the DeepSeek Harness: %s' % exc)
+            raise HarnessWireError('Cannot reach the MTIL Harness: %s' % exc)
         rows = None
         if response.status_code == 200:
             try:
@@ -206,7 +206,7 @@ class HarnessClient(models.AbstractModel):
     """Stateless helper that talks to the harness ``/api`` gateway."""
 
     _name = 'npei.agent.harness.client'
-    _description = 'DeepSeek Harness HTTP Client'
+    _description = 'MTIL Harness HTTP Client'
 
     @api.model
     def _get_connection(self):
@@ -216,7 +216,7 @@ class HarnessClient(models.AbstractModel):
         token = (params.get_param(CONFIG_API_TOKEN) or '').strip()
         if not base_url or not token:
             raise UserError(_(
-                "The DeepSeek Harness connection is not configured. "
+                "The MTIL Harness connection is not configured. "
                 "Set both the Base URL and the API Token under "
                 "Settings > MTIL Agent."
             ))
@@ -245,12 +245,12 @@ class HarnessClient(models.AbstractModel):
         """Attach the management wildcard ticket to the wire's cookie jar.
 
         The harness scopes ``session/list``/``session/search`` by the
-        ``mtil-ticket`` cookie; Odoo is the trusted management plane and must
+        ``mtil-ticket`` cookie; MTIL is the trusted management plane and must
         see every session to administer access lists, so it presents a ticket
         for user ``*`` — the harness-recognized wildcard. Minted fresh per
         call (cheap HMAC) so wire reuse never presents an expired ticket.
         Without a configured Ticket Secret the cookie is left absent and the
-        harness treats Odoo as anonymous (unrestricted sessions only).
+        harness treats MTIL as anonymous (unrestricted sessions only).
         """
         secret = (self.env['ir.config_parameter'].sudo()
                   .get_param(CONFIG_TICKET_SECRET) or '').strip()

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""HTTP gateway between the browser SPA and the DeepSeek Harness.
+"""HTTP gateway between the browser SPA and the MTIL Harness.
 
-The SPA (served same-origin at ``/mtilai``) only ever calls Odoo. Odoo resolves
-the caller from the Odoo session cookie, enforces the session ACL, then forwards
+The SPA (served same-origin at ``/mtilai``) only ever calls MTIL. MTIL resolves
+the caller from the MTIL session cookie, enforces the session ACL, then forwards
 to the harness over the server-held cookie session (minted from the harness
 launch token — see models/harness_client.py). The token never reaches the
 browser.
@@ -23,13 +23,13 @@ Endpoints (all under ``/api/mtil``):
 Design notes:
 
 * All routes use ``type='http'`` with ``auth='public'`` and a manual public-user
-  check so the API can return a true JSON 401/403 instead of Odoo's login
+  check so the API can return a true JSON 401/403 instead of MTIL's login
   redirect (which ``auth='user'`` would trigger) or the JSON-RPC 200 wrapper
   that ``type='json'`` forces. Odoo 17 has no ``auth='bearer'``.
 * ``csrf=False`` because these are cookie-authenticated same-origin API calls,
-  not form posts. Odoo's session cookie is ``SameSite=Lax``, which blocks the
+  not form posts. MTIL's session cookie is ``SameSite=Lax``, which blocks the
   cross-site POSTs CSRF would otherwise guard; the deployment is same-origin by
-  assumption (nginx maps ``/web`` + ``/api/mtil/*`` to Odoo, ``/mtilai`` to the
+  assumption (nginx maps ``/web`` + ``/api/mtil/*`` to MTIL, ``/mtilai`` to the
   SPA), so no CORS headers are emitted.
 """
 import json
@@ -58,7 +58,7 @@ DOWNLOAD_CHUNK_SIZE = 64 * 1024
 
 
 class MtilAgentController(http.Controller):
-    """Odoo-side gateway to the DeepSeek Harness ``/api``."""
+    """MTIL-side gateway to the MTIL Harness ``/api``."""
 
     # ------------------------------------------------------------------
     # Helpers
@@ -129,9 +129,9 @@ class MtilAgentController(http.Controller):
     @http.route('/api/mtil/get_config', type='http', auth='public',
                 methods=['POST'], csrf=False)
     def get_config(self, **kwargs):
-        """Report whether the caller is a logged-in Odoo user.
+        """Report whether the caller is a logged-in MTIL user.
 
-        Relies on Odoo having already resolved the session cookie into
+        Relies on MTIL having already resolved the session cookie into
         ``request.env.user``. Returns 401 for anonymous callers so the SPA can
         show its login/denied screen; 200 with the user identity otherwise.
         The harness token is never included.
@@ -297,7 +297,7 @@ class MtilAgentController(http.Controller):
         """Stub for the deferred realtime event proxy.
 
         ``events.mux`` emits *every* session's events, so a per-user ACL
-        requires Odoo to proxy and FILTER the stream down to the sessions the
+        requires MTIL to proxy and FILTER the stream down to the sessions the
         caller may access — a separate design task. Two candidate approaches are
         described in the README. Until then this returns 501.
         """

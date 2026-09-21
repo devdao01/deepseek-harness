@@ -18,7 +18,7 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 
 class NpeiDiscoverModels(models.TransientModel):
     _name = 'npei.agent.discover.models'
-    _description = 'DeepSeek Harness Discover Models'
+    _description = 'MTIL Harness Discover Models'
 
     settings_ns = fields.Char(
         string='Settings Namespace',
@@ -36,7 +36,7 @@ class NpeiDiscoverModels(models.TransientModel):
     api_type = fields.Char(
         string='API',
         help="Optional provider API flavour override (sent as the `api` param). "
-             "Named api_type so it does not shadow the odoo `api` module.",
+             "Named api_type so it does not shadow the MTIL `api` module.",
     )
     api_key = fields.Char(
         string='API Key',

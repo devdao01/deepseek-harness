@@ -3,7 +3,7 @@
 
 Skill uniqueness moved to per-scope (one preset, or the preset-less mirror
 scope), enforced in Python by ``_check_skill_key_unique_per_preset`` so NULL
-``preset_id`` counts as a value. Odoo does not auto-drop a removed SQL
+``preset_id`` counts as a value. MTIL does not auto-drop a removed SQL
 constraint, so the legacy one must go or it would still block the same
 ``skill_key`` under two different presets.
 """

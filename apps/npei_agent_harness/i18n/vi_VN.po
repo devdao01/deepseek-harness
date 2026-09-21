@@ -100,9 +100,9 @@ msgstr "Đã tồn tại một mô hình với mã này cho nhà cung cấp này
 #: code:addons/npei_agent_harness/models/npei_agent_preset.py:0
 #, python-format
 msgid ""
-"A preset '%(slug)s' already exists on the harness (from the name '%(name)s'). Pick a different name, or use 'Sync from Harness' to adopt it into Odoo."
+"A preset '%(slug)s' already exists on the harness (from the name '%(name)s'). Pick a different name, or use 'Sync from Harness' to adopt it into MTIL."
 msgstr ""
-"Đã tồn tại một preset '%(slug)s' trên harness (từ tên '%(name)s'). Chọn tên khác, hoặc dùng 'Đồng bộ từ Harness' để nhận vào Odoo."
+"Đã tồn tại một preset '%(slug)s' trên harness (từ tên '%(name)s'). Chọn tên khác, hoặc dùng 'Đồng bộ từ Harness' để nhận vào MTIL."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_preset.py:0
@@ -118,8 +118,8 @@ msgstr "Phải nhập tên preset để tạo mới."
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_preset.py:0
 #, python-format
-msgid "A preset with id %s already exists in Odoo."
-msgstr "Đã tồn tại một preset với mã %s trong Odoo."
+msgid "A preset with id %s already exists in MTIL."
+msgstr "Đã tồn tại một preset với mã %s trong MTIL."
 
 #. module: npei_agent_harness
 #: model:ir.model.constraint,message:npei_agent_harness.constraint_npei_agent_preset_preset_id_uniq
@@ -235,8 +235,8 @@ msgstr "Cho phép Bash"
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_allow_write
-msgid "Allow Odoo Write"
-msgstr "Cho phép ghi Odoo"
+msgid "Allow MTIL Write"
+msgstr "Cho phép ghi MTIL"
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__allow_web
@@ -281,14 +281,14 @@ msgstr "URL cơ sở"
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_res_config_settings__npei_harness_base_url
 msgid ""
-"Base URL of the DeepSeek Harness, e.g. https://harness.internal:8787. The gateway appends /api/<method>."
+"Base URL of the MTIL Harness, e.g. https://harness.internal:8787. The gateway appends /api/<method>."
 msgstr ""
-"URL gốc của DeepSeek Harness, ví dụ https://harness.internal:8787. Gateway sẽ nối thêm /api/<method>."
+"URL gốc của MTIL Harness, ví dụ https://harness.internal:8787. Gateway sẽ nối thêm /api/<method>."
 
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.res_config_settings_view_form_npei
-msgid "Base URL of the DeepSeek Harness. The gateway appends /api/<method>."
-msgstr "URL cơ sở của DeepSeek Harness. Gateway sẽ nối thêm /api/<method>."
+msgid "Base URL of the MTIL Harness. The gateway appends /api/<method>."
+msgstr "URL cơ sở của MTIL Harness. Gateway sẽ nối thêm /api/<method>."
 
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.res_config_settings_view_form_npei
@@ -365,9 +365,9 @@ msgstr "Persona của agent con: vai trò, nhiệm vụ và kỹ năng sở hữ
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_authorize_provider__option_ids
 msgid ""
-"Choices of the pending select prompt (e.g. Browser vs Device code); picking one answers the flow immediately. Device code suits Odoo: open the URL, enter the code — no localhost callback needed."
+"Choices of the pending select prompt (e.g. Browser vs Device code); picking one answers the flow immediately. Device code suits MTIL: open the URL, enter the code — no localhost callback needed."
 msgstr ""
-"Các lựa chọn của yêu cầu đang chờ (ví dụ Browser hay Device code); chọn một là trả lời luồng ngay. Device code hợp với Odoo: mở URL, nhập mã — không cần callback localhost."
+"Các lựa chọn của yêu cầu đang chờ (ví dụ Browser hay Device code); chọn một là trả lời luồng ngay. Device code hợp với MTIL: mở URL, nhập mã — không cần callback localhost."
 
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_authorize_provider_form
@@ -446,8 +446,8 @@ msgstr "Mô hình đã Cấu hình (ghi đè)"
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_enable
-msgid "Connect to Odoo"
-msgstr "Kết nối với Odoo"
+msgid "Connect to MTIL"
+msgstr "Kết nối với MTIL"
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/res_config_settings.py:0
@@ -582,91 +582,6 @@ msgstr "Khai route"
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider__declared
 msgid "Declared"
 msgstr "Đã khai báo"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_provider_route
-msgid "DeepSeek Harness Add Provider Route"
-msgstr "Thêm tuyến Nhà cung cấp DeepSeek Harness"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_preset
-msgid "DeepSeek Harness Agent Preset"
-msgstr "Preset Agent DeepSeek Harness"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_credential
-msgid "DeepSeek Harness Credential Reference"
-msgstr "Tham chiếu Thông tin xác thực DeepSeek Harness"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_discover_models
-msgid "DeepSeek Harness Discover Models"
-msgstr "Khám phá Mô hình DeepSeek Harness"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_tool
-msgid "DeepSeek Harness Grantable Tool"
-msgstr "Công cụ cấp quyền DeepSeek Harness"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_harness_client
-msgid "DeepSeek Harness HTTP Client"
-msgstr "HTTP Client DeepSeek Harness"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_host_status
-msgid "DeepSeek Harness Host Status"
-msgstr "Trạng thái máy chủ DeepSeek Harness"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_model
-msgid "DeepSeek Harness LLM Model"
-msgstr "Mô hình LLM DeepSeek Harness"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_provider
-msgid "DeepSeek Harness LLM Provider"
-msgstr "Nhà cung cấp LLM DeepSeek Harness"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_provider_model
-msgid "DeepSeek Harness Provider Model (configurable)"
-msgstr "Mô hình Nhà cung cấp DeepSeek Harness (cấu hình được)"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_provider_route_template
-msgid "DeepSeek Harness Provider Route Template"
-msgstr "Mẫu tuyến Nhà cung cấp DeepSeek Harness"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_authorize_provider
-msgid "DeepSeek Harness Provider Sign-in"
-msgstr "Đăng nhập Nhà cung cấp DeepSeek Harness"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_preset_subagent
-msgid "DeepSeek Harness Router Sub-agent"
-msgstr "Agent con của Router DeepSeek Harness"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_session
-msgid "DeepSeek Harness Session (Odoo ACL)"
-msgstr "Phiên DeepSeek Harness (ACL Odoo)"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_setting
-msgid "DeepSeek Harness Settings Namespace"
-msgstr "Namespace Cài đặt DeepSeek Harness"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_authorize_provider_option
-msgid "DeepSeek Harness Sign-in Choice"
-msgstr "Lựa chọn đăng nhập DeepSeek Harness"
-
-#. module: npei_agent_harness
-#: model:ir.model,name:npei_agent_harness.model_npei_agent_skill
-msgid "DeepSeek Harness Skill"
-msgstr "Kỹ năng DeepSeek Harness"
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_tool__is_default
@@ -811,9 +726,9 @@ msgstr ""
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_provider_route__api_protocol
 msgid ""
-"Endpoint wire format (sent as the profile `api` key). OpenRouter and most gateways speak openai-completions. Named api_protocol so it does not shadow the odoo `api` module."
+"Endpoint wire format (sent as the profile `api` key). OpenRouter and most gateways speak openai-completions. Named api_protocol so it does not shadow the MTIL `api` module."
 msgstr ""
-"Định dạng wire điểm cuối (gửi dưới dạng khóa `api` trong profile). OpenRouter và hầu hết cổng kết nối dùng openai-completions. Đặt là api_protocol để không che khuất module odoo `api`."
+"Định dạng wire điểm cuối (gửi dưới dạng khóa `api` trong profile). OpenRouter và hầu hết cổng kết nối dùng openai-completions. Đặt là api_protocol để không che khuất module MTIL `api`."
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_provider_route_template__api_protocol
@@ -946,7 +861,7 @@ msgstr "Tên nhà cung cấp dễ đọc từ ``llm/listConfigurableProviders``.
 msgid ""
 "Keyword branding the toolset for the model: it becomes the server name and every tool's leading word (erp -> mcp__erp__erp_search_read). Lowercase slug, max 24 chars."
 msgstr ""
-"Từ khóa đặt tên bộ công cụ đối với model: nó trở thành tên server và từ đứng đầu tên mọi tool (erp -> mcp__erp__erp_search_read). Slug chữ thường, tối đa 24 ký tự."
+"Từ khóa đặt tên bộ công cụ đối với model: nó trở thành tên server và từ đứng đầu tên mọi Công cụ (erp -> mcp__erp__erp_search_read). Slug chữ thường, tối đa 24 ký tự."
 
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_credential_form
@@ -1072,6 +987,16 @@ msgid "Low"
 msgstr "Thấp"
 
 #. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_user
+msgid "MTIL AI Account"
+msgstr "Tài khoản AI MTIL"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_api_key
+msgid "MTIL API Key / Password"
+msgstr "API Key / Mật khẩu MTIL"
+
+#. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_credential.py:0
 #: code:addons/npei_agent_harness/models/npei_agent_model.py:0
 #: code:addons/npei_agent_harness/models/npei_agent_provider.py:0
@@ -1082,6 +1007,128 @@ msgstr "Thấp"
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.res_config_settings_view_form_npei
 msgid "MTIL Agent"
 msgstr "MTIL Agent"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_allowed_models
+msgid "MTIL Allowed Models"
+msgstr "Model MTIL được phép"
+
+#. module: npei_agent_harness
+#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
+msgid "MTIL Connection"
+msgstr "Kết nối MTIL"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_db
+msgid "MTIL Database"
+msgstr "Cơ sở dữ liệu MTIL"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_agent_provider_route
+msgid "MTIL Harness Add Provider Route"
+msgstr "Thêm tuyến Nhà cung cấp MTIL Harness"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_agent_preset
+msgid "MTIL Harness Agent Preset"
+msgstr "Preset Agent MTIL Harness"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_agent_credential
+msgid "MTIL Harness Credential Reference"
+msgstr "Tham chiếu Thông tin xác thực MTIL Harness"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_agent_discover_models
+msgid "MTIL Harness Discover Models"
+msgstr "Khám phá Mô hình MTIL Harness"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_agent_tool
+msgid "MTIL Harness Grantable Tool"
+msgstr "Công cụ cấp quyền MTIL Harness"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_agent_harness_client
+msgid "MTIL Harness HTTP Client"
+msgstr "HTTP Client MTIL Harness"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_agent_host_status
+msgid "MTIL Harness Host Status"
+msgstr "Trạng thái máy chủ MTIL Harness"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_agent_model
+msgid "MTIL Harness LLM Model"
+msgstr "Mô hình LLM MTIL Harness"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_agent_provider
+msgid "MTIL Harness LLM Provider"
+msgstr "Nhà cung cấp LLM MTIL Harness"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_agent_provider_model
+msgid "MTIL Harness Provider Model (configurable)"
+msgstr "Mô hình Nhà cung cấp MTIL Harness (cấu hình được)"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_agent_provider_route_template
+msgid "MTIL Harness Provider Route Template"
+msgstr "Mẫu tuyến Nhà cung cấp MTIL Harness"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_authorize_provider
+msgid "MTIL Harness Provider Sign-in"
+msgstr "Đăng nhập Nhà cung cấp MTIL Harness"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_agent_preset_subagent
+msgid "MTIL Harness Router Sub-agent"
+msgstr "Agent con của Router MTIL Harness"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_agent_session
+msgid "MTIL Harness Session (MTIL ACL)"
+msgstr "Phiên MTIL Harness (ACL MTIL)"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_agent_setting
+msgid "MTIL Harness Settings Namespace"
+msgstr "Namespace Cài đặt MTIL Harness"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_authorize_provider_option
+msgid "MTIL Harness Sign-in Choice"
+msgstr "Lựa chọn đăng nhập MTIL Harness"
+
+#. module: npei_agent_harness
+#: model:ir.model,name:npei_agent_harness.model_npei_agent_skill
+msgid "MTIL Harness Skill"
+msgstr "Kỹ năng MTIL Harness"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_tool_prefix
+msgid "MTIL Tool Keyword"
+msgstr "Từ khóa Công cụ MTIL"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_url
+msgid "MTIL URL"
+msgstr "URL MTIL"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__odoo_url
+msgid ""
+"MTIL base URL the harness reaches; prefilled with this instance's web.base.url."
+msgstr ""
+"URL gốc MTIL mà harness truy cập tới; được điền sẵn bằng web.base.url của hệ thống này."
+
+#. module: npei_agent_harness
+#: model:ir.module.module,summary:npei_agent_harness.module_meta_information
+msgid "MTIL gateway and session ACL for the MTIL Harness backend"
+msgstr "Cổng MTIL và ACL phiên làm việc cho backend MTIL Harness"
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__workspace_id
@@ -1163,9 +1210,9 @@ msgstr "Mô hình (tùy chọn)"
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__odoo_enable
 msgid ""
-"Mount a read (optionally write) Odoo XML-RPC toolset for this preset, under the dedicated Odoo account below. Each preset can use a different account; the account's access rights and record rules are the real boundary."
+"Mount a read (optionally write) MTIL XML-RPC toolset for this preset, under the dedicated MTIL account below. Each preset can use a different account; the account's access rights and record rules are the real boundary."
 msgstr ""
-"Gắn bộ công cụ Odoo XML-RPC đọc (tùy chọn ghi) cho preset này, dưới tài khoản Odoo chuyên dụng bên dưới. Mỗi preset có thể dùng một tài khoản khác nhau; quyền truy cập và record rule của tài khoản là ranh giới thật."
+"Gắn bộ công cụ MTIL XML-RPC đọc (tùy chọn ghi) cho preset này, dưới tài khoản MTIL chuyên dụng bên dưới. Mỗi preset có thể dùng một tài khoản khác nhau; quyền truy cập và record rule của tài khoản là ranh giới thật."
 
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_credential_form
@@ -1214,9 +1261,9 @@ msgstr "Giá trị mới"
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_skill.py:0
 msgid ""
-"No harness session is mapped in Odoo yet. Run Sessions > Sync from Harness first — the skill catalog is read through a session."
+"No harness session is mapped in MTIL yet. Run Sessions > Sync from Harness first — the skill catalog is read through a session."
 msgstr ""
-"Chưa có phiên harness nào được ánh xạ trong Odoo. Chạy Phiên làm việc > Đồng bộ từ Harness trước — danh mục kỹ năng được đọc qua một phiên."
+"Chưa có phiên harness nào được ánh xạ trong MTIL. Chạy Phiên làm việc > Đồng bộ từ Harness trước — danh mục kỹ năng được đọc qua một phiên."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/wizard/npei_discover_models.py:0
@@ -1239,58 +1286,11 @@ msgid "OPENROUTER_API_KEY"
 msgstr "OPENROUTER_API_KEY"
 
 #. module: npei_agent_harness
-#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_user
-msgid "Odoo AI Account"
-msgstr "Tài khoản AI Odoo"
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_api_key
-msgid "Odoo API Key / Password"
-msgstr "API Key / Mật khẩu Odoo"
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_allowed_models
-msgid "Odoo Allowed Models"
-msgstr "Model Odoo được phép"
-
-#. module: npei_agent_harness
-#: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
-msgid "Odoo Connection"
-msgstr "Kết nối Odoo"
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_db
-msgid "Odoo Database"
-msgstr "Cơ sở dữ liệu Odoo"
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_tool_prefix
-msgid "Odoo Tool Keyword"
-msgstr "Từ khóa Tool Odoo"
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_url
-msgid "Odoo URL"
-msgstr "URL Odoo"
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__odoo_url
-msgid ""
-"Odoo base URL the harness reaches; prefilled with this instance's web.base.url."
-msgstr ""
-"URL gốc Odoo mà harness truy cập tới; được điền sẵn bằng web.base.url của hệ thống này."
-
-#. module: npei_agent_harness
-#: model:ir.module.module,summary:npei_agent_harness.module_meta_information
-msgid "Odoo gateway and session ACL for the DeepSeek Harness backend"
-msgstr "Cổng Odoo và ACL phiên làm việc cho backend DeepSeek Harness"
-
-#. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__odoo_allow_write
 msgid ""
-"Offer odoo_create / odoo_write / odoo_unlink tools. Without it the preset gets read-only tools; either way the account's Odoo access rights still apply."
+"Offer create / write / unlink tools. Without it the preset gets read-only tools; either way the account's MTIL access rights still apply."
 msgstr ""
-"Cấp các tool odoo_create / odoo_write / odoo_unlink. Không bật thì preset chỉ có tool đọc; dù bật hay không, quyền truy cập Odoo của tài khoản vẫn được áp dụng."
+"Cấp các Công cụ create / write / unlink. Không bật thì preset chỉ có Công cụ đọc; dù bật hay không, quyền truy cập MTIL của tài khoản vẫn được áp dụng."
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_discover_models__result_text
@@ -1377,9 +1377,9 @@ msgstr "Chỉ quản trị viên hệ thống mới có thể xóa dữ liệu M
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_session__session_id
 msgid ""
-"Opaque session id owned by the harness. Left blank on create, Odoo calls session/create and fills it; set it by hand only to adopt an existing harness session."
+"Opaque session id owned by the harness. Left blank on create, MTIL calls session/create and fills it; set it by hand only to adopt an existing harness session."
 msgstr ""
-"Mã phiên bất minh do harness sở hữu. Để trống khi tạo, Odoo gọi session/create và điền vào; chỉ nhập thủ công để nhận một phiên harness hiện có."
+"Mã phiên bất minh do harness sở hữu. Để trống khi tạo, MTIL gọi session/create và điền vào; chỉ nhập thủ công để nhận một phiên harness hiện có."
 
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_session_form
@@ -1444,9 +1444,9 @@ msgstr "Gợi ý tùy chọn (nơi lấy khóa, ví dụ model id)."
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_provider_route__api_key
 msgid ""
-"Optional key value pushed to the credential store now (credentials.set); never persisted in Odoo."
+"Optional key value pushed to the credential store now (credentials.set); never persisted in MTIL."
 msgstr ""
-"Giá trị khóa tùy chọn được đẩy vào kho thông tin xác thực ngay bây giờ (credentials.set); không bao giờ lưu trong Odoo."
+"Giá trị khóa tùy chọn được đẩy vào kho thông tin xác thực ngay bây giờ (credentials.set); không bao giờ lưu trong MTIL."
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_provider_model__max_tokens
@@ -1465,9 +1465,9 @@ msgstr ""
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_discover_models__api_type
 msgid ""
-"Optional provider API flavour override (sent as the `api` param). Named api_type so it does not shadow the odoo `api` module."
+"Optional provider API flavour override (sent as the `api` param). Named api_type so it does not shadow the MTIL `api` module."
 msgstr ""
-"Ghi đè loại API nhà cung cấp tùy chọn (gửi dưới dạng tham số `api`). Đặt là api_type để không che khuất module odoo `api`."
+"Ghi đè loại API nhà cung cấp tùy chọn (gửi dưới dạng tham số `api`). Đặt là api_type để không che khuất module MTIL `api`."
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_discover_models__provider
@@ -1502,16 +1502,16 @@ msgstr "Dán giá trị nhà cung cấp trả về sau khi đăng nhập."
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_res_config_settings__npei_harness_spa_path
 msgid ""
-"Path the MTIL chat SPA is served under on THIS Odoo domain (nginx mount). The session Open Chat button links to <this path>/s/<harness session id>. Leave blank to hide that button."
+"Path the MTIL chat SPA is served under on THIS MTIL domain (nginx mount). The session Open Chat button links to <this path>/s/<harness session id>. Leave blank to hide that button."
 msgstr ""
-"Đường dẫn mà SPA chat MTIL được phục vụ trên CHÍNH domain Odoo này (mount nginx). Nút Mở phòng chat của phiên trỏ tới <đường dẫn này>/s/<mã phiên harness>. Để trống sẽ ẩn nút đó."
+"Đường dẫn mà SPA chat MTIL được phục vụ trên CHÍNH domain MTIL này (mount nginx). Nút Mở phòng chat của phiên trỏ tới <đường dẫn này>/s/<mã phiên harness>. Để trống sẽ ẩn nút đó."
 
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.res_config_settings_view_form_npei
 msgid ""
-"Path the MTIL chat SPA is served under on this Odoo domain; the session Open Chat button links to <path>/s/<session id>."
+"Path the MTIL chat SPA is served under on this MTIL domain; the session Open Chat button links to <path>/s/<session id>."
 msgstr ""
-"Đường dẫn mà SPA chat MTIL được phục vụ trên domain Odoo này; nút Mở phòng chat của phiên trỏ tới <đường dẫn>/s/<mã phiên>."
+"Đường dẫn mà SPA chat MTIL được phục vụ trên domain MTIL này; nút Mở phòng chat của phiên trỏ tới <đường dẫn>/s/<mã phiên>."
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__persona
@@ -1547,8 +1547,8 @@ msgstr "Preset"
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_preset.py:0
 #, python-format
-msgid "Preset %s connects to Odoo but %s is empty."
-msgstr "Preset %s kết nối Odoo nhưng %s đang trống."
+msgid "Preset %s connects to MTIL but %s is empty."
+msgstr "Preset %s kết nối MTIL nhưng %s đang trống."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_preset.py:0
@@ -1559,9 +1559,9 @@ msgstr "Preset %s cần có Persona cho loại %s."
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__preset_id
 msgid ""
-"Preset id owned by the harness (roster entry id). Left blank on create, Odoo derives it from the name and authors the preset on the harness; set only by the sync/adopt path."
+"Preset id owned by the harness (roster entry id). Left blank on create, MTIL derives it from the name and authors the preset on the harness; set only by the sync/adopt path."
 msgstr ""
-"Mã preset do harness sở hữu (id mục roster). Để trống khi tạo, Odoo sẽ tự sinh từ tên và đăng ký preset lên harness; chỉ được điền bởi đường dẫn sync/adopt."
+"Mã preset do harness sở hữu (id mục roster). Để trống khi tạo, MTIL sẽ tự sinh từ tên và đăng ký preset lên harness; chỉ được điền bởi đường dẫn sync/adopt."
 
 #. module: npei_agent_harness
 #: model:ir.actions.act_window,name:npei_agent_harness.action_npei_agent_preset
@@ -2185,9 +2185,9 @@ msgstr "Hệ thống"
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__trust
 msgid ""
-"System presets ship with the harness and are read-only there; only user presets can be authored or deleted from Odoo."
+"System presets ship with the harness and are read-only there; only user presets can be authored or deleted from MTIL."
 msgstr ""
-"Preset hệ thống đi kèm harness và chỉ đọc ở đó; chỉ preset user mới có thể được đăng ký hoặc xóa từ Odoo."
+"Preset hệ thống đi kèm harness và chỉ đọc ở đó; chỉ preset user mới có thể được đăng ký hoặc xóa từ MTIL."
 
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.res_config_settings_view_form_npei
@@ -2197,16 +2197,16 @@ msgstr "Kiểm tra kết nối"
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__odoo_api_key
 msgid ""
-"That account's API key (Preferences > Account Security) or its password. Stored in Odoo and written into the preset composition on the harness — anyone who can read either sees it, so use a dedicated low-privilege account."
+"That account's API key (Preferences > Account Security) or its password. Stored in MTIL and written into the preset composition on the harness — anyone who can read either sees it, so use a dedicated low-privilege account."
 msgstr ""
-"API key của tài khoản đó (Preferences > Account Security) hoặc mật khẩu. Được lưu trong Odoo và ghi vào composition của preset trên harness — ai đọc được một trong hai đều thấy, nên hãy dùng tài khoản chuyên dụng quyền thấp."
+"API key của tài khoản đó (Preferences > Account Security) hoặc mật khẩu. Được lưu trong MTIL và ghi vào composition của preset trên harness — ai đọc được một trong hai đều thấy, nên hãy dùng tài khoản chuyên dụng quyền thấp."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/harness_client.py:0
 msgid ""
-"The DeepSeek Harness connection is not configured. Set both the Base URL and the API Token under Settings > MTIL Agent."
+"The MTIL Harness connection is not configured. Set both the Base URL and the API Token under Settings > MTIL Agent."
 msgstr ""
-"Kết nối DeepSeek Harness chưa được cấu hình. Hãy đặt cả URL Cơ sở và Token API trong Cài đặt > MTIL Agent."
+"Kết nối MTIL Harness chưa được cấu hình. Hãy đặt cả URL Cơ sở và Token API trong Cài đặt > MTIL Agent."
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__persona
@@ -2353,9 +2353,9 @@ msgstr "Bản ghi này chưa có mã phiên harness."
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.res_config_settings_view_form_npei
 msgid ""
-"This permanently deletes all MTIL Agent data in Odoo (except seeded route templates). The harness is not affected. Continue?"
+"This permanently deletes all MTIL Agent data in MTIL (except seeded route templates). The harness is not affected. Continue?"
 msgstr ""
-"Thao tác này sẽ xóa vĩnh viễn toàn bộ dữ liệu MTIL Agent trong Odoo (trừ các mẫu tuyến đã gieo). Harness không bị ảnh hưởng. Tiếp tục?"
+"Thao tác này sẽ xóa vĩnh viễn toàn bộ dữ liệu MTIL Agent trong MTIL (trừ các mẫu tuyến đã gieo). Harness không bị ảnh hưởng. Tiếp tục?"
 
 #. module: npei_agent_harness
 #: model:ir.model.constraint,message:npei_agent_harness.constraint_npei_agent_provider_model_provider_model_uniq
@@ -2434,9 +2434,9 @@ msgstr "Phần người dùng (có thể chỉnh)"
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_session__user_ids
 msgid ""
-"Users allowed to access this session through the Odoo proxy. The record creator (create_uid) is always allowed even when absent from this list. Leave empty to make the session public."
+"Users allowed to access this session through the MTIL proxy. The record creator (create_uid) is always allowed even when absent from this list. Leave empty to make the session public."
 msgstr ""
-"Người dùng được phép truy cập phiên này qua proxy Odoo. Người tạo bản ghi (create_uid) luôn được phép dù không có trong danh sách. Để trống để công khai phiên."
+"Người dùng được phép truy cập phiên này qua proxy MTIL. Người tạo bản ghi (create_uid) luôn được phép dù không có trong danh sách. Để trống để công khai phiên."
 
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
@@ -2554,9 +2554,9 @@ msgstr "Có thể ghi"
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_credential__value
 msgid ""
-"Write-only secret. On save it is pushed to the harness with ``credentials/set`` and POPPED before the row is written, so it never lands in an Odoo column; the field always reads back blank."
+"Write-only secret. On save it is pushed to the harness with ``credentials/set`` and POPPED before the row is written, so it never lands in an MTIL column; the field always reads back blank."
 msgstr ""
-"Bí mật chỉ ghi. Khi lưu, được đẩy lên harness qua ``credentials/set`` và XÓA KHỎI vals trước khi ghi dòng, nên không bao giờ lưu vào cột Odoo; trường luôn đọc lại rỗng."
+"Bí mật chỉ ghi. Khi lưu, được đẩy lên harness qua ``credentials/set`` và XÓA KHỎI vals trước khi ghi dòng, nên không bao giờ lưu vào cột MTIL; trường luôn đọc lại rỗng."
 
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_credential_form

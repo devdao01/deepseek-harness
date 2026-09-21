@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Config-plane management: credentials, providers, models, settings, discover.
 
-The harness client is mocked, so these assert exactly what Odoo sends per method
+The harness client is mocked, so these assert exactly what MTIL sends per method
 and how the returned values are mirrored. All actions are manager-gated, so the
 test user is granted the NPEI Agent Manager group in setUp.
 """
@@ -734,7 +734,7 @@ class TestConfigManagement(TransactionCase):
 
 
 class TestAdminTicket(TransactionCase):
-    """The management wildcard ticket Odoo presents on every wire call."""
+    """The management wildcard ticket MTIL presents on every wire call."""
 
     class _FakeJar:
         def __init__(self):

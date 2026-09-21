@@ -38,7 +38,7 @@ THINKING_FORMATS = [
 class NpeiAgentProviderRouteTemplate(models.Model):
     _name = 'npei.agent.provider.route.template'
     _inherit = ['mail.thread', 'mail.activity.mixin']
-    _description = 'DeepSeek Harness Provider Route Template'
+    _description = 'MTIL Harness Provider Route Template'
     _order = 'seq, sequence, name'
 
     name = fields.Char(

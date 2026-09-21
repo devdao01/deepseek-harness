@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """Harness credential references: status mirror + write-only set/unset.
 
-Odoo-side management surface for harness credential references (e.g.
+MTIL-side management surface for harness credential references (e.g.
 ``DEEPSEEK_API_KEY``). The harness owns the secret store; this model mirrors
 each ref's status from ``credentials/describe`` and pushes secret values with
 ``credentials/set`` / ``credentials/unset`` (full-token RPC). The secret itself
-is never stored in an Odoo column: :attr:`value` is popped from the create/write
+is never stored in an MTIL column: :attr:`value` is popped from the create/write
 vals BEFORE the row is written, pushed to the harness, and always reads back blank.
 """
 import logging
@@ -22,7 +22,7 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 class NpeiAgentCredential(models.Model):
     _name = 'npei.agent.credential'
     _inherit = ['mail.thread', 'mail.activity.mixin']
-    _description = 'DeepSeek Harness Credential Reference'
+    _description = 'MTIL Harness Credential Reference'
     _order = 'seq, ref'
 
     ref = fields.Char(
@@ -55,7 +55,7 @@ class NpeiAgentCredential(models.Model):
         password=True,
         help="Write-only secret. On save it is pushed to the harness with "
              "``credentials/set`` and POPPED before the row is written, so it "
-             "never lands in an Odoo column; the field always reads back blank.",
+             "never lands in an MTIL column; the field always reads back blank.",
     )
     active = fields.Boolean(default=True, tracking=True)
     seq = fields.Integer('Sequence*:', default=1)
@@ -152,7 +152,7 @@ class NpeiAgentCredential(models.Model):
     def create(self, vals_list):
         """Create refs, pushing any ``value`` to the harness (never stored).
 
-        The secret is popped from each vals BEFORE insert, so no Odoo column
+        The secret is popped from each vals BEFORE insert, so no MTIL column
         ever holds it; a ref created with a value is set on the harness and its
         status refreshed.
         """
