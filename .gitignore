@@ -45,3 +45,7 @@ worktrees/
 .typert-*/
 native/system/test/bin/
 skills-lock.json
+
+# Python bytecode from the Odoo module and tools
+__pycache__/
+*.pyc
