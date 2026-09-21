@@ -1,28 +1,28 @@
 #!/usr/bin/env node
 /**
- * Odoo MCP server (stdio, XML-RPC), read-only by default.
+ * MTIL MCP server (stdio, XML-RPC), read-only by default.
  *
- * Gives an agent four read tools over one Odoo account — `odoo_search_read`,
- * `odoo_read`, `odoo_search_count`, `odoo_fields_get` — and, only when
- * `ODOO_ALLOW_WRITE=1`, three write tools: `odoo_create`, `odoo_write`,
- * `odoo_unlink`. Without that flag the write tools are not listed and their
+ * Gives an agent four read tools over one MTIL account — `mtil_search_read`,
+ * `mtil_read`, `mtil_search_count`, `mtil_fields_get` — and, only when
+ * `MTIL_ALLOW_WRITE=1`, three write tools: `mtil_create`, `mtil_write`,
+ * `mtil_unlink`. Without that flag the write tools are not listed and their
  * calls are refused, so a read-only preset cannot reach a write method at
- * all; arbitrary model methods are never reachable either way. Odoo's own
+ * all; arbitrary model methods are never reachable either way. MTIL's own
  * access rights and record rules apply on top per account — they are the
  * real boundary for what a write-enabled preset may touch.
  *
  * The whole configuration is environment, so one preset composition can mount
- * this server with its own Odoo account and another preset with a different
+ * this server with its own MTIL account and another preset with a different
  * one:
  *
- *   ODOO_URL             https://mtil.mtil.vn        (required)
- *   ODOO_DB              the database name           (required)
- *   ODOO_USER            login of the AI account     (required)
- *   ODOO_API_KEY         that account's API key or password (required)
- *   ODOO_ALLOW_WRITE     '1'/'true' lists and permits create/write/unlink
- *   ODOO_ALLOWED_MODELS  comma-separated allowlist; empty = every model the
+ *   MTIL_URL             https://mtil.mtil.vn        (required)
+ *   MTIL_DB              the database name           (required)
+ *   MTIL_USER            login of the AI account     (required)
+ *   MTIL_API_KEY         that account's API key or password (required)
+ *   MTIL_ALLOW_WRITE     '1'/'true' lists and permits create/write/unlink
+ *   MTIL_ALLOWED_MODELS  comma-separated allowlist; empty = every model the
  *                        account may read
- *   ODOO_MAX_ROWS        hard cap per call (default 200)
+ *   MTIL_MAX_ROWS        hard cap per call (default 200)
  *
  * Dependency-free on purpose: it speaks MCP's newline-delimited JSON-RPC and
  * builds XML-RPC by hand, so deployment is `node server.mjs` with no install
@@ -33,32 +33,40 @@
 import { createInterface } from 'node:readline'
 
 const PROTOCOL_VERSION = '2024-11-05'
-const ALLOW_WRITE = ['1', 'true', 'yes'].includes((process.env.ODOO_ALLOW_WRITE ?? '').toLowerCase())
-// The keyword every tool name starts with (odoo_search_read -> erp_search_read
-// under ODOO_TOOL_PREFIX=erp), so a deployment can brand the toolset.
-const TOOL_PREFIX = process.env.ODOO_TOOL_PREFIX ?? 'odoo'
+// The connection variables were renamed from ODOO_* to MTIL_*. A preset
+// composition or overlay still carrying the old names would otherwise die on
+// "MTIL_URL missing" with no hint of why; name the rename instead.
+for (const suffix of ['URL', 'DB', 'USER', 'API_KEY', 'ALLOW_WRITE', 'ALLOWED_MODELS', 'MAX_ROWS', 'TOOL_PREFIX', 'BRAND']) {
+  if (process.env[`ODOO_${suffix}`] !== undefined && process.env[`MTIL_${suffix}`] === undefined) {
+    throw new Error(`odoo-mcp: ODOO_${suffix} was renamed to MTIL_${suffix}; update the preset composition or deployment overlay`)
+  }
+}
+const ALLOW_WRITE = ['1', 'true', 'yes'].includes((process.env.MTIL_ALLOW_WRITE ?? '').toLowerCase())
+// The keyword every tool name starts with (mtil_search_read -> erp_search_read
+// under MTIL_TOOL_PREFIX=erp), so a deployment can brand the toolset.
+const TOOL_PREFIX = process.env.MTIL_TOOL_PREFIX ?? 'mtil'
 if (!/^[a-z0-9][a-z0-9_-]{0,23}$/.test(TOOL_PREFIX)) {
-  throw new Error(`odoo-mcp: ODOO_TOOL_PREFIX ${JSON.stringify(TOOL_PREFIX)} must be a short lowercase slug`)
+  throw new Error(`odoo-mcp: MTIL_TOOL_PREFIX ${JSON.stringify(TOOL_PREFIX)} must be a short lowercase slug`)
 }
 // The system label the MODEL sees in descriptions and errors. A rebranded
 // prefix rebrands the label too, so no model-visible string says "Odoo" —
 // the model then has no ground to confirm what stands behind the tools.
-const BRAND = process.env.ODOO_BRAND ?? (TOOL_PREFIX === 'odoo' ? 'Odoo' : TOOL_PREFIX.toUpperCase())
-const MAX_ROWS = Math.max(1, Number(process.env.ODOO_MAX_ROWS ?? '200') || 200)
-const ALLOWED_MODELS = (process.env.ODOO_ALLOWED_MODELS ?? '')
+const BRAND = process.env.MTIL_BRAND ?? (TOOL_PREFIX === 'mtil' ? 'MTIL' : TOOL_PREFIX.toUpperCase())
+const MAX_ROWS = Math.max(1, Number(process.env.MTIL_MAX_ROWS ?? '200') || 200)
+const ALLOWED_MODELS = (process.env.MTIL_ALLOWED_MODELS ?? '')
   .split(',').map(name => name.trim()).filter(name => name.length > 0)
 
 /** Required connection settings, read once so a misconfiguration fails loudly. */
 function connection() {
-  const url = (process.env.ODOO_URL ?? '').replace(/\/+$/, '')
-  const db = process.env.ODOO_DB ?? ''
-  const user = process.env.ODOO_USER ?? ''
-  const key = process.env.ODOO_API_KEY ?? ''
+  const url = (process.env.MTIL_URL ?? '').replace(/\/+$/, '')
+  const db = process.env.MTIL_DB ?? ''
+  const user = process.env.MTIL_USER ?? ''
+  const key = process.env.MTIL_API_KEY ?? ''
   const missing = [
-    ...url === '' ? ['ODOO_URL'] : [],
-    ...db === '' ? ['ODOO_DB'] : [],
-    ...user === '' ? ['ODOO_USER'] : [],
-    ...key === '' ? ['ODOO_API_KEY'] : [],
+    ...url === '' ? ['MTIL_URL'] : [],
+    ...db === '' ? ['MTIL_DB'] : [],
+    ...user === '' ? ['MTIL_USER'] : [],
+    ...key === '' ? ['MTIL_API_KEY'] : [],
   ]
   if (missing.length > 0) throw new Error(`odoo-mcp: missing ${missing.join(', ')}`)
   return { url, db, user, key }
@@ -348,7 +356,7 @@ const TOOLS = [
   },
 ]
 
-/** The write tools, listed and callable only under ODOO_ALLOW_WRITE. */
+/** The write tools, listed and callable only under MTIL_ALLOW_WRITE. */
 const WRITE_TOOLS = [
   {
     name: `${TOOL_PREFIX}_create`,

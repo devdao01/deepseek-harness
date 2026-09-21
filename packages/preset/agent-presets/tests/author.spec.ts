@@ -43,10 +43,10 @@ describe('authoring an Odoo connection', () => {
     expect(config.command).toBe('node')
     expect(config.args).toEqual(['/srv/harness/apps/odoo-mcp/server.mjs'])
     expect(config.env).toEqual({
-      ODOO_URL: 'https://mtil.mtil.vn',
-      ODOO_DB: 'mtil',
-      ODOO_USER: 'ai-ketoan',
-      ODOO_API_KEY: "mat'khau",
+      MTIL_URL: 'https://mtil.mtil.vn',
+      MTIL_DB: 'mtil',
+      MTIL_USER: 'ai-ketoan',
+      MTIL_API_KEY: "mat'khau",
     })
   })
 
@@ -58,9 +58,9 @@ describe('authoring an Odoo connection', () => {
     })
 
     const env = odooRowOf(text).env as Record<string, string>
-    expect(env.ODOO_ALLOW_WRITE).toBe('1')
-    expect(env.ODOO_ALLOWED_MODELS).toBe('res.partner,account.move')
-    expect(env.ODOO_MAX_ROWS).toBe('50')
+    expect(env.MTIL_ALLOW_WRITE).toBe('1')
+    expect(env.MTIL_ALLOWED_MODELS).toBe('res.partner,account.move')
+    expect(env.MTIL_MAX_ROWS).toBe('50')
   })
 
   it('brands the server name and env with a custom tool prefix', () => {
@@ -70,15 +70,15 @@ describe('authoring an Odoo connection', () => {
 
     const config = odooRowOf(text)
     expect(config.serverName).toBe('erp')
-    expect((config.env as Record<string, string>).ODOO_TOOL_PREFIX).toBe('erp')
+    expect((config.env as Record<string, string>).MTIL_TOOL_PREFIX).toBe('erp')
   })
 
-  it('emits no ODOO_TOOL_PREFIX for the default keyword', () => {
+  it('emits no MTIL_TOOL_PREFIX for the default keyword', () => {
     const text = generateComposition(BASE, { kind: 'standalone', persona: 'p', odoo: ODOO })
 
     const config = odooRowOf(text)
-    expect(config.serverName).toBe('odoo')
-    expect((config.env as Record<string, string>).ODOO_TOOL_PREFIX).toBeUndefined()
+    expect(config.serverName).toBe('mtil')
+    expect((config.env as Record<string, string>).MTIL_TOOL_PREFIX).toBeUndefined()
   })
 
   it('emits no mcp-odoo row without an odoo spec', () => {
@@ -88,7 +88,7 @@ describe('authoring an Odoo connection', () => {
   })
 
   it.each([
-    ['a multi-line api key', { ...ODOO, apiKey: 'a\nODOO_URL: evil' }, /single line/],
+    ['a multi-line api key', { ...ODOO, apiKey: 'a\nMTIL_URL: evil' }, /single line/],
     ['a non-http url', { ...ODOO, url: 'file:///etc/passwd' }, /http/],
     ['an empty db', { ...ODOO, db: ' ' }, /non-empty/],
     ['a YAML-shaped model name', { ...ODOO, allowedModels: ["x'\ny"] }, /must match/],

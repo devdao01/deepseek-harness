@@ -47,7 +47,7 @@ export interface AuthorOdooSpec {
   readonly user: string
   /** That account's API key or password. */
   readonly apiKey: string
-  /** Whether `odoo_create`/`odoo_write`/`odoo_unlink` are offered. */
+  /** Whether `mtil_create`/`mtil_write`/`mtil_unlink` are offered. */
   readonly allowWrite?: boolean
   /** Model allowlist (e.g. `res.partner`); empty/absent = the account's own scope. */
   readonly allowedModels?: readonly string[]
@@ -56,7 +56,7 @@ export interface AuthorOdooSpec {
   /**
    * Keyword branding the toolset: it becomes both the MCP server name and
    * every tool's leading word (`erp` -> `mcp__erp__erp_search_read`).
-   * Defaults to `odoo`.
+   * Defaults to `mtil`.
    */
   readonly toolPrefix?: string
   /**
@@ -94,10 +94,10 @@ const SUBAGENT_BASE_TOOLS = [
 const SUBAGENT_TOOL_NAME = /^[a-z0-9][a-z0-9_-]*$/
 
 /** An Odoo model name (`res.partner`); anything else is refused. */
-const ODOO_MODEL_NAME = /^[a-z0-9_.]+$/
+const MTIL_MODEL_NAME = /^[a-z0-9_.]+$/
 
 /** A tool-prefix keyword: MCP server-name charset, kept short. */
-const ODOO_TOOL_PREFIX = /^[a-z0-9][a-z0-9_-]{0,23}$/
+const MTIL_TOOL_PREFIX = /^[a-z0-9][a-z0-9_-]{0,23}$/
 
 /** A granted tool name is a plain tool identifier, never YAML structure. */
 const GRANTED_TOOL_NAME = /^[a-zA-Z0-9_-]+$/
@@ -178,7 +178,7 @@ function yamlQuote(value: string): string {
 
 /** The generated `mcp-odoo` row mounting this preset's Odoo connection. */
 function odooRow(odoo: AuthorOdooSpec): string[] {
-  const prefix = odoo.toolPrefix ?? 'odoo'
+  const prefix = odoo.toolPrefix ?? 'mtil'
   return [
     '- id: mcp-odoo',
     "  name: '@deepseek-ai/dsh-mcp-client'",
@@ -188,16 +188,16 @@ function odooRow(odoo: AuthorOdooSpec): string[] {
     '    command: node',
     `    args: [${yamlQuote(odoo.serverPath)}]`,
     '    env:',
-    ...prefix === 'odoo' ? [] : [`      ODOO_TOOL_PREFIX: ${yamlQuote(prefix)}`],
-    `      ODOO_URL: ${yamlQuote(odoo.url)}`,
-    `      ODOO_DB: ${yamlQuote(odoo.db)}`,
-    `      ODOO_USER: ${yamlQuote(odoo.user)}`,
-    `      ODOO_API_KEY: ${yamlQuote(odoo.apiKey)}`,
-    ...odoo.allowWrite === true ? ["      ODOO_ALLOW_WRITE: '1'"] : [],
+    ...prefix === 'mtil' ? [] : [`      MTIL_TOOL_PREFIX: ${yamlQuote(prefix)}`],
+    `      MTIL_URL: ${yamlQuote(odoo.url)}`,
+    `      MTIL_DB: ${yamlQuote(odoo.db)}`,
+    `      MTIL_USER: ${yamlQuote(odoo.user)}`,
+    `      MTIL_API_KEY: ${yamlQuote(odoo.apiKey)}`,
+    ...odoo.allowWrite === true ? ["      MTIL_ALLOW_WRITE: '1'"] : [],
     ...odoo.allowedModels !== undefined && odoo.allowedModels.length > 0
-      ? [`      ODOO_ALLOWED_MODELS: ${yamlQuote(odoo.allowedModels.join(','))}`]
+      ? [`      MTIL_ALLOWED_MODELS: ${yamlQuote(odoo.allowedModels.join(','))}`]
       : [],
-    ...odoo.maxRows === undefined ? [] : [`      ODOO_MAX_ROWS: ${yamlQuote(String(odoo.maxRows))}`],
+    ...odoo.maxRows === undefined ? [] : [`      MTIL_MAX_ROWS: ${yamlQuote(String(odoo.maxRows))}`],
     '',
   ]
 }
@@ -219,15 +219,15 @@ function validateOdooSpec(odoo: AuthorOdooSpec): void {
   }
   if (!/^https?:\/\//.test(odoo.url)) throw new Error('odoo.url must start with http:// or https://')
   for (const model of odoo.allowedModels ?? []) {
-    if (!ODOO_MODEL_NAME.test(model)) {
-      throw new Error(`odoo model name ${JSON.stringify(model)} must match ${String(ODOO_MODEL_NAME)}`)
+    if (!MTIL_MODEL_NAME.test(model)) {
+      throw new Error(`odoo model name ${JSON.stringify(model)} must match ${String(MTIL_MODEL_NAME)}`)
     }
   }
   if (odoo.maxRows !== undefined && (!Number.isInteger(odoo.maxRows) || odoo.maxRows < 1)) {
     throw new Error('odoo.maxRows must be a positive integer')
   }
-  if (odoo.toolPrefix !== undefined && !ODOO_TOOL_PREFIX.test(odoo.toolPrefix)) {
-    throw new Error(`odoo.toolPrefix ${JSON.stringify(odoo.toolPrefix)} must match ${String(ODOO_TOOL_PREFIX)}`)
+  if (odoo.toolPrefix !== undefined && !MTIL_TOOL_PREFIX.test(odoo.toolPrefix)) {
+    throw new Error(`odoo.toolPrefix ${JSON.stringify(odoo.toolPrefix)} must match ${String(MTIL_TOOL_PREFIX)}`)
   }
 }
 
