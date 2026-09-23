@@ -71,7 +71,7 @@ export class PresentedOpenController {
   private async readHost(signal: AbortSignal): Promise<void> {
     let host: PresentedHost | 'error' = 'error'
     try {
-      const response = await fetch(PRESENT_HOST_PATH, { signal })
+      const response = await fetch(resolveUrl(PRESENT_HOST_PATH), { signal })
       if (response.ok) {
         const value: unknown = await response.json()
         if (isPresentedHost(value)) host = value
@@ -92,7 +92,7 @@ export class PresentedOpenController {
     const failure = action === 'open' ? 'error' : 'revealError'
     let phase: PresentedOpenPhase = action === 'open' ? 'opened' : 'revealed'
     try {
-      const response = await fetch(action === 'open' ? url : `${url}&action=reveal`, { method: 'POST', signal: this.lifetime.signal })
+      const response = await fetch(resolveUrl(action === 'open' ? url : `${url}&action=reveal`), { method: 'POST', signal: this.lifetime.signal })
       if (!response.ok) phase = response.status === 422 ? 'nativeUnavailable' : failure
     } catch {
       // Transport failures share the retryable card state with Host open failures.
@@ -100,4 +100,11 @@ export class PresentedOpenController {
     }
     if (!this.lifetime.signal.aborted) this.state.update((state) => { state[url] = phase })
   }
+}
+
+/** Preserve the application prefix while keeping root-mounted browser URLs relative. */
+function resolveUrl(path: string): string {
+  const appBase = (globalThis as { __DSH_APP_BASE__?: string }).__DSH_APP_BASE__
+  if (appBase === undefined) return path
+  return new URL(path.replace(/^\//, ''), appBase.endsWith('/') ? appBase : `${appBase}/`).href
 }

@@ -25,6 +25,8 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
+HEAD 预检和浏览器下载共用一个 URL，该 URL 根据浏览器启动前设置的绝对地址 `globalThis.__DSH_APP_BASE__` 解析，也支持没有末尾斜杠的基地址。未设置时，URL 使用页面源；页面源不可用或为 `null` 时使用 `http://dsh.internal`。
+
 当 Web bundle 需要让用户导出会话日志时使用本包。它需要 Connection、命令注册表、Session 查询与持久化以及附件服务。挂载插件，然后在 Session Header 的更多操作菜单中选择 `下载 Session 日志` 或输入 `/export`；浏览器会下载 `dsh-session-<id>.zip`。
 
 ### 何时选择

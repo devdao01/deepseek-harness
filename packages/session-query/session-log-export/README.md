@@ -25,6 +25,8 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
+The HEAD preflight and browser download share a URL resolved against the absolute `globalThis.__DSH_APP_BASE__` set before browser boot, including bases without a trailing slash. Without it, URLs use the page origin or `http://dsh.internal` when the origin is unavailable or `null`.
+
 Use this package when the Web bundle should let users export a session log. It requires Connection, the command registry, Session query and persistence, and attachments. Mount the plugin, then choose `Download session log` from the Session Header's more-actions menu or type `/export`; the browser downloads `dsh-session-<id>.zip`.
 
 ### When to choose it

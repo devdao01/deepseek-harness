@@ -25,6 +25,8 @@ This package renders the deliverables row a finished turn ends with — the file
 <a id="use-this-package"></a>
 ## Use this package
 
+Desktop metadata and native open/reveal requests preserve the absolute `globalThis.__DSH_APP_BASE__` set before browser boot, including bases without a trailing slash. Without it, requests retain their root-relative URLs. File-action state remains keyed by Session coordinates.
+
 Mount this plugin alongside `ui-conversation`; a finished turn then ends with the produced-files row between the closing message's body and its action footer. Each chip opens the file through the owner's `openFile`, which the chat view routes to the right Sidebar as a text-preview tab, with relative paths resolved against the session cwd. The row offers no folder action: the Sidebar has no directory form, so an omitted-file remainder is a label only.
 
 <a id="explicit-deliveries"></a>

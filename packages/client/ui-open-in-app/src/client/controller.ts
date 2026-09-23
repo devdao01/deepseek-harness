@@ -2,16 +2,20 @@
 
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import {
-  OPEN_IN_APP_APPS_ROUTE, OPEN_IN_APP_OPEN_ROUTE,
+  OPEN_IN_APP_APPS_ROUTE, OPEN_IN_APP_OPEN_ROUTE, OPEN_IN_APP_ICON_PREFIX,
   type OpenInAppAppsPayload, type OpenInAppOpenPayload,
 } from '@deepseek-ai/dsh-host-open-in-app/shared'
 
 type Fetch = (input: string | URL, init?: RequestInit) => Promise<Response>
 
-/** Resolve the browser's Host base with the connection carrier's null-origin fallback. */
-function hostBase(): string {
+/** Resolve browser requests against the optional app base, retaining the null-origin fallback. */
+function resolveUrl(path: string): URL {
+  const appBase = (globalThis as { __DSH_APP_BASE__?: string }).__DSH_APP_BASE__
+  if (appBase !== undefined) {
+    return new URL(path.replace(/^\//, ''), appBase.endsWith('/') ? appBase : `${appBase}/`)
+  }
   const origin = (globalThis as { location?: { origin?: string } }).location?.origin
-  return origin !== undefined && origin !== 'null' ? origin : 'http://dsh.internal'
+  return new URL(path, origin !== undefined && origin !== 'null' ? origin : 'http://dsh.internal')
 }
 
 /**
@@ -60,7 +64,7 @@ export class OpenInAppController {
    */
   async launch(appId: string, path: string): Promise<void> {
     const body: OpenInAppOpenPayload = { app: appId, path }
-    const response = await this.fetcher(new URL(OPEN_IN_APP_OPEN_ROUTE, hostBase()), {
+    const response = await this.fetcher(resolveUrl(OPEN_IN_APP_OPEN_ROUTE), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
@@ -68,10 +72,19 @@ export class OpenInAppController {
     if (!response.ok) throw new Error(`open failed: HTTP ${String(response.status)}`)
   }
 
+  /**
+   * Address one application's icon under the same app base as its launch request.
+   * @param appId - catalog id from the availability list.
+   * @returns absolute icon URL.
+   */
+  iconUrl(appId: string): string {
+    return resolveUrl(`${OPEN_IN_APP_ICON_PREFIX}/${appId}`).href
+  }
+
   private async run(): Promise<void> {
     let apps: readonly string[] = []
     try {
-      const response = await this.fetcher(new URL(OPEN_IN_APP_APPS_ROUTE, hostBase()), {
+      const response = await this.fetcher(resolveUrl(OPEN_IN_APP_APPS_ROUTE), {
         headers: { accept: 'application/json' },
       })
       if (response.ok) {

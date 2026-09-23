@@ -25,6 +25,8 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
+应用发现、启动请求和图标 URL 保留浏览器启动前设置的绝对地址 `globalThis.__DSH_APP_BASE__`，也支持没有末尾斜杠的基地址。未设置时，URL 使用页面源；页面源不可用或为 `null` 时使用 `http://dsh.internal`。
+
 把本插件与 [`dsh-host-open-in-app`](../../host/open-in-app/README.zh.md) 并排挂进 Web 组合；这对包用两行 cordis.yml 组成完整功能，本行不接受任何 config。只要主机探测到至少一个已安装的目录应用且会话有已知的 workspace 目录，会话头部就会出现 "Open In..." 分体按钮。
 
 ### 预期行为

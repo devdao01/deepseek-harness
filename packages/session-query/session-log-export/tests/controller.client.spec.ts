@@ -13,28 +13,33 @@ afterEach(() => {
 })
 
 describe('SessionLogDownloadController', () => {
-  it('downloads the host ZIP and publishes one shared success state', async () => {
-    const fetcher = vi.fn(async () => new Response('zip', { status: 200 }))
-    const save = vi.fn()
-    const controller = new SessionLogDownloadController(fetcher, save)
+  it.each([undefined, 'https://harness.test/', 'https://harness.test/mtilai2/', 'https://harness.test/mtilai2'])(
+    'downloads the host ZIP under app base %s and publishes success', async (appBase) => {
+      vi.stubGlobal('__DSH_APP_BASE__', appBase)
+      vi.stubGlobal('location', { origin: 'https://harness.test' })
+      const fetcher = vi.fn(async () => new Response('zip', { status: 200 }))
+      const save = vi.fn()
+      const controller = new SessionLogDownloadController(fetcher, save)
 
-    await controller.download(SID)
+      await controller.download(SID)
 
-    expect(fetcher).toHaveBeenCalledOnce()
-    const [url, init] = fetcher.mock.calls[0] as unknown as [URL, RequestInit]
-    expect(url.pathname).toBe('/api/session.export')
-    expect(url.searchParams.get('sessionId')).toBe(SID)
-    expect(url.searchParams.get('includeDescendants')).toBe('true')
-    expect(init.method).toBe('HEAD')
-    expect(init.signal).toBeInstanceOf(AbortSignal)
-    expect(save).toHaveBeenCalledWith(
-      url.toString(),
-      'dsh-session-session-export-controller.zip',
-    )
-    expect(controller.store.getSnapshot().bySession[SID]).toEqual({
-      open: true, status: 'success', error: null,
-    })
-  })
+      expect(fetcher).toHaveBeenCalledOnce()
+      const [url, init] = fetcher.mock.calls[0] as unknown as [URL, RequestInit]
+      expect(url.origin).toBe('https://harness.test')
+      expect(url.pathname).toBe(`${appBase?.includes('/mtilai2') ? '/mtilai2' : ''}/api/session.export`)
+      expect(url.searchParams.get('sessionId')).toBe(SID)
+      expect(url.searchParams.get('includeDescendants')).toBe('true')
+      expect(init.method).toBe('HEAD')
+      expect(init.signal).toBeInstanceOf(AbortSignal)
+      expect(save).toHaveBeenCalledWith(
+        url.toString(),
+        'dsh-session-session-export-controller.zip',
+      )
+      expect(controller.store.getSnapshot().bySession[SID]).toEqual({
+        open: true, status: 'success', error: null,
+      })
+    },
+  )
 
   it('collapses concurrent gestures and preserves a dismissed dialog', async () => {
     const response = Promise.withResolvers<Response>()

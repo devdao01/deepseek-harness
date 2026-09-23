@@ -44,10 +44,14 @@ export function downloadUrl(url: string, filename: string): void {
   anchor.click()
 }
 
-/** Resolve the browser's Host base with the connection carrier's null-origin fallback. */
-function hostBase(): string {
+/** Resolve browser requests against the optional app base, retaining the null-origin fallback. */
+function resolveUrl(path: string): URL {
+  const appBase = (globalThis as { __DSH_APP_BASE__?: string }).__DSH_APP_BASE__
+  if (appBase !== undefined) {
+    return new URL(path.replace(/^\//, ''), appBase.endsWith('/') ? appBase : `${appBase}/`)
+  }
   const origin = (globalThis as { location?: { origin?: string } }).location?.origin
-  return origin !== undefined && origin !== 'null' ? origin : 'http://dsh.internal'
+  return new URL(path, origin !== undefined && origin !== 'null' ? origin : 'http://dsh.internal')
 }
 
 function messageOf(error: unknown): string {
@@ -112,7 +116,7 @@ export class SessionLogDownloadController {
   private async run(sessionId: SessionId, signal: AbortSignal): Promise<void> {
     this.publish(sessionId, { open: true, status: 'downloading', error: null })
     try {
-      const url = new URL('/api/session.export', hostBase())
+      const url = resolveUrl('/api/session.export')
       url.searchParams.set('sessionId', sessionId)
       url.searchParams.set('includeDescendants', 'true')
       const response = await this.fetcher(url, { method: 'HEAD', signal })

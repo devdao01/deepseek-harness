@@ -25,6 +25,8 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
+桌面元数据和原生打开／显示文件请求保留浏览器启动前设置的绝对地址 `globalThis.__DSH_APP_BASE__`，也支持没有末尾斜杠的基地址。未设置时，请求仍使用相对于域名根目录的 URL。文件操作状态仍以会话坐标为键。
+
 与 `ui-conversation` 一起挂载本插件；已完成轮次随即以产出文件行收尾，位于收尾消息正文与其动作页脚之间。每个标签项经属主的 `openFile` 打开文件——chat 视图把它路由到右侧 Sidebar 作为一个文本预览 tab——相对路径按会话 cwd 解析。该行不提供文件夹动作：Sidebar 没有目录形态，因此省略文件的余数只是一个标签才会打开会话工作区。
 
 <a id="explicit-deliveries"></a>

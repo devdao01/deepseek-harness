@@ -161,3 +161,27 @@ it.each(['open', 'reveal'] as const)('reports an unavailable Host path for %s wh
   expect(controller.state.getSnapshot()[url]).toBe('nativeUnavailable')
   await controller.dispose()
 })
+
+it.each([undefined, 'https://harness.test/', 'https://harness.test/mtilai2/', 'https://harness.test/mtilai2'])(
+  'keeps Host metadata, open and reveal under app base %s', async (appBase) => {
+    vi.stubGlobal('__DSH_APP_BASE__', appBase)
+    const host = { name: 'host', available: true, fileManager: 'finder' }
+    const fetcher = vi.fn().mockResolvedValueOnce(Response.json(host))
+      .mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetcher)
+    const controller = new PresentedOpenController()
+    try {
+      await controller.loadHost()
+      await controller.open(id, 2, 1)
+      await controller.open(id, 2, 1, 'reveal')
+      const prefix = appBase === undefined ? '' : `https://harness.test${appBase.includes('/mtilai2') ? '/mtilai2' : ''}`
+      expect(fetcher.mock.calls.map((call): unknown => call[0])).toEqual([
+        `${prefix}/api/present.host`, `${prefix}${url}`, `${prefix}${url}&action=reveal`,
+      ])
+      expect(controller.host.getSnapshot()).toEqual(host)
+      expect(controller.state.getSnapshot()[url]).toBe('revealed')
+    } finally {
+      await controller.dispose()
+    }
+  },
+)

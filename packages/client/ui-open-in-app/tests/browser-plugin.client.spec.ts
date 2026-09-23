@@ -54,37 +54,44 @@ describe('open-in-app browser half', () => {
     expect(headerEntryIds(ctx)).not.toContain('open-in-app')
   })
 
-  it('injects the controller face: availability sources, launch carrier, choice, and icon URLs', async () => {
-    const fetcher = vi.fn(async (input: string | URL, init?: RequestInit) => {
-      void init
-      const url = String(input)
-      if (url.includes('/open-in-app/apps')) {
-        return new Response(JSON.stringify({ apps: ['finder', 'cursor', 7] }), { status: 200 })
-      }
-      return new Response(JSON.stringify({ ok: true }), { status: 200 })
-    })
-    vi.stubGlobal('fetch', fetcher)
-    const { ctx, fiber } = await bench()
-    const entry = ctx.slots.entries('conversation.session.header.utilities')[0]
-    const injected = (entry?.inject as unknown as () => OpenInAppActionInjected)()
+  it.each([undefined, 'https://harness.test/', 'https://harness.test/mtilai2/', 'https://harness.test/mtilai2'])(
+    'injects availability, launch, choice and icon URLs under app base %s', async (appBase) => {
+      vi.stubGlobal('__DSH_APP_BASE__', appBase)
+      vi.stubGlobal('location', { origin: 'https://harness.test' })
+      const prefix = `https://harness.test${appBase?.includes('/mtilai2') ? '/mtilai2' : ''}`
+      const fetcher = vi.fn(async (input: string | URL, init?: RequestInit) => {
+        void init
+        const url = String(input)
+        if (url.includes('/open-in-app/apps')) {
+          return new Response(JSON.stringify({ apps: ['finder', 'cursor', 7] }), { status: 200 })
+        }
+        return new Response(JSON.stringify({ ok: true }), { status: 200 })
+      })
+      vi.stubGlobal('fetch', fetcher)
+      const { ctx, fiber } = await bench()
+      const entry = ctx.slots.entries('conversation.session.header.utilities')[0]
+      const injected = (entry?.inject as unknown as () => OpenInAppActionInjected)()
 
-    await vi.waitFor(() => {
-      expect(injected.hooks.openInAppApps.getSnapshot()).toEqual(['finder', 'cursor'])
-    })
-    expect(injected.iconUrl('cursor')).toBe('/open-in-app/icon/cursor')
+      await vi.waitFor(() => {
+        expect(injected.hooks.openInAppApps.getSnapshot()).toEqual(['finder', 'cursor'])
+      })
+      expect(String(fetcher.mock.calls[0]?.[0])).toBe(`${prefix}/open-in-app/apps`)
+      expect(injected.iconUrl('cursor')).toBe(`${prefix}/open-in-app/icon/cursor`)
 
-    injected.choose('cursor')
-    expect(injected.hooks.openInAppChoice.getSnapshot()).toBe('cursor')
+      injected.choose('cursor')
+      expect(injected.hooks.openInAppChoice.getSnapshot()).toBe('cursor')
 
-    await injected.launch('cursor', '/w/dir')
-    const openCall = fetcher.mock.calls.find(call => String(call[0]).includes('/open-in-app/open'))
-    expect(openCall?.[1]).toMatchObject({
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ app: 'cursor', path: '/w/dir' }),
-    })
-    await fiber.dispose()
-  })
+      await injected.launch('cursor', '/w/dir')
+      const openCall = fetcher.mock.calls.find(call => String(call[0]).includes('/open-in-app/open'))
+      expect(String(openCall?.[0])).toBe(`${prefix}/open-in-app/open`)
+      expect(openCall?.[1]).toMatchObject({
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ app: 'cursor', path: '/w/dir' }),
+      })
+      await fiber.dispose()
+    },
+  )
 
   it('publishes an empty availability list when the host read fails, and launches reject on HTTP errors', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL) => {
