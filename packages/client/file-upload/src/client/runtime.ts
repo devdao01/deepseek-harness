@@ -302,7 +302,12 @@ function workerTransport(): FileUploadTransport {
   }
 }
 
+/** Resolve upload paths against the same optional app base as Connection RPC. */
 function resolveUrl(path: string): URL {
+  const appBase = (globalThis as { __DSH_APP_BASE__?: string }).__DSH_APP_BASE__
+  if (appBase !== undefined) {
+    return new URL(path.replace(/^\//, ''), appBase.endsWith('/') ? appBase : `${appBase}/`)
+  }
   const pageLocation = Reflect.get(globalThis, 'location') as unknown
   const origin = typeof pageLocation === 'object' && pageLocation !== null
     && 'origin' in pageLocation && typeof pageLocation.origin === 'string'

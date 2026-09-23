@@ -34,6 +34,8 @@ kind: "package-reference"
 
 本包没有 Cordis 配置字段。`Blob` 在专用 Worker 内通过 XMLHttpRequest 发送，因此服务可以报告浏览器上传进度，并在浏览器提供总量时一并报告。`ReadableStream` 会转移给该 Worker，再增量传入 Fetch；进度只报告已消费字节，不包含总量。`AbortSignal` 会终止专用 Worker，或传递给页面自己提供的载体。精确字节与 fixture Blob 输入使用生成的 Remote。
 
+原始上传 URL 使用子路径前端在启动前设置的绝对地址 `globalThis.__DSH_APP_BASE__`，与 Connection RPC 保持一致。例如，`https://example.test/mtilai2/` 会将上传发送到 `/mtilai2/api/session/uploadFileBinary`；未设置应用基地址时，上传使用页面源地址。专用 Worker 和页面提供的 Fetch 载体都会保留此前缀。
+
 -----
 
 <a id="understand-the-implementation"></a>

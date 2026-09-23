@@ -26,6 +26,7 @@ New methods/blocks appended to files upstream also evolves; git usually auto-mer
 | Fixed launch token | `packages/client/connection/src/{index,browser-auth}.ts` | `launchToken` config pinning the `/?token=` URL across restarts | `b34fbfa7` |
 | Authorization mount | `packages/bundle/base/cordis.patch.yml` + `package.json` | Mounts `@deepseek-ai/dsh-authorization` beside the credential store so pi-ai login flows register | `aaa46b52` |
 | Boot payload for the SPA | `packages/bundle/web-app/src/index.ts`, `packages/client/{hmr,modules,connection}` client halves | `GET /api/boot.payload` index-injection table; transports resolve against optional `__DSH_APP_BASE__` | `4dca74e4`, `f3f18c06` |
+| File upload under the SPA base | `packages/client/file-upload/src/client/runtime.ts` | Raw upload URLs use `__DSH_APP_BASE__` like Connection RPC, including bases with or without a trailing slash. Preserve this on upstream merges so `/mtilai2/api/session/uploadFileBinary` reaches the harness. Worker and page-owned Fetch regressions live in `tests/file-upload.client.spec.ts` | — |
 
 ## Group 3 — real conflicts (behavioral edits to upstream code); resolve by hand first
 

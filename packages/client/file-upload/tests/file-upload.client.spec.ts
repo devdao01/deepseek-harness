@@ -273,44 +273,46 @@ describe('file upload service', () => {
     await fiber.dispose()
   })
 
-  it('forwards progress and completion from a dedicated Worker and then terminates it', async () => {
-    const created = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:worker')
-    const revoked = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
-    class FakeWorker {
-      static last: FakeWorker | undefined
-      onmessage: ((event: MessageEvent) => void) | null = null
-      onerror: ((event: ErrorEvent) => void) | null = null
-      readonly postMessage = vi.fn()
-      readonly terminate = vi.fn()
-      constructor(readonly url: string, readonly options: WorkerOptions) { FakeWorker.last = this }
-    }
-    vi.stubGlobal('Worker', FakeWorker)
-    vi.stubGlobal('location', { origin: 'https://harness.test' })
-    const ctx = new Context()
-    const fiber = ctx.plugin(FileUploadRuntime)
-    await fiber
-    const progress = vi.fn()
-    const blob = new Blob(['bytes'])
-    const pending = (ctx.fileUpload as FileUploadRuntime).post({ path: '/api/upload', body: blob, onProgress: progress })
-    const worker = FakeWorker.last
-    if (worker === undefined) throw new Error('worker missing')
-    expect(created).toHaveBeenCalledOnce()
-    expect(revoked).toHaveBeenCalledWith('blob:worker')
-    expect(worker.postMessage).toHaveBeenCalledWith({
-      url: 'https://harness.test/api/upload', body: blob, headers: {},
+  it.each([undefined, 'https://harness.test/', 'https://harness.test/mtilai2/', 'https://harness.test/mtilai2'])(
+    'forwards Worker uploads, progress, and completion with app base %s', async (appBase) => {
+      vi.stubGlobal('__DSH_APP_BASE__', appBase)
+      const created = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:worker')
+      const revoked = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+      class FakeWorker {
+        static last: FakeWorker | undefined
+        onmessage: ((event: MessageEvent) => void) | null = null
+        onerror: ((event: ErrorEvent) => void) | null = null
+        readonly postMessage = vi.fn()
+        readonly terminate = vi.fn()
+        constructor(readonly url: string, readonly options: WorkerOptions) { FakeWorker.last = this }
+      }
+      vi.stubGlobal('Worker', FakeWorker)
+      vi.stubGlobal('location', { origin: 'https://harness.test' })
+      const ctx = new Context()
+      const fiber = ctx.plugin(FileUploadRuntime)
+      await fiber
+      const progress = vi.fn()
+      const blob = new Blob(['bytes'])
+      const pending = (ctx.fileUpload as FileUploadRuntime).post({ path: '/api/upload', body: blob, onProgress: progress })
+      const worker = FakeWorker.last
+      if (worker === undefined) throw new Error('worker missing')
+      expect(created).toHaveBeenCalledOnce()
+      expect(revoked).toHaveBeenCalledWith('blob:worker')
+      expect(worker.postMessage).toHaveBeenCalledWith({
+        url: `https://harness.test${appBase?.includes('/mtilai2') ? '/mtilai2' : ''}/api/upload`, body: blob, headers: {},
+      })
+      worker.onmessage?.({ data: { kind: 'progress', loaded: 4, total: 5 } } as MessageEvent)
+      worker.onmessage?.({ data: { kind: 'progress', loaded: 6 } } as MessageEvent)
+      worker.onmessage?.({ data: { kind: 'complete', status: 200, body: 'done' } } as MessageEvent)
+      worker.onmessage?.({ data: { kind: 'complete', status: 500, body: 'late' } } as MessageEvent)
+      await expect(pending).resolves.toEqual({ status: 200, body: 'done' })
+      expect(progress.mock.calls).toEqual([
+        [{ loaded: 4, total: 5 }],
+        [{ loaded: 6 }],
+      ])
+      expect(worker.terminate).toHaveBeenCalledOnce()
+      await fiber.dispose()
     })
-    worker.onmessage?.({ data: { kind: 'progress', loaded: 4, total: 5 } } as MessageEvent)
-    worker.onmessage?.({ data: { kind: 'progress', loaded: 6 } } as MessageEvent)
-    worker.onmessage?.({ data: { kind: 'complete', status: 200, body: 'done' } } as MessageEvent)
-    worker.onmessage?.({ data: { kind: 'complete', status: 500, body: 'late' } } as MessageEvent)
-    await expect(pending).resolves.toEqual({ status: 200, body: 'done' })
-    expect(progress.mock.calls).toEqual([
-      [{ loaded: 4, total: 5 }],
-      [{ loaded: 6 }],
-    ])
-    expect(worker.terminate).toHaveBeenCalledOnce()
-    await fiber.dispose()
-  })
 
   it('transfers stream ownership to the dedicated Worker', async () => {
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:worker')
@@ -400,43 +402,45 @@ describe('Session-addressed file upload', () => {
     return { ctx, fiber, remote, service: ctx.fileUpload }
   }
 
-  it('assembles the scoped streaming request and parses progress and receipt fields', async () => {
-    vi.stubGlobal('location', { origin: 'https://preview.test' })
-    const progress = vi.fn()
-    const fetch = vi.fn((_url: URL, init: RequestInit) => {
-      expect(init.body).toBeInstanceOf(Blob)
-      progress({ loaded: 2, total: 4 })
-      return Promise.resolve(new Response(JSON.stringify({
+  it.each([undefined, 'https://preview.test/', 'https://preview.test/mtilai2/', 'https://preview.test/mtilai2'])(
+    'assembles the scoped upload and receipt with app base %s', async (appBase) => {
+      vi.stubGlobal('__DSH_APP_BASE__', appBase)
+      vi.stubGlobal('location', { origin: 'https://preview.test' })
+      const progress = vi.fn()
+      const fetch = vi.fn((_url: URL, init: RequestInit) => {
+        expect(init.body).toBeInstanceOf(Blob)
+        progress({ loaded: 2, total: 4 })
+        return Promise.resolve(new Response(JSON.stringify({
+          ok: true,
+          value: {
+            receiptId: 'receipt-1',
+            file: { attachmentId: 'file-1', name: 'notes & refs.pdf', bytes: 4 },
+          },
+        }), { status: 200 }))
+      })
+      ;(globalThis as UploadGlobal).__DSH_FILE_UPLOAD__ = { fetch }
+      const { fiber, service } = await scopedService()
+      const signal = new AbortController().signal
+      const file = new Blob(['data'])
+
+      await expect(service.upload(SESSION_ID, file, 'notes & refs.pdf', signal, progress)).resolves.toEqual({
         ok: true,
         value: {
           receiptId: 'receipt-1',
           file: { attachmentId: 'file-1', name: 'notes & refs.pdf', bytes: 4 },
         },
-      }), { status: 200 }))
+      })
+      expect(fetch).toHaveBeenCalledWith(
+        new URL(`https://preview.test${appBase?.includes('/mtilai2') ? '/mtilai2' : ''}/api/session/uploadFileBinary?sessionId=s1&name=notes+%26+refs.pdf`),
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'content-type': 'application/octet-stream' },
+          body: file,
+          signal,
+        }),
+      )
+      await fiber.dispose()
     })
-    ;(globalThis as UploadGlobal).__DSH_FILE_UPLOAD__ = { fetch }
-    const { fiber, service } = await scopedService()
-    const signal = new AbortController().signal
-    const file = new Blob(['data'])
-
-    await expect(service.upload(SESSION_ID, file, 'notes & refs.pdf', signal, progress)).resolves.toEqual({
-      ok: true,
-      value: {
-        receiptId: 'receipt-1',
-        file: { attachmentId: 'file-1', name: 'notes & refs.pdf', bytes: 4 },
-      },
-    })
-    expect(fetch).toHaveBeenCalledWith(
-      new URL('https://preview.test/api/session/uploadFileBinary?sessionId=s1&name=notes+%26+refs.pdf'),
-      expect.objectContaining({
-        method: 'POST',
-        headers: { 'content-type': 'application/octet-stream' },
-        body: file,
-        signal,
-      }),
-    )
-    await fiber.dispose()
-  })
 
   it('uses the direct Remote fallback for exact bytes and fixture Blob bodies', async () => {
     vi.stubGlobal('location', { origin: 'https://fixture.test', search: '?fixture' })
