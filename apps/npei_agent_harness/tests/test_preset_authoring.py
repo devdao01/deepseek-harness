@@ -2,7 +2,7 @@
 """Preset authoring against the real harness wire.
 
 The harness client is mocked, so these assert the slug rule and the exact
-endpoints/args Odoo sends: ``agentPresets/copy {from, id, name}`` on authoring,
+endpoints/args MTIL sends: ``agentPresets/copy {from, id, name}`` on authoring,
 ``agentPresets/deletePreset {id}`` on user-preset unlink, and the
 ``agentPresets/list`` mirror sync.
 """
@@ -128,6 +128,7 @@ class TestPresetAuthoring(TransactionCase):
         self.assertEqual(odoo['db'], self.env.cr.dbname)
         self.assertEqual(odoo['user'], 'ai-ketoan')
         self.assertEqual(odoo['apiKey'], 'k')
+        self.assertEqual(odoo['toolPrefix'], 'mtil')
         self.assertTrue(odoo['allowWrite'])
         self.assertEqual(odoo['allowedModels'], ['res.partner', 'account.move'])
         # Toggling the connection off re-authors without the block.

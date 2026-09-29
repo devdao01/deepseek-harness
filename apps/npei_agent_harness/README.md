@@ -1,8 +1,8 @@
-# NPEI Agent Harness (Odoo 17)
+# MTIL Harness
 
-Odoo module that makes **Odoo the single gateway** between the browser SPA and
-the DeepSeek Harness backend. The SPA (served at `/mtilai`) only ever calls
-Odoo; Odoo authenticates to the harness server-side (the launch token printed
+MTIL module that makes **MTIL the single gateway** between the browser SPA and
+the MTIL Harness backend. The SPA (served at `/mtilai`) only ever calls
+MTIL; MTIL authenticates to the harness server-side (the launch token printed
 by `dsh web` is exchanged for the signed `dsh-auth-*` cookie — the harness has
 no Bearer auth) and proxies the call. **The token never reaches the browser.**
 
@@ -12,9 +12,9 @@ Wire notes (verified against the running harness): unary RPC is
 the args field names are the host method's parameter names (`session/list`
 takes `{"_request": {}}`). The launch token changes on every harness restart —
 update it under Settings → MTIL Agent afterwards — and the harness must trust
-the Odoo-facing domain (`--trusted-host`).
+the MTIL-facing domain (`--trusted-host`).
 
-This is the *"Odoo module first"* phase. The frontend gate (loading/denied
+This is the *"MTIL module first"* phase. The frontend gate (loading/denied
 screens driven by `get_config`) and the realtime event proxy are later phases.
 
 > **Module layout / naming.** This module *is* the `npei_agent_harness`
@@ -23,7 +23,7 @@ screens driven by `get_config`) and the realtime event proxy are later phases.
 > parent `apps/` directory:
 >
 > ```ini
-> ; odoo.conf
+> ; MTIL.conf
 > addons_path = /path/to/deepseek-harness-fork/apps,/path/to/odoo/addons
 > ```
 >
@@ -31,9 +31,9 @@ screens driven by `get_config`) and the realtime event proxy are later phases.
 
 ## Install
 
-1. Add the parent `apps/` directory to Odoo's `addons_path` (see above).
+1. Add the parent `apps/` directory to MTIL's `addons_path` (see above).
 2. Update the apps list and install **NPEI Agent Harness**. Requires only
-   `base` and `web`. Python dependency: `requests` (bundled with Odoo).
+   `base` and `web`. Python dependency: `requests` (bundled with MTIL).
 3. Assign users to **NPEI Agent User** (may use their own sessions) or
    **NPEI Agent Manager** (full CRUD + harness sync) under `Settings → Users`.
 
@@ -52,14 +52,14 @@ If either value is unset, every proxy call fails loud with **HTTP 502**
 
 > The harness trust fence lets a request carrying a valid
 > `Authorization: Bearer <token>` **and no browser marker** through from
-> anywhere. Odoo's server-side `requests` calls have no `Origin`/`sec-fetch-*`
+> anywhere. MTIL's server-side `requests` calls have no `Origin`/`sec-fetch-*`
 > markers, so the token alone authenticates them.
 
 ---
 
 ## Deployment topology (same-origin)
 
-Both Odoo and the SPA are served from `mtil.mtil.vn`, so the Odoo session cookie
+Both MTIL and the SPA are served from `mtil.mtil.vn`, so the MTIL session cookie
 is sent automatically and **no CORS is needed** (and none is emitted). The
 harness gateway is reachable only server-side.
 
@@ -67,7 +67,7 @@ harness gateway is reachable only server-side.
 server {
     server_name mtil.mtil.vn;
 
-    # Odoo web client + backend.
+    # MTIL web client + backend.
     location /web/ {
         proxy_pass http://127.0.0.1:8069;
         proxy_set_header Host $host;

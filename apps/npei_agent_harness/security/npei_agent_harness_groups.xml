@@ -2,7 +2,7 @@
 <odoo>
     <record id="module_category_npei_agent" model="ir.module.category">
         <field name="name">Manage Agent</field>
-        <field name="description">DeepSeek Harness gateway and session ACL</field>
+        <field name="description">MTIL Harness gateway and session ACL</field>
         <field name="sequence">20</field>
     </record>
 

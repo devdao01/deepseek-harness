@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """Skill mirror.
 
-Odoo-side catalog of the skills the harness serves. The management surface the
+MTIL-side catalog of the skills the harness serves. The management surface the
 harness exposes is **read-only**: ``skills/list`` is Session-addressed and
 returns each skill's ``name``, ``description``, and ``modelInvocable`` flag —
 there is no skill read/write/remove endpoint, so skill files are authored on
-the harness host (workspace ``.agents/skills/`` directories), not from Odoo.
+the harness host (workspace ``.agents/skills/`` directories), not from MTIL.
 
 :meth:`action_sync_from_harness` borrows the most recently updated mapped
 session to address the catalog and upserts one mirror row per skill.
@@ -24,7 +24,7 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 class NpeiAgentSkill(models.Model):
     _name = 'npei.agent.skill'
     _inherit = ['mail.thread', 'mail.activity.mixin']
-    _description = 'DeepSeek Harness Skill'
+    _description = 'MTIL Harness Skill'
     _order = 'seq, name'
 
     skill_key = fields.Char(
@@ -76,7 +76,7 @@ class NpeiAgentSkill(models.Model):
             limit=1)
         if not record:
             raise UserError(_(
-                "No harness session is mapped in Odoo yet. Run Sessions > "
+                "No harness session is mapped in MTIL yet. Run Sessions > "
                 "Sync from Harness first — the skill catalog is read through "
                 "a session."))
         return record.session_id

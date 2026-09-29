@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Harness settings namespaces: mirror + whole-section replace.
 
-Odoo-side management surface for the harness settings document, one record per
+MTIL-side management surface for the harness settings document, one record per
 namespace. :meth:`action_sync_from_harness` mirrors each namespace from
 ``settings/describe`` (redacted resolved value + raw user section + revision);
 :meth:`action_save` pushes an edited user section back with ``settings/replace``
@@ -23,7 +23,7 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 class NpeiAgentSetting(models.Model):
     _name = 'npei.agent.setting'
     _inherit = ['mail.thread', 'mail.activity.mixin']
-    _description = 'DeepSeek Harness Settings Namespace'
+    _description = 'MTIL Harness Settings Namespace'
     _order = 'seq, ns'
 
     ns = fields.Char(

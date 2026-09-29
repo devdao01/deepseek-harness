@@ -2,10 +2,10 @@
 
 Run from the repository root:  python3 apps/npei_agent_harness/tools/regenerate_i18n.py
 
-Every PO entry needs `#:` reference lines — Odoo's PoFileReader iterates an
+Every PO entry needs `#:` reference lines — MTIL's PoFileReader iterates an
 entry's occurrences and yields nothing for an entry that has none, so a
 reference-less file imports as zero translations. This scans the module the
-way Odoo's own export does and emits one entry per translatable source term:
+way MTIL's own export does and emits one entry per translatable source term:
 
 * fields (`string=` / `help=` / Selection values) and `_description`
 * `_sql_constraints` messages
@@ -212,6 +212,12 @@ for dirpath, _dirs, files in os.walk(ROOT):
                 }.get(model or '')
                 if target and name:
                     add(name, f'model:{target},name:{MOD}.{xmlid}')
+                if model == 'ir.actions.act_window':
+                    help_field = record.find("./field[@name='help']")
+                    if help_field is not None:
+                        for el in help_field.iter():
+                            if el.tag in ('p', 'div', 'span') and (el.text or '').strip():
+                                add(el.text.strip(), f'model_terms:ir.actions.act_window,help:{MOD}.{xmlid}')
                 if model == 'res.groups':
                     comment = record.find("./field[@name='comment']")
                     if comment is not None and (comment.text or '').strip():
@@ -245,13 +251,13 @@ def po_string(text):
         return '\n'.join(lines)
     return f'"{esc(text)}"'
 
-header = '''# Translation of Odoo Server.
+header = '''# Translation of MTIL Server.
 # This file contains the translation of the following modules:
 # \t* npei_agent_harness
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 17.0\\n"
+"Project-Id-Version: MTIL Server 17.0\\n"
 "Report-Msgid-Bugs-To: \\n"
 "POT-Creation-Date: 2026-09-04 00:00+0000\\n"
 "PO-Revision-Date: 2026-09-04 00:00+0000\\n"

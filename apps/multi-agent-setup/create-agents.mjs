@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Tạo 5 workspace + 5 session (router + 4 phòng ban) qua API local của
- * DeepSeek Harness GUI. Mỗi session gắn đúng preset + workspace riêng:
+ * MTIL Harness GUI. Mỗi session gắn đúng preset + workspace riêng:
  *   ~/workspace/<preset name>
  *
  * Chạy: node create-agents.mjs

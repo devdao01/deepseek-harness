@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# Cài đặt multi-agent setup cho DeepSeek Harness ($DSH_HOME, mặc định ~/.dsh).
+# Cài đặt multi-agent setup cho MTIL Harness ($DSH_HOME, mặc định ~/.dsh).
 #
 # Cài đặt:
 #   1. 5 preset agent  → $DSH_HOME/.agent-presets/
@@ -29,7 +29,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_PRESET="$SCRIPT_DIR/presets/business-router"
 SRC_SKILLS="$SCRIPT_DIR/skills"
 
-echo "→ DeepSeek Harness home: $DSH_HOME"
+echo "→ MTIL Harness home: $DSH_HOME"
 
 # 1) Preset business-router
 if [ -d "$PRESET_DIR" ]; then

@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Provider sign-in wizard (e.g. ChatGPT OAuth) driven from Odoo.
+"""Provider sign-in wizard (e.g. ChatGPT OAuth) driven from MTIL.
 
 Bridges the harness ``settings/*Authorization`` endpoints into a
 button-driven form: Start opens an attempt and shows the sign-in URL; the
 user opens it, signs in on the provider's site, copies the authorization
 code (or the success redirect URL), pastes it here, and Submits. Refresh
 polls the running attempt. The grant is committed inside the harness — no
-secret is stored in Odoo.
+secret is stored in MTIL.
 """
 import logging
 import time
@@ -21,7 +21,7 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 
 class NpeiAuthorizeProvider(models.TransientModel):
     _name = 'npei.authorize.provider'
-    _description = 'DeepSeek Harness Provider Sign-in'
+    _description = 'MTIL Harness Provider Sign-in'
 
     flow_key = fields.Selection(
         selection='_flow_selection', string='Provider', required=True,
@@ -43,7 +43,7 @@ class NpeiAuthorizeProvider(models.TransientModel):
         string='Options', readonly=True,
         help="Choices of the pending select prompt (e.g. Browser vs Device "
              "code); picking one answers the flow immediately. Device code "
-             "suits Odoo: open the URL, enter the code — no localhost "
+             "suits MTIL: open the URL, enter the code — no localhost "
              "callback needed.",
     )
     answer = fields.Char(
@@ -318,7 +318,7 @@ class NpeiAuthorizeProviderOption(models.TransientModel):
     """One choice of the wizard's pending select prompt."""
 
     _name = 'npei.authorize.provider.option'
-    _description = 'DeepSeek Harness Sign-in Choice'
+    _description = 'MTIL Harness Sign-in Choice'
 
     wizard_ref = fields.Many2one(
         'npei.authorize.provider', required=True, ondelete='cascade')

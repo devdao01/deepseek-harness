@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """LLM provider mirror.
 
-Odoo-side catalog of harness LLM providers, synced from ``llm/listConfigurableProviders``. The
+MTIL-side catalog of harness LLM providers, synced from ``llm/listConfigurableProviders``. The
 harness stays the source of truth for provider routing; this mirror is a
-read-only management surface plus Odoo archiving.
+read-only management surface plus MTIL archiving.
 
 The harness ``active`` flag (whether the route is live) is stored as
-:attr:`route_active` so it does not clash with Odoo's own ``active`` archive
+:attr:`route_active` so it does not clash with MTIL's own ``active`` archive
 field.
 """
 import uuid
@@ -20,7 +20,7 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 class NpeiAgentProvider(models.Model):
     _name = 'npei.agent.provider'
     _inherit = ['mail.thread', 'mail.activity.mixin']
-    _description = 'DeepSeek Harness LLM Provider'
+    _description = 'MTIL Harness LLM Provider'
     _order = 'seq, provider'
 
     provider = fields.Char(

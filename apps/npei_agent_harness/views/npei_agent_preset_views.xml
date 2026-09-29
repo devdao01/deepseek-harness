@@ -67,7 +67,7 @@
                             <field name="persona" nolabel="1" readonly="is_locked"
                                placeholder="Vai trò, nhiệm vụ, skill sở hữu của agent này — sinh lại composition trên harness mỗi lần lưu"/>
                         </page>
-                        <page string="Odoo Connection" invisible="kind == 'copy'">
+                        <page string="MTIL Connection" invisible="kind == 'copy'">
                             <group>
                                 <group>
                                     <field name="odoo_enable" readonly="is_locked"/>

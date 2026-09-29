@@ -51,7 +51,7 @@ ROUTE_KEY_PATTERN = re.compile(r'^[a-z0-9][a-z0-9-]*$')
 
 class NpeiProviderRoute(models.TransientModel):
     _name = 'npei.agent.provider.route'
-    _description = 'DeepSeek Harness Add Provider Route'
+    _description = 'MTIL Harness Add Provider Route'
 
     settings_ns = fields.Char(
         string='Settings Namespace',
@@ -83,7 +83,7 @@ class NpeiProviderRoute(models.TransientModel):
         default='openai-completions',
         help="Endpoint wire format (sent as the profile `api` key). OpenRouter "
              "and most gateways speak openai-completions. Named api_protocol so "
-             "it does not shadow the odoo `api` module.",
+             "it does not shadow the MTIL `api` module.",
     )
     base_url = fields.Char(
         string='Base URL',
@@ -98,7 +98,7 @@ class NpeiProviderRoute(models.TransientModel):
     api_key = fields.Char(
         string='API Key',
         help="Optional key value pushed to the credential store now "
-             "(credentials.set); never persisted in Odoo.",
+             "(credentials.set); never persisted in MTIL.",
     )
     thinking_format = fields.Selection(
         THINKING_FORMATS,

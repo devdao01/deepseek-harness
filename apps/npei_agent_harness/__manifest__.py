@@ -2,20 +2,20 @@
 {
     'name': 'NPEI Agent Harness',
     'version': '17.0.1.2.0',
-    'summary': 'Odoo gateway and session ACL for the DeepSeek Harness backend',
+    'summary': 'MTIL gateway and session ACL for the MTIL Harness backend',
     'description': """
 NPEI Agent Harness
 ==================
 
-Odoo is the single gateway between the browser SPA and the DeepSeek Harness
-backend. The SPA only ever talks to Odoo; Odoo exchanges the harness launch
+MTIL is the single gateway between the browser SPA and the MTIL Harness
+backend. The SPA only ever talks to MTIL; MTIL exchanges the harness launch
 token for the signed session cookie server-side and proxies the request. The
 token never reaches the browser.
 
 This module provides:
 
 * Harness connection settings (base URL + launch token) via ``res.config.settings``.
-* Odoo-side session ACL (``npei.agent.session``) mapping a harness session id to
+* MTIL-side session ACL (``npei.agent.session``) mapping a harness session id to
   the ``res.users`` allowed to use it.
 * Preset and skill management mirrors with a sync-from-harness action.
 * HTTP proxy controllers for unary RPC and file downloads, enforcing the ACL

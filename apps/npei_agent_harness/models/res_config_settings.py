@@ -19,7 +19,7 @@ class ResConfigSettings(models.TransientModel):
     npei_harness_base_url = fields.Char(
         string='Harness Base URL',
         config_parameter='npei_agent_harness.base_url',
-        help="Base URL of the DeepSeek Harness, e.g. https://harness.internal:8787. "
+        help="Base URL of the MTIL Harness, e.g. https://harness.internal:8787. "
              "The gateway appends /api/<method>.",
     )
     npei_harness_api_token = fields.Char(
@@ -32,7 +32,7 @@ class ResConfigSettings(models.TransientModel):
         string='SPA Base Path',
         config_parameter='npei_agent_harness.spa_path',
         default='/mtilai2',
-        help="Path the MTIL chat SPA is served under on THIS Odoo domain "
+        help="Path the MTIL chat SPA is served under on THIS MTIL domain "
              "(nginx mount). The session Open Chat button links to "
              "<this path>/s/<harness session id>. Leave blank to hide that "
              "button.",
@@ -78,7 +78,7 @@ class ResConfigSettings(models.TransientModel):
         included, except the XML-seeded provider route templates.
 
         System-only (``base.group_system``): a destructive maintenance reset of
-        the Odoo-side mirror/ACL/config records. It does NOT touch the harness —
+        the MTIL-side mirror/ACL/config records. It does NOT touch the harness —
         provider-model unlinks run under ``npei_syncing`` so no ``settings/mutate``
         is pushed. The route templates created by
         ``data/provider_route_templates.xml`` are kept (identified by their

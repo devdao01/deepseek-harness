@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Session ACL (Odoo-plane) and harness effects on the real wire.
+"""Session ACL (MTIL-plane) and harness effects on the real wire.
 
 The harness client is mocked; these assert the fail-closed access rule and the
-exact endpoints/args Odoo sends: ``session/create {"request": {...}}`` when a
+exact endpoints/args MTIL sends: ``session/create {"request": {...}}`` when a
 mapping is saved without an id, ``session/rename {"request": {...}}`` on a
 title change, and the ``session/list {"_request": {}}`` mirror sync.
 """

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Harness host status panel.
 
-Manager-only, read-only snapshot of the DeepSeek Harness host, assembled from
+Manager-only, read-only snapshot of the MTIL Harness host, assembled from
 the verified management surface: ``GET /api/boot.payload`` (reachability +
 authentication + the count of boot injection rows), ``settings/describe``
 (the ``agent-default-model`` namespace value), ``session/list`` (session and
@@ -21,7 +21,7 @@ DEFAULT_MODEL_NS = 'agent-default-model'
 
 class NpeiHostStatus(models.TransientModel):
     _name = 'npei.agent.host.status'
-    _description = 'DeepSeek Harness Host Status'
+    _description = 'MTIL Harness Host Status'
 
     reachable = fields.Boolean(
         string='Reachable',

@@ -10,7 +10,7 @@
                     <block title="Harness Connection"
                            name="npei_harness_connection">
                         <setting string="Base URL"
-                                 help="Base URL of the DeepSeek Harness. The gateway appends /api/&lt;method&gt;.">
+                                 help="Base URL of the MTIL Harness. The gateway appends /api/&lt;method&gt;.">
                             <field name="npei_harness_base_url"/>
                         </setting>
                         <setting string="API Token"
@@ -18,7 +18,7 @@
                             <field name="npei_harness_api_token" password="True"/>
                         </setting>
                         <setting string="SPA Base Path"
-                                 help="Path the MTIL chat SPA is served under on this Odoo domain; the session Open Chat button links to &lt;path&gt;/s/&lt;session id&gt;.">
+                                 help="Path the MTIL chat SPA is served under on this MTIL domain; the session Open Chat button links to &lt;path&gt;/s/&lt;session id&gt;.">
                             <field name="npei_harness_spa_path" placeholder="/mtilai2"/>
                         </setting>
                         <setting string="Ticket Secret"
@@ -39,7 +39,7 @@
                                     type="object"
                                     string="Clear Data"
                                     class="btn-danger"
-                                    confirm="This permanently deletes all MTIL Agent data in Odoo (except seeded route templates). The harness is not affected. Continue?"/>
+                                    confirm="This permanently deletes all MTIL Agent data in MTIL (except seeded route templates). The harness is not affected. Continue?"/>
                         </setting>
                     </block>
                 </app>

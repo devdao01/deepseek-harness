@@ -17,7 +17,7 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 
 class NpeiAgentTool(models.Model):
     _name = 'npei.agent.tool'
-    _description = 'DeepSeek Harness Grantable Tool'
+    _description = 'MTIL Harness Grantable Tool'
     _order = 'name'
 
     name = fields.Char(

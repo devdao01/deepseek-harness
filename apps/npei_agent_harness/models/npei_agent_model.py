@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """LLM model catalog mirror.
 
-Odoo-side static catalog of harness LLM models, synced from ``session/modelCatalog``.
+MTIL-side static catalog of harness LLM models, synced from ``session/modelCatalog``.
 Each record is one model within a provider group (``group.id``). The harness
 stays the source of truth; this mirror is a read-only management surface plus
-Odoo archiving. Group resolution ``failures`` reported by the harness are logged
+MTIL archiving. Group resolution ``failures`` reported by the harness are logged
 as a warning rather than raised, so a single broken group does not abort the
 whole sync.
 """
@@ -22,7 +22,7 @@ MANAGER_GROUP = 'npei_agent_harness.group_npei_agent_manager'
 class NpeiAgentModel(models.Model):
     _name = 'npei.agent.model'
     _inherit = ['mail.thread', 'mail.activity.mixin']
-    _description = 'DeepSeek Harness LLM Model'
+    _description = 'MTIL Harness LLM Model'
     _order = 'seq, provider, model_id'
 
     model_id = fields.Char(
