@@ -62,10 +62,10 @@ class NpeiDiscoverModels(models.TransientModel):
     )
 
     def _check_manager(self):
-        """Raise unless the current user is an NPEI Agent Manager."""
+        """Raise unless the current user is an MTIL Manager."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Only NPEI Agent Managers can discover models."))
+                _("Only MTIL Managers can discover models."))
 
     @api.model
     def _format_models(self, discovered):

@@ -80,10 +80,10 @@ class NpeiAgentProviderModel(models.Model):
     # Helpers
     # ------------------------------------------------------------------
     def _check_manager(self):
-        """Raise unless the current user is an NPEI Agent Manager."""
+        """Raise unless the current user is an MTIL Manager."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Only NPEI Agent Managers can configure provider models."))
+                _("Only MTIL Managers can configure provider models."))
 
     @api.model
     def _path_segments(self, provider):

@@ -6,7 +6,7 @@
         <field name="inherit_id" ref="base.res_config_settings_view_form"/>
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
-                <app data-string="MTIL Agent" string="MTIL Agent" name="npei_agent_harness">
+                <app data-string="MTIL" string="MTIL" name="npei_agent_harness">
                     <block title="Harness Connection"
                            name="npei_harness_connection">
                         <setting string="Base URL"
@@ -34,12 +34,12 @@
                         </setting>
                         <setting string="Clear Data"
                                  groups="base.group_system"
-                                 help="Delete every MTIL Agent record (sessions, presets, skills, credentials, providers, models, settings) except the seeded provider route templates. Does not touch the harness. Irreversible.">
+                                 help="Delete every MTIL Harness record (sessions, presets, skills, credentials, providers, models, settings) except the seeded provider route templates. Does not touch the harness. Irreversible.">
                             <button name="action_clear_data"
                                     type="object"
                                     string="Clear Data"
                                     class="btn-danger"
-                                    confirm="This permanently deletes all MTIL Agent data in MTIL (except seeded route templates). The harness is not affected. Continue?"/>
+                                    confirm="This permanently deletes all MTIL Harness data in MTIL (except seeded route templates). The harness is not affected. Continue?"/>
                         </setting>
                     </block>
                 </app>

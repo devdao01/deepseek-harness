@@ -114,10 +114,10 @@ class NpeiProviderRoute(models.TransientModel):
     )
 
     def _check_manager(self):
-        """Raise unless the current user is an NPEI Agent Manager."""
+        """Raise unless the current user is an MTIL Manager."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Only NPEI Agent Managers can add provider routes."))
+                _("Only MTIL Managers can add provider routes."))
 
     @api.model
     def _derive_key_ref(self, route_key):
@@ -224,7 +224,7 @@ class NpeiProviderRoute(models.TransientModel):
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': _("MTIL Agent"),
+                'title': _("MTIL"),
                 'message': _(
                     "Route %(key)s added. Configure its models under "
                     "Providers > %(key)s > Configured Models.", key=route_key),

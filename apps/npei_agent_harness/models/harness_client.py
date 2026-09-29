@@ -7,7 +7,7 @@ Wire facts (verified against the running harness):
   token>`` answers 303 and sets a signed ``dsh-auth-*`` cookie (30 days);
   every ``/api`` call must carry that cookie. The launch token is printed by
   ``dsh web`` at startup and changes on every harness restart — update it in
-  Settings > MTIL Agent after a restart. The harness must also trust this
+  Settings > MTIL after a restart. The harness must also trust this
   MTIL-facing domain (``--trusted-host``), because its Host fence rejects
   unknown authorities with 403.
 * **Unary RPC**: ``POST <base>/api/<namespace>/<method>`` with the envelope
@@ -218,7 +218,7 @@ class HarnessClient(models.AbstractModel):
             raise UserError(_(
                 "The MTIL Harness connection is not configured. "
                 "Set both the Base URL and the API Token under "
-                "Settings > MTIL Agent."
+                "Settings > MTIL."
             ))
         return base_url, token
 
@@ -295,7 +295,7 @@ class HarnessClient(models.AbstractModel):
         if len(secret) < MIN_TICKET_SECRET_LENGTH:
             raise UserError(_(
                 "The harness Ticket Secret is unset or shorter than %d characters. "
-                "Set it under Settings > MTIL Agent.", MIN_TICKET_SECRET_LENGTH))
+                "Set it under Settings > MTIL.", MIN_TICKET_SECRET_LENGTH))
         expires_at = int(time.time()) + int(ttl_seconds)
         payload = json.dumps({'u': str(user_id), 'exp': expires_at}, separators=(',', ':'))
         body = self._b64url_nopad(payload.encode('utf-8'))

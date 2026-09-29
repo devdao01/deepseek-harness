@@ -102,7 +102,7 @@ class NpeiAgentSession(models.Model):
     def _user_can_access(self, session_id, user):
         """Return whether ``user`` may act on the harness ``session_id``.
 
-        Access is granted when the user is an NPEI Agent Manager, the mapping
+        Access is granted when the user is an MTIL Manager, the mapping
         has an empty ``user_ids`` (public), the user created the mapping, or
         the user is listed in ``user_ids``. Fails closed: an unmapped session
         id is denied to non-managers.
@@ -236,7 +236,7 @@ class NpeiAgentSession(models.Model):
         """
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Only NPEI Agent Managers can sync sessions from the harness."))
+                _("Only MTIL Managers can sync sessions from the harness."))
         value = self.env['npei.agent.harness.client']._rpc('session/list', {'_request': {}})
         items = (value or {}).get('items') or []
         model = self.with_context(npei_syncing=True)

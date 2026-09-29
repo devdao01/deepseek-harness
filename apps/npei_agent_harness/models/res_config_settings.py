@@ -66,7 +66,7 @@ class ResConfigSettings(models.TransientModel):
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': _("MTIL Agent"),
+                'title': _("MTIL"),
                 'message': message,
                 'type': 'success',
                 'sticky': False,
@@ -91,7 +91,7 @@ class ResConfigSettings(models.TransientModel):
         self.ensure_one()
         if not self.env.user.has_group('base.group_system'):
             raise AccessError(_(
-                "Only the system administrator can clear MTIL Agent data."))
+                "Only the system administrator can clear MTIL Harness data."))
 
         kept_template_ids = set(self.env['ir.model.data'].sudo().search([
             ('module', '=', TEMPLATE_DATA_MODULE),
@@ -121,7 +121,7 @@ class ResConfigSettings(models.TransientModel):
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': _("MTIL Agent"),
+                'title': _("MTIL"),
                 'message': _("Cleared %s record(s); route templates kept.", deleted),
                 'type': 'success',
                 'sticky': False,

@@ -48,7 +48,7 @@ class NpeiAgentTool(models.Model):
         """Upsert the catalog from ``agentPresets/toolCatalog``."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Only NPEI Agent Managers can sync tools from the harness."))
+                _("Only MTIL Managers can sync tools from the harness."))
         value = self.env['npei.agent.harness.client']._rpc('agentPresets/toolCatalog', {})
         entries = (value or {}).get('tools') or []
         synced = 0

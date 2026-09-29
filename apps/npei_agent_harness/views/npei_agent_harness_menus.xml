@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <menuitem id="menu_npei_agent_root"
-              name="MTIL Agent"
+              name="MTIL"
               sequence="90"
               groups="npei_agent_harness.group_npei_agent_user"/>
 

@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'NPEI Agent Harness',
+    'name': 'MTIL Harness',
     'version': '17.0.1.2.0',
     'summary': 'MTIL gateway and session ACL for the MTIL Harness backend',
     'description': """
-NPEI Agent Harness
-==================
+MTIL Harness
+============
 
 MTIL is the single gateway between the browser SPA and the MTIL Harness
 backend. The SPA only ever talks to MTIL; MTIL exchanges the harness launch

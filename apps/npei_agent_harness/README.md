@@ -11,7 +11,7 @@ Wire notes (verified against the running harness): unary RPC is
 `{"type": "client-request", ..., "payload": {"args": {...}}}` envelope, where
 the args field names are the host method's parameter names (`session/list`
 takes `{"_request": {}}`). The launch token changes on every harness restart —
-update it under Settings → MTIL Agent afterwards — and the harness must trust
+update it under Settings → MTIL afterwards — and the harness must trust
 the MTIL-facing domain (`--trusted-host`).
 
 This is the *"MTIL module first"* phase. The frontend gate (loading/denied
@@ -32,14 +32,14 @@ screens driven by `get_config`) and the realtime event proxy are later phases.
 ## Install
 
 1. Add the parent `apps/` directory to MTIL's `addons_path` (see above).
-2. Update the apps list and install **NPEI Agent Harness**. Requires only
+2. Update the apps list and install **MTIL Harness**. Requires only
    `base` and `web`. Python dependency: `requests` (bundled with MTIL).
-3. Assign users to **NPEI Agent User** (may use their own sessions) or
-   **NPEI Agent Manager** (full CRUD + harness sync) under `Settings → Users`.
+3. Assign users to **MTIL User** (may use their own sessions) or
+   **MTIL Manager** (full CRUD + harness sync) under `Settings → Users`.
 
 ## Configure the harness connection
 
-`Settings → MTIL Agent` (manager only):
+`Settings → MTIL` (manager only):
 
 | Setting | `ir.config_parameter` key | Notes |
 |---|---|---|
@@ -196,11 +196,11 @@ Odoo-side management + ACL layer only.
 
 ## Managing presets & skills
 
-- CRUD the mirror records under `MTIL Agent → Presets` / `Skills`.
+- CRUD the mirror records under `MTIL → Presets` / `Skills`.
 - Sync from the harness: the **Sync from Harness** button on a record's form, or
-  the manager-only menu items `MTIL Agent → Configuration → Sync Presets/Skills
+  the manager-only menu items `MTIL → Configuration → Sync Presets/Skills
   from Harness` (these work even when the list is empty). Both are gated to
-  **NPEI Agent Manager**.
+  **MTIL Manager**.
 
 > **Wire note:** `skill.list` requires a `sessionId`, so the skill sync reuses
 > the most recently updated mapped `npei.agent.session` and fails loud if none
@@ -230,7 +230,7 @@ with the server-side full token. Each action maps to one harness method:
 | `npei.agent.setting.action_save` | `settings.replace({ns, section, expectedRevision})` |
 | `npei.agent.host.status.action_refresh` / `default_get` | `host.describe({})` |
 
-Reach these under **MTIL Agent** (Providers, Models are user-readable;
+Reach these under **MTIL** (Providers, Models are user-readable;
 Credentials, Settings, and the Configuration → Discover Models / Sync … menus are
 manager-only). Each syncable model has an `ir.actions.server` behind a
 Configuration menu item so a sync can run even when the list is empty.
@@ -268,7 +268,7 @@ the matching protocol and base URL.
 
 ### Ghi chú (vi)
 
-Nhóm model config-plane cho phép **NPEI Agent Manager** quản lý cấu hình harness
+Nhóm model config-plane cho phép **MTIL Manager** quản lý cấu hình harness
 ngay trong Odoo bằng full token phía máy chủ: credential (`credentials.*`),
 provider/model (`llm.providers`/`llm.models`), dò tìm model
 (`llm.discoverModels`) và settings namespace (`settings.describe`/`replace`).

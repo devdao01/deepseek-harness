@@ -7,18 +7,18 @@
     </record>
 
     <record id="group_npei_agent_user" model="res.groups">
-        <field name="name">Agent User</field>
+        <field name="name">MTIL User</field>
         <field name="category_id" ref="module_category_npei_agent"/>
         <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
     </record>
 
     <record id="group_npei_agent_manager" model="res.groups">
-        <field name="name">Agent Manager</field>
+        <field name="name">MTIL Manager</field>
         <field name="category_id" ref="module_category_npei_agent"/>
         <field name="implied_ids" eval="[(4, ref('npei_agent_harness.group_npei_agent_user'))]"/>
     </record>
 
-    <!-- Grant the admin the Manager group at install so the "MTIL Agent" menu
+    <!-- Grant the admin the Manager group at install so the "MTIL" menu
          is visible immediately; without any member of group_npei_agent_user
          the group-restricted root menu would be hidden from everyone,
          including admin, until a group is assigned by hand. -->

@@ -59,10 +59,10 @@ class NpeiAgentSkill(models.Model):
     ]
 
     def _check_manager(self):
-        """Raise unless the current user is an NPEI Agent Manager."""
+        """Raise unless the current user is an MTIL Manager."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Only NPEI Agent Managers can sync skills from the harness."))
+                _("Only MTIL Managers can sync skills from the harness."))
 
     @api.model
     def _catalog_session_id(self):

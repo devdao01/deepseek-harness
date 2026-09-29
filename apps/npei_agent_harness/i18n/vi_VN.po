@@ -20,8 +20,8 @@ msgstr ""
 #: model:ir.module.module,description:npei_agent_harness.module_meta_information
 msgid ""
 "\n"
-"NPEI Agent Harness\n"
-"==================\n"
+"MTIL Harness\n"
+"============\n"
 "\n"
 "MTIL is the single gateway between the browser SPA and the MTIL Harness\n"
 "backend. The SPA only ever talks to MTIL; MTIL exchanges the harness launch\n"
@@ -39,8 +39,8 @@ msgid ""
 ""
 msgstr ""
 "\n"
-"NPEI Agent Harness\n"
-"==================\n"
+"MTIL Harness\n"
+"============\n"
 "\n"
 "MTIL là cổng kết nối duy nhất giữa SPA trên trình duyệt và máy chủ MTIL Harness. SPA chỉ gọi MTIL; MTIL đổi token khởi chạy của harness lấy cookie phiên có chữ ký trên máy chủ rồi chuyển tiếp yêu cầu. Token không được gửi tới trình duyệt.\n"
 "\n"
@@ -222,11 +222,6 @@ msgid "Adopt Into Provider"
 msgstr "Nhận vào Nhà cung cấp"
 
 #. module: npei_agent_harness
-#: model:res.groups,name:npei_agent_harness.group_npei_agent_manager
-msgid "Agent Manager"
-msgstr "Quản trị Agent"
-
-#. module: npei_agent_harness
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_session__preset_id
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_preset_form
 msgid "Agent Preset"
@@ -257,11 +252,6 @@ msgstr "Kỹ năng Agent"
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_skill_tree
 msgid "Agent Skills"
 msgstr "Danh sách Kỹ năng Agent"
-
-#. module: npei_agent_harness
-#: model:res.groups,name:npei_agent_harness.group_npei_agent_user
-msgid "Agent User"
-msgstr "Người dùng Agent"
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__allow_bash
@@ -670,9 +660,9 @@ msgstr ""
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.res_config_settings_view_form_npei
 msgid ""
-"Delete every MTIL Agent record (sessions, presets, skills, credentials, providers, models, settings) except the seeded provider route templates. Does not touch the harness. Irreversible."
+"Delete every MTIL Harness record (sessions, presets, skills, credentials, providers, models, settings) except the seeded provider route templates. Does not touch the harness. Irreversible."
 msgstr ""
-"Xóa toàn bộ bản ghi MTIL Agent (phiên, preset, kỹ năng, thông tin xác thực, nhà cung cấp, mô hình, cài đặt), trừ các mẫu tuyến đã gieo. Không ảnh hưởng harness. Không thể hoàn tác."
+"Xóa toàn bộ bản ghi MTIL Harness (phiên, preset, kỹ năng, thông tin xác thực, nhà cung cấp, mô hình, cài đặt), trừ các mẫu tuyến đã gieo. Không ảnh hưởng harness. Không thể hoàn tác."
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__subagent_ids
@@ -1023,16 +1013,6 @@ msgid "Low"
 msgstr "Thấp"
 
 #. module: npei_agent_harness
-#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_user
-msgid "MTIL AI Account"
-msgstr "Tài khoản AI MTIL"
-
-#. module: npei_agent_harness
-#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_api_key
-msgid "MTIL API Key / Password"
-msgstr "API Key / Mật khẩu MTIL"
-
-#. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_credential.py:0
 #: code:addons/npei_agent_harness/models/npei_agent_model.py:0
 #: code:addons/npei_agent_harness/models/npei_agent_provider.py:0
@@ -1041,8 +1021,18 @@ msgstr "API Key / Mật khẩu MTIL"
 #: code:addons/npei_agent_harness/wizard/npei_provider_route.py:0
 #: model:ir.ui.menu,name:npei_agent_harness.menu_npei_agent_root
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.res_config_settings_view_form_npei
-msgid "MTIL Agent"
-msgstr "MTIL Agent"
+msgid "MTIL"
+msgstr "MTIL"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_user
+msgid "MTIL AI Account"
+msgstr "Tài khoản AI MTIL"
+
+#. module: npei_agent_harness
+#: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_api_key
+msgid "MTIL API Key / Password"
+msgstr "API Key / Mật khẩu MTIL"
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_allowed_models
@@ -1058,6 +1048,11 @@ msgstr "Kết nối MTIL"
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_db
 msgid "MTIL Database"
 msgstr "Cơ sở dữ liệu MTIL"
+
+#. module: npei_agent_harness
+#: model:ir.module.module,shortdesc:npei_agent_harness.module_meta_information
+msgid "MTIL Harness"
+msgstr "MTIL Harness"
 
 #. module: npei_agent_harness
 #: model:ir.model,name:npei_agent_harness.model_npei_agent_provider_route
@@ -1145,6 +1140,11 @@ msgid "MTIL Harness Skill"
 msgstr "Kỹ năng MTIL Harness"
 
 #. module: npei_agent_harness
+#: model:res.groups,name:npei_agent_harness.group_npei_agent_manager
+msgid "MTIL Manager"
+msgstr "Quản trị MTIL"
+
+#. module: npei_agent_harness
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_tool_prefix
 msgid "MTIL Tool Keyword"
 msgstr "Từ khóa Công cụ MTIL"
@@ -1153,6 +1153,11 @@ msgstr "Từ khóa Công cụ MTIL"
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__odoo_url
 msgid "MTIL URL"
 msgstr "URL MTIL"
+
+#. module: npei_agent_harness
+#: model:res.groups,name:npei_agent_harness.group_npei_agent_user
+msgid "MTIL User"
+msgstr "Người dùng MTIL"
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__odoo_url
@@ -1269,11 +1274,6 @@ msgid "Mở Khóa"
 msgstr "Mở Khóa"
 
 #. module: npei_agent_harness
-#: model:ir.module.module,shortdesc:npei_agent_harness.module_meta_information
-msgid "NPEI Agent Harness"
-msgstr "NPEI Agent Harness"
-
-#. module: npei_agent_harness
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_model__name
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_preset__name
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_provider_model__name
@@ -1348,73 +1348,73 @@ msgstr ""
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/wizard/npei_provider_route.py:0
-msgid "Only NPEI Agent Managers can add provider routes."
-msgstr "Chỉ Quản trị Agent NPEI mới có thể thêm tuyến nhà cung cấp."
+msgid "Only MTIL Managers can add provider routes."
+msgstr "Chỉ Quản trị MTIL mới có thể thêm tuyến nhà cung cấp."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_provider_model.py:0
-msgid "Only NPEI Agent Managers can configure provider models."
-msgstr "Chỉ Quản trị Agent NPEI mới có thể cấu hình mô hình nhà cung cấp."
+msgid "Only MTIL Managers can configure provider models."
+msgstr "Chỉ Quản trị MTIL mới có thể cấu hình mô hình nhà cung cấp."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/wizard/npei_discover_models.py:0
-msgid "Only NPEI Agent Managers can discover models."
-msgstr "Chỉ Quản trị Agent NPEI mới có thể khám phá mô hình."
+msgid "Only MTIL Managers can discover models."
+msgstr "Chỉ Quản trị MTIL mới có thể khám phá mô hình."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_credential.py:0
-msgid "Only NPEI Agent Managers can manage harness credentials."
-msgstr "Chỉ Quản trị Agent NPEI mới có thể quản lý thông tin xác thực harness."
+msgid "Only MTIL Managers can manage harness credentials."
+msgstr "Chỉ Quản trị MTIL mới có thể quản lý thông tin xác thực harness."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_setting.py:0
-msgid "Only NPEI Agent Managers can manage harness settings."
-msgstr "Chỉ Quản trị Agent NPEI mới có thể quản lý cài đặt harness."
+msgid "Only MTIL Managers can manage harness settings."
+msgstr "Chỉ Quản trị MTIL mới có thể quản lý cài đặt harness."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/wizard/npei_authorize_provider.py:0
-msgid "Only NPEI Agent Managers can sign providers in."
-msgstr "Chỉ Quản lý NPEI Agent mới được đăng nhập nhà cung cấp."
+msgid "Only MTIL Managers can sign providers in."
+msgstr "Chỉ Quản trị MTIL mới được đăng nhập nhà cung cấp."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_model.py:0
-msgid "Only NPEI Agent Managers can sync models from the harness."
-msgstr "Chỉ Quản trị Agent NPEI mới có thể đồng bộ mô hình từ harness."
+msgid "Only MTIL Managers can sync models from the harness."
+msgstr "Chỉ Quản trị MTIL mới có thể đồng bộ mô hình từ harness."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_preset.py:0
-msgid "Only NPEI Agent Managers can sync presets from the harness."
-msgstr "Chỉ Quản trị Agent NPEI mới có thể đồng bộ presets từ harness."
+msgid "Only MTIL Managers can sync presets from the harness."
+msgstr "Chỉ Quản trị MTIL mới có thể đồng bộ presets từ harness."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_provider.py:0
-msgid "Only NPEI Agent Managers can sync providers from the harness."
-msgstr "Chỉ Quản trị Agent NPEI mới có thể đồng bộ nhà cung cấp từ harness."
+msgid "Only MTIL Managers can sync providers from the harness."
+msgstr "Chỉ Quản trị MTIL mới có thể đồng bộ nhà cung cấp từ harness."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_session.py:0
-msgid "Only NPEI Agent Managers can sync sessions from the harness."
-msgstr "Chỉ Quản trị Agent NPEI mới có thể đồng bộ phiên từ harness."
+msgid "Only MTIL Managers can sync sessions from the harness."
+msgstr "Chỉ Quản trị MTIL mới có thể đồng bộ phiên từ harness."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_skill.py:0
-msgid "Only NPEI Agent Managers can sync skills from the harness."
-msgstr "Chỉ Quản trị Agent NPEI mới có thể đồng bộ kỹ năng từ harness."
+msgid "Only MTIL Managers can sync skills from the harness."
+msgstr "Chỉ Quản trị MTIL mới có thể đồng bộ kỹ năng từ harness."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/npei_agent_tool.py:0
-msgid "Only NPEI Agent Managers can sync tools from the harness."
-msgstr "Chỉ Quản trị Agent NPEI mới có thể đồng bộ công cụ từ harness."
+msgid "Only MTIL Managers can sync tools from the harness."
+msgstr "Chỉ Quản trị MTIL mới có thể đồng bộ công cụ từ harness."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/wizard/npei_host_status.py:0
-msgid "Only NPEI Agent Managers can view the harness host status."
-msgstr "Chỉ Quản trị Agent NPEI mới có thể xem trạng thái máy chủ harness."
+msgid "Only MTIL Managers can view the harness host status."
+msgstr "Chỉ Quản trị MTIL mới có thể xem trạng thái máy chủ harness."
 
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/res_config_settings.py:0
-msgid "Only the system administrator can clear MTIL Agent data."
-msgstr "Chỉ quản trị viên hệ thống mới có thể xóa dữ liệu MTIL Agent."
+msgid "Only the system administrator can clear MTIL Harness data."
+msgstr "Chỉ quản trị viên hệ thống mới có thể xóa dữ liệu MTIL Harness."
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_session__session_id
@@ -2251,9 +2251,9 @@ msgstr ""
 #. module: npei_agent_harness
 #: code:addons/npei_agent_harness/models/harness_client.py:0
 msgid ""
-"The MTIL Harness connection is not configured. Set both the Base URL and the API Token under Settings > MTIL Agent."
+"The MTIL Harness connection is not configured. Set both the Base URL and the API Token under Settings > MTIL."
 msgstr ""
-"Kết nối MTIL Harness chưa được cấu hình. Hãy đặt cả URL Cơ sở và Token API trong Cài đặt > MTIL Agent."
+"Kết nối MTIL Harness chưa được cấu hình. Hãy đặt cả URL Cơ sở và Token API trong Cài đặt > MTIL."
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__persona
@@ -2273,9 +2273,9 @@ msgstr ""
 #: code:addons/npei_agent_harness/models/harness_client.py:0
 #, python-format
 msgid ""
-"The harness Ticket Secret is unset or shorter than %d characters. Set it under Settings > MTIL Agent."
+"The harness Ticket Secret is unset or shorter than %d characters. Set it under Settings > MTIL."
 msgstr ""
-"Khóa bí mật Ticket của harness chưa được đặt hoặc ngắn hơn %d ký tự. Hãy đặt trong Cài đặt > MTIL Agent."
+"Khóa bí mật Ticket của harness chưa được đặt hoặc ngắn hơn %d ký tự. Hãy đặt trong Cài đặt > MTIL."
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_provider__settings_path
@@ -2400,9 +2400,9 @@ msgstr "Bản ghi này chưa có mã phiên harness."
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.res_config_settings_view_form_npei
 msgid ""
-"This permanently deletes all MTIL Agent data in MTIL (except seeded route templates). The harness is not affected. Continue?"
+"This permanently deletes all MTIL Harness data in MTIL (except seeded route templates). The harness is not affected. Continue?"
 msgstr ""
-"Thao tác này sẽ xóa vĩnh viễn toàn bộ dữ liệu MTIL Agent trong MTIL (trừ các mẫu tuyến đã gieo). Harness không bị ảnh hưởng. Tiếp tục?"
+"Thao tác này sẽ xóa vĩnh viễn toàn bộ dữ liệu MTIL Harness trong MTIL (trừ các mẫu tuyến đã gieo). Harness không bị ảnh hưởng. Tiếp tục?"
 
 #. module: npei_agent_harness
 #: model:ir.model.constraint,message:npei_agent_harness.constraint_npei_agent_provider_model_provider_model_uniq

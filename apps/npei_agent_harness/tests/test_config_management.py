@@ -3,7 +3,7 @@
 
 The harness client is mocked, so these assert exactly what MTIL sends per method
 and how the returned values are mirrored. All actions are manager-gated, so the
-test user is granted the NPEI Agent Manager group in setUp.
+test user is granted the MTIL Manager group in setUp.
 """
 from unittest.mock import patch
 

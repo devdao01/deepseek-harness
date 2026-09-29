@@ -65,10 +65,10 @@ class NpeiAgentModel(models.Model):
     ]
 
     def _check_manager(self):
-        """Raise unless the current user is an NPEI Agent Manager."""
+        """Raise unless the current user is an MTIL Manager."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
-                _("Only NPEI Agent Managers can sync models from the harness."))
+                _("Only MTIL Managers can sync models from the harness."))
 
     def _notify(self, message):
         """Build a success ``display_notification`` client action."""
@@ -76,7 +76,7 @@ class NpeiAgentModel(models.Model):
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': _("MTIL Agent"),
+                'title': _("MTIL"),
                 'message': message,
                 'type': 'success',
                 'sticky': False,

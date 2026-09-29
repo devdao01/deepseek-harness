@@ -89,7 +89,7 @@ class NpeiAuthorizeProvider(models.TransientModel):
     def _check_manager(self):
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(_(
-                "Only NPEI Agent Managers can sign providers in."))
+                "Only MTIL Managers can sign providers in."))
 
     def _client(self):
         return self.env['npei.agent.harness.client'].sudo()
