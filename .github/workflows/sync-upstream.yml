@@ -1,0 +1,33 @@
+name: Sync Upstream Master & Tags
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Tự động chạy lúc 7h00 sáng giờ VN mỗi ngày
+  workflow_dispatch:    # Nút bấm chạy thủ công trên web
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout nhánh master với quyền Workflow
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.PAT_TOKEN }} # Dùng PAT để được phép cập nhật .github/workflows/
+
+      - name: Đồng bộ master và toàn bộ Tags từ DeepSeek
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git remote add upstream https://github.com/deepseek-ai/deepseek-harness.git 2>/dev/null || true
+          git fetch upstream --prune
+          git fetch upstream --tags --force
+
+          # Đặt toàn bộ code mới của DeepSeek ở dưới, giữ commit workflow này ở trên cùng
+          git rebase upstream/master
+
+          # Đẩy nhánh master và toàn bộ tags lên repo của bạn
+          git push origin master --force
+          git push origin --tags --force
