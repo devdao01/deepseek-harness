@@ -4,6 +4,7 @@ import type { IncomingMessage } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { Deque } from '@deepseek-ai/dsh-deque'
 import { RemoteError, remoteErrorOf, type PeerScope } from '@deepseek-ai/dsh-typert-protocol'
+import { runWithRpcRequest } from '@deepseek-ai/dsh-user-ticket'
 import WebSocket, { WebSocketServer, type RawData } from 'ws'
 import {
   parseRemoteStreamClientMessage,
@@ -75,8 +76,14 @@ export class RemoteStreamMuxServer {
       this.missedHeartbeats.set(websocket, 0)
       websocket.on('pong', () => { this.missedHeartbeats.set(websocket, 0) })
       this.startHeartbeat()
+      // Streams dispatch from socket message events, outside any HTTP scope,
+      // so caller-derived policy (the Cookie-borne user identity) would read
+      // as anonymous. Bind the upgrade request's headers to every stream this
+      // connection opens; identity-reading methods capture them at call time.
+      const headers = new Headers(Object.entries(req.headers)
+        .filter((pair): pair is [string, string] => typeof pair[1] === 'string'))
       const bound: BoundStreamOpener = (endpoint, payload, uplink, control) =>
-        this.open(endpoint, payload, uplink, peer, control)
+        runWithRpcRequest({ headers }, () => this.open(endpoint, payload, uplink, peer, control))
       const connection = new RemoteStreamMuxConnection(websocket, bound, this.failure, this.streamInboxBytes)
       const done = connection.run()
       this.connections.add(done)

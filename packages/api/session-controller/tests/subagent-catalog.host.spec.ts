@@ -161,9 +161,13 @@ describe('SessionController subagent catalog', () => {
     installSessionReadTestServices(ctx)
     const controller = createSessionTestController(ctx, defaults)
     const session = ctx.sessions.create(PARENT, { meta: { cwd: '/workspace' } })
+    const read = await controller.projections({ sessionId: PARENT }, new AbortController().signal)
+    // MTIL fork: the access gate awaits the stored allow-list before the read,
+    // so services the harness provides meanwhile (attachments' imageLimits)
+    // are registered by then; compare against the registry at that point.
     const expected = ctx.sessionProjections.snapshot(session)
     expect(expected.values.subagentCatalog).toBeUndefined()
-    await expect(controller.projections({ sessionId: PARENT }, new AbortController().signal)).resolves.toEqual(expected)
+    expect(read).toEqual(expected)
     expect(ctx.agents.get(PARENT)).toBeUndefined()
   })
 

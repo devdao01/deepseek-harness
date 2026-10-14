@@ -22,6 +22,7 @@ flowchart TD
     pkg_output_retention["output-retention"]
     pkg_package_manifest["package-manifest"]
     pkg_timeout["timeout"]
+    pkg_user_ticket["user-ticket"]
     pkg_util_code_language["util-code-language"]
     pkg_util_crypto["util-crypto"]
     pkg_util_time["util-time"]
@@ -477,6 +478,7 @@ flowchart TD
   pkg_attachment_local --> pkg_attachment
   pkg_attachment_local --> pkg_home_paths
   pkg_client_connection --> pkg_scope
+  pkg_client_connection --> pkg_user_ticket
   pkg_client_file_upload --> pkg_scope
   pkg_authorization --> pkg_credentials
   pkg_authorization --> pkg_invariants
@@ -494,6 +496,7 @@ flowchart TD
   pkg_spill --> pkg_llm
   pkg_spill --> pkg_session
   pkg_api_gateway --> pkg_client_connection
+  pkg_api_gateway --> pkg_user_ticket
   pkg_app_boot --> pkg_home_paths
   pkg_app_boot --> pkg_launch_environment
   pkg_app_boot --> pkg_system_prompt
@@ -1393,6 +1396,7 @@ flowchart TD
 | [`output-retention`](../packages/util/output-retention) | `util` | — |
 | [`package-manifest`](../packages/util/package-manifest) | `util` | — |
 | [`timeout`](../packages/util/timeout) | `util` | — |
+| [`user-ticket`](../packages/util/user-ticket) | `util` | — |
 | [`util-code-language`](../packages/util/code-language) | `util` | — |
 | [`util-crypto`](../packages/util/crypto) | `util` | — |
 | [`util-time`](../packages/util/time) | `util` | — |
@@ -1517,7 +1521,7 @@ flowchart TD
 | [`api-remotes`](../packages/api/remotes) | `api` | [`scope`](../packages/core/scope) |
 | [`api-terminal-controller`](../packages/api/terminal-controller) | `api` | [`subprocess`](../packages/subprocess/subprocess) |
 | [`attachment-local`](../packages/attachment/attachment-local) | `attachment` | [`attachment`](../packages/attachment/attachment), [`home-paths`](../packages/util/home-paths) |
-| [`client-connection`](../packages/client/connection) | `client` | [`scope`](../packages/core/scope) |
+| [`client-connection`](../packages/client/connection) | `client` | [`scope`](../packages/core/scope), [`user-ticket`](../packages/util/user-ticket) |
 | [`client-file-upload`](../packages/client/file-upload) | `client` | [`scope`](../packages/core/scope) |
 | [`authorization`](../packages/credentials/authorization) | `credentials` | [`credentials`](../packages/credentials/credentials), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm) |
 | [`credentials-local`](../packages/credentials/credentials-local) | `credentials` | [`atomic-write`](../packages/util/atomic-write), [`credentials`](../packages/credentials/credentials), [`home-paths`](../packages/util/home-paths), [`launch-environment`](../packages/util/launch-environment) |
@@ -1526,7 +1530,7 @@ flowchart TD
 | [`skill-badge`](../packages/skill/skill-badge) | `skill` | [`skill`](../packages/skill/skill) |
 | [`skill-office`](../packages/skill/skill-office) | `skill` | [`skill`](../packages/skill/skill) |
 | [`spill`](../packages/spill/spill) | `spill` | [`brand`](../packages/util/brand), [`llm`](../packages/llm/llm), [`session`](../packages/core/session) |
-| [`api-gateway`](../packages/api/gateway) | `api` | [`client-connection`](../packages/client/connection) |
+| [`api-gateway`](../packages/api/gateway) | `api` | [`client-connection`](../packages/client/connection), [`user-ticket`](../packages/util/user-ticket) |
 | [`app-boot`](../packages/boot/app-boot) | `boot` | [`home-paths`](../packages/util/home-paths), [`launch-environment`](../packages/util/launch-environment), [`system-prompt`](../packages/core/system-prompt) |
 | [`experimental-webworker-runtime`](../packages/experimental/webworker-runtime) | `experimental` | [`client-connection`](../packages/client/connection), [`client-modules`](../packages/client/modules), [`host-webserver`](../packages/host/webserver) |
 | [`host-frontend-static`](../packages/host/frontend-static) | `host` | [`client-connection`](../packages/client/connection), [`host-webserver`](../packages/host/webserver) |

@@ -62,6 +62,11 @@ export interface UiWorkspace {
    */
   startSession(workspaceId?: WorkspaceId): void
   /**
+   * Clear the current selection and return the main column to its no-Session
+   * state (the MTIL frontend's brand click returns to its welcome panel).
+   */
+  clearSession(): void
+  /**
    * Archive a Session and clear it when it is the current selection.
    * @param sessionId - Session to archive.
    * @param options - `stopActivity` asks the Host to stop the Session's running work instead of refusing.
@@ -238,6 +243,10 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     void this.openWorkspace(target).catch(
       (reason: unknown) => { console.warn('new session failed:', reason) },
     )
+  }
+
+  clearSession(): void {
+    this.clearMain()
   }
 
   async archiveSession(sessionId: SessionId, options: { readonly stopActivity?: boolean } = {}): Promise<void> {

@@ -105,6 +105,7 @@
     "@deepseek-ai/dsh-storage": "workspace:*",
     "@deepseek-ai/dsh-storage-domain": "workspace:*",
     "@deepseek-ai/dsh-tool-workspace-dependencies": "workspace:*",
+    "@deepseek-ai/dsh-user-ticket": "workspace:*",
     "@deepseek-ai/dsh-spill": "workspace:*",
     "@deepseek-ai/dsh-subagent": "workspace:*",
     "@deepseek-ai/dsh-subagent-acp": "workspace:*",

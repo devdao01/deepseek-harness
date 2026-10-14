@@ -33,6 +33,12 @@ const MANIFEST_BIN_ALLOWLIST = new Map<string, ManifestBin>([
 const EXECUTABLE_SOURCE_ALLOWLIST = new Map<string, string>([
   ['apps/cli/src/bin.ts', 'supported dsh application launcher'],
   ['apps/desktop/scripts/logged-notarytool.mjs', 'build-only notarization logging wrapper'],
+  // MTIL fork: neither launches a Harness application. The MCP server is a
+  // stdio tool server the harness spawns as a plugin's configured command;
+  // the multi-agent-setup scripts author preset directories on disk.
+  ['apps/odoo-mcp/server.mjs', 'MTIL fork: stdio MCP tool server, spawned by dsh-mcp-client'],
+  ['apps/multi-agent-setup/build-standalone-presets.mjs', 'MTIL fork: preset-authoring build script'],
+  ['apps/multi-agent-setup/create-agents.mjs', 'MTIL fork: preset-authoring build script'],
   ['packages/context/time-context/tests/fixtures/driver.ts', 'test-only subprocess driver'],
   ['packages/experimental/webworker-packer/bin.js', 'build-only wrapper'],
   ['packages/experimental/webworker-packer/src/bin.ts', 'build-only implementation'],

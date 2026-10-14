@@ -47,7 +47,7 @@ export function createWebConnectionRpc(doFetch?: RpcFetch, openStream?: RpcStrea
       // a carrier that resolves against the Host root accepts the same form.
       const route = `${channel}/${endpoint}`.slice(1)
       const response = await send(
-        route,
+        transportRoute(route),
         {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -171,6 +171,18 @@ function parseConnectionResponse(value: unknown): {
 
 function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Resolve a document-relative route against a sub-path deployment's app base.
+ * The MTIL SPA publishes `__DSH_APP_BASE__` because its document URL is a
+ * client route rather than the app root; absent, the route stays
+ * document-relative.
+ */
+function transportRoute(route: string): string | URL {
+  const appBase = (globalThis as { __DSH_APP_BASE__?: string }).__DSH_APP_BASE__
+  if (appBase === undefined) return route
+  return new URL(route, appBase.endsWith('/') ? appBase : `${appBase}/`)
 }
 
 function assertTarget(channel: string, endpoint: string): void {

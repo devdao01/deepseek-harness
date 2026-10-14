@@ -864,6 +864,13 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   AgentPresetDocument: 'preset composition view is owned by packages/preset/agent-preset-registry/README.md',
   AgentPresetComposition: 'flattened composition rows are owned by packages/preset/agent-preset-registry/README.md',
   PresetMetadata: 'preset display text is owned by packages/preset/agent-preset-registry/README.md',
+  // MTIL fork: management-plane payloads documented by the fork's own surfaces
+  // (docs/MTIL-FORK.md and the Odoo module), not by a catalog page.
+  SessionSetAccessRequest: 'MTIL session access list request is owned by packages/api/session-controller/README.md',
+  SessionSetAccessValue: 'MTIL session access list value is owned by packages/api/session-controller/README.md',
+  AuthorizationListValue: 'MTIL provider sign-in flow list is owned by packages/api/settings-controller/README.md',
+  AuthorizationBeginValue: 'MTIL provider sign-in attempt handle is owned by packages/api/settings-controller/README.md',
+  AuthorizationAttemptState: 'MTIL provider sign-in attempt state is owned by packages/api/settings-controller/README.md',
   BashEnvContributor: 'service-local extension type is owned by packages/shell/tool-bash/src/index.ts',
   BashEnvVariableInfo: 'service-local metadata type is owned by packages/shell/tool-bash/src/index.ts',
   CompactionAgentContext: 'compaction service input is owned by packages/compaction/compaction/src/index.ts',

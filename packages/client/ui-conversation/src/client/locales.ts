@@ -7,6 +7,15 @@ export const NS = 'conversation'
 const PLAN_NEXT_ACTION_ZH = '描述你的任务以生成计划'
 const PLAN_NEXT_ACTION_EN = 'describe your task to generate plan'
 
+/**
+ * MTIL frontend flag: a deployment-branded hero headline replacing the stock
+ * tagline in every language. Absent — every stock deployment — keeps the
+ * shipped per-language headlines. Read at module load; the MTIL shell sets
+ * the global before any bundle executes.
+ */
+const mtilHeroHeadline = (): string | undefined =>
+  (globalThis as { __MTIL_UI__?: { heroHeadline?: string } }).__MTIL_UI__?.heroHeadline
+
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
   'shortcut.newline': '换行',
@@ -74,7 +83,7 @@ export const zh = {
   'settings.enter.description': '智能体运行时 Enter 键和发送按钮的行为；Cmd/Ctrl+Enter 使用另一行为',
   'settings.enter.queue': '排队发送',
   'settings.enter.steer': '插话发送',
-  'hero.headline': '探索未至之境',
+  'hero.headline': mtilHeroHeadline() ?? '探索未至之境',
   'hero.preview': '预览版',
   'hero.chooseWorkspace': '选择工作区',
   'session.hierarchy': '会话层级',
@@ -450,7 +459,7 @@ export const en = {
   'settings.enter.description': 'What Enter and the Send button do while the agent is running; Cmd/Ctrl+Enter uses the other behavior',
   'settings.enter.queue': 'Queue',
   'settings.enter.steer': 'Steer',
-  'hero.headline': 'Into the Unknown',
+  'hero.headline': mtilHeroHeadline() ?? 'Into the Unknown',
   'hero.preview': 'Preview',
   'hero.chooseWorkspace': 'Choose workspace',
   'session.hierarchy': 'Session hierarchy',

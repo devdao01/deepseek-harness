@@ -1932,13 +1932,19 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'authorized bounded Session search results.',
       },
       {
-        signature: '@Remote(\'create\') create(request: SessionCreateRequest): Promise<SessionCreateValue>',
+        signature: '@Remote(\'create\') async create(request: SessionCreateRequest): Promise<SessionCreateValue>',
         description: 'Create or idempotently adopt one ordinary Session.',
         parameters: [{ name: 'request', description: 'requested identity, location, and Agent preset.' }],
         returns: 'the Session identity and resolved preset when configured.',
       },
       {
-        signature: '@Remote(\'selectModel\') selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue>',
+        signature: '@Remote(\'setAccess\') async setAccess(request: SessionSetAccessRequest): Promise<SessionSetAccessValue>',
+        description: 'Replace one Session\'s allowed-users access list.\n\nWith a configured `ticketSecret` only the `*` management wildcard may write: an ordinary browser could otherwise grant itself access.',
+        parameters: [{ name: 'request', description: 'Session identity and the complete new list.' }],
+        returns: 'the list as stored (empty = unrestricted).',
+      },
+      {
+        signature: '@Remote(\'selectModel\') async selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue>',
         description: 'Select one Session-local model after explicitly resuming the Session; save the default in the background.',
         parameters: [{ name: 'request', description: 'Session identity and requested model selection.' }],
         returns: 'the normalized selection installed for the Session, without waiting for default persistence.',
@@ -1982,43 +1988,43 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         throws: ['RemoteError when the path is invalid, the query is cancelled, or native discovery fails.'],
       },
       {
-        signature: '@Remote(\'rename\') rename(request: SessionRenameRequest): Promise<SessionRenameValue>',
+        signature: '@Remote(\'rename\') async rename(request: SessionRenameRequest): Promise<SessionRenameValue>',
         description: 'Rename one Session after explicitly resuming it.',
         parameters: [{ name: 'request', description: 'Session identity and proposed title.' }],
         returns: 'the accepted title and durable event sequence.',
       },
       {
-        signature: '@Remote(\'fork\') fork(request: SessionForkRequest): Promise<SessionForkValue>',
+        signature: '@Remote(\'fork\') async fork(request: SessionForkRequest): Promise<SessionForkValue>',
         description: 'Fork one cold-readable exact event prefix into a new Session. An omitted boundary selects the latest completed-turn prefix; an open cut receives synthetic fork closers.',
         parameters: [{ name: 'request', description: 'source Session and optional exact inclusive event boundary.' }],
         returns: 'the new Session identity.',
       },
       {
-        signature: '@Remote(\'prompt\') prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue>',
+        signature: '@Remote(\'prompt\') async prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue>',
         description: 'Admit one prompt after explicitly resuming its Session.',
         parameters: [{ name: 'request', description: 'Session identity, prompt content, source metadata, and delivery mode.' }, { name: 'signal', description: 'caller cancellation before prompt admission begins.' }],
         returns: 'acknowledgement that the Agent accepted the prompt.',
       },
       {
-        signature: '@Remote(\'attachment\') attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue>',
-        description: 'Read one image proven reachable from the addressed Session log.',
+        signature: '@Remote(\'attachment\') async attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue>',
+        description: 'Read one durable image the Session log references.',
         parameters: [{ name: 'request', description: 'Session and attachment identities used for authorization.' }],
-        returns: 'the durable attachment reference and base64-encoded bytes.',
+        returns: 'the durable attachment reference and its base64-encoded bytes.',
       },
       {
-        signature: '@Remote(\'updateQueue\') updateQueue(request: SessionUpdateQueueRequest): Promise<SessionUpdateQueueValue>',
+        signature: '@Remote(\'updateQueue\') async updateQueue(request: SessionUpdateQueueRequest): Promise<SessionUpdateQueueValue>',
         description: 'Mutate one still-pending queue occurrence, resuming a cold Agent first.',
         parameters: [{ name: 'request', description: 'Session, queue item, and requested mutation.' }],
         returns: 'acknowledgement that the queue mutation was applied.',
       },
       {
-        signature: '@Remote(\'cancel\') cancel(request: SessionCancelRequest): SessionCancelValue',
+        signature: '@Remote(\'cancel\') async cancel(request: SessionCancelRequest): Promise<SessionCancelValue>',
         description: 'Cancel one active Agent turn without dropping its pending inbox.',
         parameters: [{ name: 'request', description: 'Session whose active Agent turn is cancelled.' }],
         returns: 'acknowledgement that cancellation was requested.',
       },
       {
-        signature: '@Remote(\'page\') page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage>',
+        signature: '@Remote(\'page\') async page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage>',
         description: 'Read one cold-safe, message-aligned Session history page.',
         parameters: [{ name: 'request', description: 'durable address, backward cursor, and page budget.' }, { name: 'signal', description: 'cancellation for persistence reads.' }],
         returns: 'one chronological page.',
@@ -2536,6 +2542,36 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     summary: 'Host service backing the generated `ctx.remote.settings` namespace.',
     description: 'Host service backing the generated `ctx.remote.settings` namespace. Every remote read uses `redactSecrets: true`, so a `role(\'secret\')` field cannot ride a response. Writes expose the settings service\'s merge, replacement, and path-addressed operations, and classify every provider refusal as `settings/conflict` or `settings/rejected` with the service\'s message.',
     methods: [
+      {
+        signature: '@Remote listAuthorizations(): AuthorizationListValue',
+        description: 'List the credential flows this deployment can authorize (e.g. a provider sign-in). Empty when no authorization seam is mounted.',
+        parameters: [],
+        returns: 'one entry per registered flow.',
+      },
+      {
+        signature: '@Remote beginAuthorization(key: string, method: string | undefined): AuthorizationBeginValue',
+        description: 'Start one authorization attempt, detached, and return its id. Poll it for the sign-in URL and the pending prompt; answer with `respondAuthorization`.',
+        parameters: [{ name: 'key', description: 'the credential record to authorize.' }, { name: 'method', description: 'the flow method, or undefined for the flow\'s first.' }],
+        returns: 'the attempt id to poll and respond to.',
+        throws: ['RemoteError when no flow claims the key or none can run.'],
+      },
+      {
+        signature: '@Remote pollAuthorization(attemptId: string): AuthorizationAttemptState',
+        description: 'Read one attempt\'s progress: notices drained since the last poll, the pending prompt (e.g. paste your code), and the settled outcome.',
+        parameters: [{ name: 'attemptId', description: 'the id `beginAuthorization` returned.' }],
+        returns: 'the attempt state, or notices-empty settled-failed for an unknown or reaped id so a poller stops cleanly.',
+      },
+      {
+        signature: '@Remote respondAuthorization(attemptId: string, promptId: string, answer: string): boolean',
+        description: 'Answer the pending prompt of one attempt (the pasted OAuth code/URL, or a chosen option id).',
+        parameters: [{ name: 'attemptId', description: 'the attempt whose prompt to answer.' }, { name: 'promptId', description: 'the prompt id from the last poll.' }, { name: 'answer', description: 'the human\'s text or the chosen option id.' }],
+        returns: 'whether a matching pending prompt received the answer.',
+      },
+      {
+        signature: '@Remote cancelAuthorization(attemptId: string): void',
+        description: 'Withdraw one authorization attempt.',
+        parameters: [{ name: 'attemptId', description: 'the attempt to cancel.' }],
+      },
       {
         signature: '@Remote describe(): SettingsDescribeValue',
         description: 'Describe every registered namespace for a configuration page: redacted layered values plus the serialized schema the page renders its form from.',
@@ -4630,6 +4666,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type AttachmentId = Branded<\'AttachmentId\'>;',
   },
   {
+    name: 'AuthorizationAttemptState',
+    declaration: 'export interface AuthorizationAttemptState {\n    readonly notices: readonly {\n        readonly message: string;\n        readonly url?: string;\n        readonly code?: string;\n    }[];\n    readonly prompt?: {\n        readonly id: string;\n    } & AuthorizationPromptView;\n    readonly settled?: {\n        readonly status: \'authorized\' | \'cancelled\' | \'failed\';\n        readonly message?: string;\n    };\n}',
+  },
+  {
+    name: 'AuthorizationBeginValue',
+    declaration: 'export interface AuthorizationBeginValue {\n    readonly attemptId: string;\n}',
+  },
+  {
     name: 'AuthorizationEntry',
     declaration: 'export interface AuthorizationEntry {\n    key: CredentialKey;\n    label: string;\n    methods: readonly AuthorizationMethod[];\n    inFlight: boolean;\n}',
   },
@@ -4638,8 +4682,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface AuthorizationFlow {\n    readonly key: CredentialKey;\n    readonly label: string;\n    readonly methods: readonly [\n        AuthorizationMethod,\n        ...AuthorizationMethod[]\n    ];\n    run(session: AuthorizationSession): Promise<void>;\n}',
   },
   {
+    name: 'AuthorizationFlowView',
+    declaration: 'export interface AuthorizationFlowView {\n    readonly key: string;\n    readonly label: string;\n    readonly methods: readonly {\n        readonly id: string;\n        readonly label: string;\n    }[];\n    readonly inFlight: boolean;\n}',
+  },
+  {
     name: 'AuthorizationInteraction',
     declaration: 'export interface AuthorizationInteraction {\n    notify(notice: AuthorizationNotice): void;\n    prompt(prompt: AuthorizationPrompt): Promise<string>;\n}',
+  },
+  {
+    name: 'AuthorizationListValue',
+    declaration: 'export interface AuthorizationListValue {\n    readonly flows: readonly AuthorizationFlowView[];\n}',
   },
   {
     name: 'AuthorizationMethod',
@@ -4660,6 +4712,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'AuthorizationPromptOption',
     declaration: 'export interface AuthorizationPromptOption {\n    id: string;\n    label: string;\n    description?: string;\n}',
+  },
+  {
+    name: 'AuthorizationPromptOptionView',
+    declaration: 'export interface AuthorizationPromptOptionView {\n    readonly id: string;\n    readonly label: string;\n    readonly description?: string;\n}',
+  },
+  {
+    name: 'AuthorizationPromptView',
+    declaration: 'export type AuthorizationPromptView = {\n    readonly kind: \'text\' | \'secret\';\n    readonly message: string;\n    readonly placeholder?: string;\n} | {\n    readonly kind: \'select\';\n    readonly message: string;\n    readonly options: readonly AuthorizationPromptOptionView[];\n};',
   },
   {
     name: 'AuthorizationRequest',
@@ -6858,6 +6918,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type SessionSeqCursor = SessionSeq | -1;',
   },
   {
+    name: 'SessionSetAccessRequest',
+    declaration: 'export interface SessionSetAccessRequest {\n    readonly sessionId: SessionId;\n    readonly allowedUsers: readonly string[];\n}',
+  },
+  {
+    name: 'SessionSetAccessValue',
+    declaration: 'export interface SessionSetAccessValue {\n    readonly allowedUsers: readonly string[];\n}',
+  },
+  {
     name: 'SessionStartSource',
     declaration: 'export type SessionStartSource = \'startup\' | \'resume\' | \'clear\' | \'compact\';',
   },
@@ -6867,7 +6935,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionSummary',
-    declaration: 'export interface SessionSummary {\n    readonly agentAvailable: boolean;\n    readonly sessionId: SessionId;\n    readonly updatedAt: number;\n    readonly running: boolean;\n    readonly blank: boolean;\n    readonly parentSessionId?: SessionId;\n    readonly origin?: \'subagent\';\n    readonly cwd?: string;\n    readonly projections?: SessionProjectionHints;\n}',
+    declaration: 'export interface SessionSummary {\n    readonly agentAvailable: boolean;\n    readonly sessionId: SessionId;\n    readonly updatedAt: number;\n    readonly running: boolean;\n    readonly blank: boolean;\n    readonly parentSessionId?: SessionId;\n    readonly origin?: \'subagent\';\n    readonly cwd?: string;\n    readonly projections?: SessionProjectionHints;\n    readonly allowedUsers?: readonly string[];\n}',
   },
   {
     name: 'SessionSurface',

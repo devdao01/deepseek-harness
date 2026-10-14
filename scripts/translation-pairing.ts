@@ -128,6 +128,16 @@ const NON_SOURCE_DIRECTORIES = new Set([
 /** Glob traversal exclusions corresponding to the non-source path predicate. */
 export const TRANSLATION_SCOPE_GLOB_EXCLUDES = [
   '.agents/notes/archived/**',
+  // MTIL fork: deployment-internal documentation for one team, never
+  // published from this repository, so it carries no Chinese counterpart.
+  'docs/MTIL-FORK.md',
+  'apps/odoo-mcp/**',
+  'apps/multi-agent-setup/**',
+  'apps/npei_agent_harness/**',
+  'apps/frontend/**',
+  'packages/util/user-ticket/**',
+  '.agents/notes/implemented/feature/2026-08-30-preset-activation-rename-and-preset-workspace-root.md',
+  '.agents/notes/implemented/feature/2026-08-30-session-access-records-and-user-tickets.md',
   '**/node_modules/**',
   '**/lib/**',
   '**/.pnpm-store/**',

@@ -230,6 +230,24 @@ export function pinCurrentBlank(
 export type ArchivedFilter = 'default' | 'show' | 'only'
 
 /**
+ * MTIL frontend flag: a blank session carrying a stored title was created
+ * deliberately (from the Odoo management plane) and lists like an ordinary
+ * row. Unset — every stock deployment — keeps blank rows provisional-only.
+ */
+const mtilShowsTitledBlanks = (): boolean =>
+  (globalThis as { __MTIL_UI__?: { showTitledBlanks?: boolean } }).__MTIL_UI__?.showTitledBlanks === true
+
+/** Whether this blank row is a titled, deliberately created MTIL session. */
+function titledBlank(session: SessionSummary): boolean {
+  return mtilShowsTitledBlanks() && session.blank && (session.title?.trim() ?? '') !== ''
+}
+
+/** Whether a blank row is a provisional New Session placeholder rather than a titled MTIL session. */
+function placeholderBlank(session: SessionSummary): boolean {
+  return session.blank && !titledBlank(session)
+}
+
+/**
  * Ordinary sessions are visible; among blank sessions, only the current one
  * is visible. Subagent children use their parent header catalog; archived
  * sessions follow the archived filter, while their accounting slots remain
@@ -242,7 +260,7 @@ function sessionVisible(
   archivedFilter: ArchivedFilter,
 ): boolean {
   if (session.origin === 'subagent') return false
-  if (session.blank && session.id !== current) return false
+  if (placeholderBlank(session) && session.id !== current) return false
   switch (archivedFilter) {
     case 'default':
       return !archived.has(session.id)
@@ -279,7 +297,7 @@ function sectionMembers(
   const leading: SessionSummary[] = []
   const rest: SessionSummary[] = []
   for (const member of members) {
-    if (member.blank) placeholders.push(member)
+    if (placeholderBlank(member)) placeholders.push(member)
     else if (!archived.has(member.id) && pinned.has(member.id)) leading.push(member)
     else rest.push(member)
   }
@@ -293,7 +311,7 @@ function sectionMembers(
  * empty title for localization and does not match a directory-name title search.
  */
 function sessionTitle(session: SessionSummary): string {
-  return session.blank ? '' : (session.title?.trim() ?? '')
+  return placeholderBlank(session) ? '' : (session.title?.trim() ?? '')
 }
 
 /** Build one group without projecting session lineage into presentation. */
@@ -406,7 +424,9 @@ function sessionNode(
   return {
     id: s.id,
     title: sessionTitle(s),
-    blank: s.blank,
+    // A titled MTIL blank renders as an ordinary row (its real title, not the
+    // localized New Session substitute).
+    blank: placeholderBlank(s),
     running: status?.running ?? s.running,
     runningSubagentCount: runningChildCount(list, s.id, statuses),
     completed: status?.completionUnread === true,
@@ -571,8 +591,9 @@ export function deriveSearchResults(
   for (const id of list.ids) {
     const summary = list.byId[id]
     // Blank placeholders never match a query (their canonical title displays
-    // localized, so matching it would tie search to one language).
-    if (summary === undefined || summary.blank || !sessionVisible(summary, current, archived, archivedFilter)) continue
+    // localized, so matching it would tie search to one language). A titled
+    // MTIL blank carries a real stored title, which is searchable.
+    if (summary === undefined || placeholderBlank(summary) || !sessionVisible(summary, current, archived, archivedFilter)) continue
     if (
       sessionTitle(summary).toLowerCase().includes(q)
       || labelOf(summary).toLowerCase().includes(q)
@@ -594,7 +615,7 @@ export function deriveSearchResults(
   for (const summary of orderedLocal) include(summary)
   for (const item of content.items) {
     const summary = list.byId[item.sessionId]
-    if (summary !== undefined && !summary.blank && sessionVisible(summary, current, archived, archivedFilter)) include(summary)
+    if (summary !== undefined && !placeholderBlank(summary) && sessionVisible(summary, current, archived, archivedFilter)) include(summary)
   }
 
   return {

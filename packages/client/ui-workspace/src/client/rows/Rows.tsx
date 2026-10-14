@@ -27,6 +27,27 @@ import type { MenuOpenState, WorkspaceBrowserProps } from '../contract/slots.ts'
 import type { GroupNode, SearchResultNode, SessionNode } from '../tree.ts'
 import css from './Rows.module.css'
 
+/**
+ * MTIL frontend-only flag: the standalone SPA bootstrap hides the per-row
+ * new-session affordance; absent on the harness-served original.
+ */
+const mtilHidesNewSession = (): boolean =>
+  (globalThis as { __MTIL_UI__?: { hideNewSession?: boolean } }).__MTIL_UI__?.hideNewSession === true
+
+/**
+ * MTIL frontend-only flags: the deployment owns Workspace and Session
+ * lifecycle in Odoo, so the SPA withholds the row verbs that would edit it
+ * from this side. Each hides its row's whole menu, because every item the
+ * menu could offer is gone. Absent on the harness-served original.
+ */
+const mtilHidesWorkspaceActions = (): boolean =>
+  (globalThis as { __MTIL_UI__?: { hideWorkspaceActions?: boolean } })
+    .__MTIL_UI__?.hideWorkspaceActions === true
+
+const mtilHidesSessionActions = (): boolean =>
+  (globalThis as { __MTIL_UI__?: { hideSessionActions?: boolean } })
+    .__MTIL_UI__?.hideSessionActions === true
+
 /** The standard locale seat, prop-passed from the browser root. */
 type RowTranslate = WorkspaceBrowserProps['t']
 
@@ -266,7 +287,7 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
         <span className={css.title}>{label}</span>
       </span>
       <span className={css.rowActions}>
-        {actions !== undefined && (
+        {actions !== undefined && !mtilHidesWorkspaceActions() && (
           <Menu
             open={menuOpen}
             onClose={() => { setMenuOpen(false) }}
@@ -294,17 +315,19 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
             )}
           />
         )}
-        <Tooltip label={t('actions.newSession')} shortcutKeys={newShortcut?.keys} side="bottom" align="end" delayMs={500}>
-          <button
-            type="button"
-            className={css.iconButton}
-            aria-keyshortcuts={newShortcut?.aria}
-            aria-label={t('actions.newSession.aria', { name: label })}
-            onClick={(e) => { e.stopPropagation(); onCreate() }}
-          >
-            <IconNewChatOutlineRegular />
-          </button>
-        </Tooltip>
+        {!mtilHidesNewSession() && (
+          <Tooltip label={t('actions.newSession')} shortcutKeys={newShortcut?.keys} side="bottom" align="end" delayMs={500}>
+            <button
+              type="button"
+              className={css.iconButton}
+              aria-keyshortcuts={newShortcut?.aria}
+              aria-label={t('actions.newSession.aria', { name: label })}
+              onClick={(e) => { e.stopPropagation(); onCreate() }}
+            >
+              <IconNewChatOutlineRegular />
+            </button>
+          </Tooltip>
+        )}
       </span>
     </div>
   )
@@ -636,7 +659,7 @@ export function SessionNodeItem({
       <span
         ref={titleRef}
         className={css.title}
-        onDoubleClick={row.blank
+        onDoubleClick={row.blank || mtilHidesSessionActions()
           ? undefined
           : (e) => { e.stopPropagation(); onRenameRequest(node.id, row.title) }}
       >
@@ -662,7 +685,7 @@ export function SessionNodeItem({
           button needs no propagation handling of its own. */}
       {!row.blank && (
         <span className={css.rowActions} onClick={(e) => { e.stopPropagation() }}>
-          <Menu
+          {!mtilHidesSessionActions() && <Menu
             open={menuOpen}
             onClose={() => { setMenuOpen(false) }}
             portal
@@ -683,7 +706,7 @@ export function SessionNodeItem({
               { sessionId: node.id, displayTitle: row.title },
               { hookContext: menuOpenState },
             )}
-          </Menu>
+          </Menu>}
           {renderSlot('sidebar.workspaces.session.row.action', { sessionId: node.id, displayTitle: row.title })}
         </span>
       )}

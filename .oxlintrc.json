@@ -24,6 +24,7 @@
     "website/.generated/**",
     "vendor/**", // Vendored source keeps upstream style and idioms.
     "native/**", // The imported landlock-run subtree has its own gates; see native/README.md.
+    "apps/frontend/**", // MTIL fork: the standalone SPA submodule is its own repository with its own toolchain.
     "**/*.js",
     "**/*.mjs",
     "**/*.config.ts", // Tool and app configs are outside the repository TypeScript programs.

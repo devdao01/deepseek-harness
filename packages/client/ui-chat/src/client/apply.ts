@@ -3,6 +3,8 @@ import type {} from '@deepseek-ai/dsh-client-product-analytics/client'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+// The MTIL download branch reads workspace bytes through the Remote namespace.
+import type {} from '@deepseek-ai/dsh-api-workspace-files/remote'
 import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { GroupKey } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { createSnapshotStore, type ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
@@ -12,7 +14,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar-browser/client'
 import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 // The `file` entry of `SidebarRightResourceParamsMap`, which types `{ params: { line } }` below.
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client'
-import { fileAddressFor } from '@deepseek-ai/dsh-util-workspace-path'
+import { fileAddressFor, resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 // Type-only service and declaration merges used by the apply world.
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -43,6 +45,19 @@ import { PerformanceUsageRow, type PerformanceUsageRowInjected } from './setting
 import { PerformanceUsagePolicy } from './performance-usage.ts'
 import { useTurnDataValue } from './chat/use-turn-data.ts'
 import { bindDisclosure } from './chat/use-disclosure.ts'
+
+const mtilDownloadsFiles = (): boolean =>
+  (globalThis as { __MTIL_UI__?: { downloadFiles?: boolean } }).__MTIL_UI__?.downloadFiles === true
+
+/** Hand file bytes to the browser as a named download. */
+function downloadToBrowser(name: string, bytes: Uint8Array<ArrayBuffer>): void {
+  const url = URL.createObjectURL(new Blob([bytes]))
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = name
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
 
 const CHAT_NODE_INJECT: ChatNodeInjected = {
   hooks: {
@@ -215,6 +230,16 @@ export function apply(ctx: Context): void {
           // to land.
           openFile: async (path, options) => {
             const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
+            if (mtilDownloadsFiles()) {
+              // Remote web deployment: the Host has no desktop, and a preview
+              // pane is not what this deployment offers — download instead.
+              const read = await ctx.remote.workspaceFiles.readBytes(
+                sessionId, resolveWorkspacePath(cwd, path), {}, new AbortController().signal,
+              )
+              if (!read.ok) throw new Error(`file download failed: ${read.error.message}`)
+              downloadToBrowser(read.value.absolutePath.split(/[/\\]/).pop() ?? 'download', read.value.data)
+              return
+            }
             const url = fileAddressFor(sessionId, cwd, path)
             if (options?.line === undefined) ctx.sidebarRight.openResource(url)
             else ctx.sidebarRight.openResource(url, { params: { line: options.line } })

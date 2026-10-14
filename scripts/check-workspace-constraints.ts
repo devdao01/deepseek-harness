@@ -60,6 +60,12 @@ const standardReleaseMemberDirectory = /^(?:packages\/(?!experimental\/)[^/]+\/[
 /** Installable application assembled by electron-builder rather than published to npm. */
 const desktopApplicationDirectory = 'apps/desktop'
 const localArtifactDirs = new Set(['node_modules'])
+/**
+ * MTIL fork: the standalone SPA submodule is a workspace member for its
+ * `link:` installs only; it is never released and keeps its own manifest
+ * conventions, so these constraints do not apply to it.
+ */
+const forkStandaloneDirs = new Set(['apps/frontend'])
 const appPackageFiles: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh': ['lib/*.js', 'lib/types/*.d.ts'],
   '@deepseek-ai/dsh-desktop-host': [
@@ -608,10 +614,10 @@ export function checkWorkspaceProtocol(manifests: readonly WorkspaceManifest[]):
 
 /** Run the repository constraint gate. */
 export function main(): void {
-  const manifests = readWorkspaceManifests(root)
+  const manifests = readWorkspaceManifests(root).filter(({ dir }) => !forkStandaloneDirs.has(dir))
   const errors = [
     ...checkRepositoryVersion(),
-    ...workspaceManifests().flatMap(checkWorkspaceManifest),
+    ...workspaceManifests().filter(({ dir }) => !forkStandaloneDirs.has(dir)).flatMap(checkWorkspaceManifest),
     ...checkWorkspaceProtocol(manifests),
     ...checkExperimentalDependencyIsolation(manifests),
     ...checkHierarchyShape(),

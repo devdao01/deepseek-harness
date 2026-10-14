@@ -1,3 +1,6 @@
+import { mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentHandle, CreateAgentOptions } from '@deepseek-ai/dsh-agent'
@@ -64,6 +67,148 @@ describe('Session creation failures', () => {
       false,
       undefined,
     )
+    await ctx.fiber.dispose()
+  })
+
+  it('derives the default cwd from the preset id under a configured preset workspace root', async () => {
+    const ctx = await baseContext()
+    ctx.provide('workspaceRegistry', { get: () => undefined, list: () => [] } as never)
+    ctx.provide('agentPresets', { defaultId: 'ho-so-default' } as never)
+    const ensureSession = vi.fn((sessionId: SessionId, cwd: string) => {
+      const session = ctx.sessions.create(sessionId, { meta: { cwd } })
+      return Promise.resolve({ id: sessionId, session } as Agent)
+    })
+    const controller = new SessionCommandController(
+      ctx,
+      controllerAgents({ ensureSession }),
+      '/default-workspace',
+      '/workspace-root',
+    )
+
+    // The requested preset names the subdirectory.
+    const explicit = await controller.create({ agentPreset: 'ho-so-1' })
+    expect(ensureSession).toHaveBeenCalledWith(explicit.sessionId, '/workspace-root/ho-so-1', false, 'ho-so-1')
+
+    // No requested preset falls back to the roster default id.
+    const defaulted = await controller.create({})
+    expect(ensureSession).toHaveBeenCalledWith(defaulted.sessionId, '/workspace-root/ho-so-default', false, undefined)
+
+    // An explicit cwd still wins over the preset-derived default.
+    const explicitCwd = await controller.create({ cwd: '/elsewhere', agentPreset: 'ho-so-1' })
+    expect(ensureSession).toHaveBeenCalledWith(explicitCwd.sessionId, '/elsewhere', false, 'ho-so-1')
+    await ctx.fiber.dispose()
+  })
+
+  it('groups preset sessions under a preset-titled Workspace', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-preset-group-'))
+    const ctx = await baseContext()
+    const attached: string[] = []
+    interface FakeWorkspace {
+      id: string
+      path: string
+      title: string
+      attachSession: (id: string) => Promise<void>
+      setTitle: (t: string) => Promise<void>
+    }
+    const workspaces = new Map<string, FakeWorkspace>()
+    const workspaceAt = (path: string, title: string) => ({
+      id: `ws-${workspaces.size}`,
+      path,
+      title,
+      attachSession: (id: string) => { attached.push(id); return Promise.resolve() },
+      setTitle(t: string) { this.title = t; return Promise.resolve() },
+    })
+    ctx.provide('workspaceRegistry', {
+      get: () => undefined,
+      list: () => [...workspaces.values()],
+      resolveByPath: (path: string) => Promise.resolve(workspaces.get(path)),
+      create: (path: string, title: string) => {
+        const workspace = workspaceAt(path, title)
+        workspaces.set(path, workspace)
+        return Promise.resolve(workspace)
+      },
+    } as never)
+    ctx.provide('agentPresets', {
+      defaultId: 'ho-so-1',
+      resolve: (id: string) => Promise.resolve({ id, name: `Tên ${id}` }),
+      list: () => Promise.resolve([{ id: 'ho-so-1' }]),
+    } as never)
+    const ensureSession = vi.fn((sessionId: SessionId, cwd: string) => {
+      const session = ctx.sessions.create(sessionId, { meta: { cwd } })
+      return Promise.resolve({ id: sessionId, session } as Agent)
+    })
+    const controller = new SessionCommandController(ctx, controllerAgents({ ensureSession }), '/default', root)
+
+    // A create landing in the derived directory groups under a Workspace
+    // titled by the preset's display name.
+    const created = await controller.create({})
+    expect(workspaces.get(join(root, 'ho-so-1'))?.title).toBe('Tên ho-so-1')
+    expect(attached).toEqual([created.sessionId])
+
+    // The one-shot reconcile adopts stored sessions sitting in preset dirs.
+    vi.spyOn(ctx.sessionQuery, 'listSessions').mockResolvedValue([{
+      header: { version: 0, id: SessionId('session-old'), createdAt: 1, cwd: join(root, 'ho-so-1') },
+      live: false,
+      persisted: true,
+    }] as never)
+    await controller.reconcilePresetWorkspaces()
+    expect(attached).toContain('session-old')
+    await ctx.fiber.dispose()
+  })
+
+  it('retitles a preset Workspace whose stored title lags the preset name', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-preset-retitle-'))
+    const ctx = await baseContext()
+    const dir = join(root, 'standard')
+    // Created back when the preset file still carried its previous name; a
+    // file edit on disk emits no rename event, so only ensure() can catch up.
+    const stale = {
+      id: 'ws-stale',
+      path: dir,
+      title: '标准模式',
+      attachSession: () => Promise.resolve(),
+      setTitle(t: string) { this.title = t; return Promise.resolve() },
+    }
+    const created: string[] = []
+    ctx.provide('workspaceRegistry', {
+      get: () => undefined,
+      list: () => [stale],
+      resolveByPath: (path: string) => Promise.resolve(path === dir ? stale : undefined),
+      create: (path: string) => { created.push(path); return Promise.resolve(stale) },
+    } as never)
+    ctx.provide('agentPresets', {
+      defaultId: 'standard',
+      resolve: (id: string) => Promise.resolve({ id, name: 'Standard mode' }),
+      list: () => Promise.resolve([{ id: 'standard' }]),
+    } as never)
+    vi.spyOn(ctx.sessionQuery, 'listSessions').mockResolvedValue([] as never)
+    const controller = new SessionCommandController(ctx, controllerAgents({}), '/default', root)
+
+    await controller.reconcilePresetWorkspaces()
+
+    expect(stale.title).toBe('Standard mode')
+    // The existing group is reused, never recreated beside itself.
+    expect(created).toEqual([])
+    await ctx.fiber.dispose()
+  })
+
+  it('keeps the plain default cwd when no preset id resolves under the root', async () => {
+    const ctx = await baseContext()
+    ctx.provide('workspaceRegistry', { get: () => undefined, list: () => [] } as never)
+    const ensureSession = vi.fn((sessionId: SessionId, cwd: string) => {
+      const session = ctx.sessions.create(sessionId, { meta: { cwd } })
+      return Promise.resolve({ id: sessionId, session } as Agent)
+    })
+    const controller = new SessionCommandController(
+      ctx,
+      controllerAgents({ ensureSession }),
+      '/default-workspace',
+      '/workspace-root',
+    )
+
+    const created = await controller.create({})
+
+    expect(ensureSession).toHaveBeenCalledWith(created.sessionId, '/default-workspace', false, undefined)
     await ctx.fiber.dispose()
   })
 

@@ -222,13 +222,27 @@ export interface Config {
 ## `@deepseek-ai/dsh-api-session-controller`
 
 - `inject`: `agentDefaultModel` · `agents` · `attachments` · `fileUploads` · `fs` · `llm` · `sessions` · `sessionProjections` · `sessionQuery` · `typert` · `workspaceRegistry`
-- `source`: [`packages/api/session-controller/src/index.ts:79`](../packages/api/session-controller/src/index.ts)
+- `source`: [`packages/api/session-controller/src/index.ts:83`](../packages/api/session-controller/src/index.ts)
 
 ```ts config-catalog
 /** Session Controller deployment policy. */
 export interface Config {
   /** Override platform desktop-opener detection. */
   readonly nativeOpen?: boolean
+  /**
+   * Directory whose `<root>/<presetId>` subdirectory becomes the working
+   * directory of a session created with neither a Workspace nor a cwd
+   * (`~` expands). Unset keeps the process working directory.
+   */
+  readonly presetWorkspaceRoot?: string
+  /**
+   * Shared HMAC-SHA256 secret the deployment's identity provider signs user
+   * tickets with (the `mtil-ticket` cookie). Set, it makes `session/list`
+   * and `session/search` filter by each session's allowed-users record and
+   * tags sessions created by an identified caller. Unset, every caller is
+   * anonymous and only unrestricted sessions are listed.
+   */
+  readonly ticketSecret?: string
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-api-session-controller -->
@@ -238,7 +252,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-api-settings-controller`
 
-- `source`: [`packages/api/settings-controller/src/index.ts:35`](../packages/api/settings-controller/src/index.ts)
+- `source`: [`packages/api/settings-controller/src/index.ts:39`](../packages/api/settings-controller/src/index.ts)
 
 ```ts config-catalog
 /** Host integrations replaceable by direct unit tests. */
@@ -435,7 +449,7 @@ export type Config = LocalConfig
 ## `@deepseek-ai/dsh-client-connection`
 
 - `inject`: `credentials`
-- `source`: [`packages/client/connection/src/index.ts:92`](../packages/client/connection/src/index.ts)
+- `source`: [`packages/client/connection/src/index.ts:98`](../packages/client/connection/src/index.ts)
 
 ```ts config-catalog
 /** Browser authentication, request limits, and connection recovery configuration. */
@@ -453,6 +467,15 @@ export interface ConnectionConfig {
   trustedHosts?: string[]
   /** Absolute browser-session lifetime in days. Default: 30. */
   cookieMaxAgeDays?: number
+  /**
+   * Fixed launch token for the `/?token=` sign-in URL. Set, the token
+   * survives restarts (bookmarkable, scriptable against a known value);
+   * absent, each process mints a fresh random token, so a leaked URL dies
+   * with the process. 22-128 chars of `A-Za-z0-9_-` (raw base64url, no
+   * URL-encoding ambiguity); anything else fails plugin load. Treat the
+   * configured value like a password.
+   */
+  launchToken?: string
   /** Maximum buffered JSON body for every `/api` request. Default: 300 MiB. */
   maxRequestBodyBytes?: number
 }
@@ -4512,6 +4535,7 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 | `@deepseek-ai/dsh-typert-generator` | — | [`packages/typert/generator/src/index.ts`](../packages/typert/generator/src/index.ts) |
 | `@deepseek-ai/dsh-typert-protocol` | — | [`packages/typert/protocol/src/index.ts`](../packages/typert/protocol/src/index.ts) |
 | `@deepseek-ai/dsh-typert-registry` | — | [`packages/typert/registry/src/index.ts`](../packages/typert/registry/src/index.ts) |
+| `@deepseek-ai/dsh-user-ticket` | — | [`packages/util/user-ticket/src/index.ts`](../packages/util/user-ticket/src/index.ts) |
 | `@deepseek-ai/dsh-util-code-language` | — | [`packages/util/code-language/src/index.ts`](../packages/util/code-language/src/index.ts) |
 | `@deepseek-ai/dsh-util-crypto` | — | [`packages/util/crypto/src/index.ts`](../packages/util/crypto/src/index.ts) |
 | `@deepseek-ai/dsh-util-time` | — | [`packages/util/time/src/index.ts`](../packages/util/time/src/index.ts) |

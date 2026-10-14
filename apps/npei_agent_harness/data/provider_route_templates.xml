@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Seed catalog of common OpenAI-/Anthropic-compatible gateways. noupdate
+         so a manager's edits survive a module upgrade. Base URLs are the public
+         endpoints; adjust per deployment. -->
+    <data noupdate="1">
+        <record id="route_tpl_openrouter" model="npei.agent.provider.route.template">
+            <field name="name">OpenRouter</field>
+            <field name="route_key">openrouter</field>
+            <field name="api_protocol">openai-completions</field>
+            <field name="base_url">https://openrouter.ai/api/v1</field>
+            <field name="thinking_format">openrouter</field>
+            <field name="note">Key at openrouter.ai/keys. Model ids like openai/gpt-4o, anthropic/claude-3.5-sonnet.</field>
+            <field name="sequence">10</field>
+        </record>
+
+        <record id="route_tpl_together" model="npei.agent.provider.route.template">
+            <field name="name">Together AI</field>
+            <field name="route_key">together</field>
+            <field name="api_protocol">openai-completions</field>
+            <field name="base_url">https://api.together.xyz/v1</field>
+            <field name="thinking_format">together</field>
+            <field name="sequence">20</field>
+        </record>
+
+        <record id="route_tpl_groq" model="npei.agent.provider.route.template">
+            <field name="name">Groq</field>
+            <field name="route_key">groq</field>
+            <field name="api_protocol">openai-completions</field>
+            <field name="base_url">https://api.groq.com/openai/v1</field>
+            <field name="sequence">30</field>
+        </record>
+
+        <record id="route_tpl_fireworks" model="npei.agent.provider.route.template">
+            <field name="name">Fireworks AI</field>
+            <field name="route_key">fireworks</field>
+            <field name="api_protocol">openai-completions</field>
+            <field name="base_url">https://api.fireworks.ai/inference/v1</field>
+            <field name="sequence">40</field>
+        </record>
+
+        <record id="route_tpl_deepseek" model="npei.agent.provider.route.template">
+            <field name="name">DeepSeek</field>
+            <field name="route_key">deepseek-compat</field>
+            <field name="api_protocol">openai-completions</field>
+            <field name="base_url">https://api.deepseek.com</field>
+            <field name="thinking_format">deepseek</field>
+            <field name="note">OpenAI-compatible route to DeepSeek; distinct from the built-in direct adapter.</field>
+            <field name="sequence">50</field>
+        </record>
+
+        <record id="route_tpl_openai" model="npei.agent.provider.route.template">
+            <field name="name">OpenAI</field>
+            <field name="route_key">openai</field>
+            <field name="api_protocol">openai-completions</field>
+            <field name="base_url">https://api.openai.com/v1</field>
+            <field name="thinking_format">openai</field>
+            <field name="sequence">60</field>
+        </record>
+
+        <record id="route_tpl_anthropic" model="npei.agent.provider.route.template">
+            <field name="name">Anthropic</field>
+            <field name="route_key">anthropic</field>
+            <field name="api_protocol">anthropic-messages</field>
+            <field name="base_url">https://api.anthropic.com</field>
+            <field name="sequence">70</field>
+        </record>
+
+        <record id="route_tpl_xai" model="npei.agent.provider.route.template">
+            <field name="name">xAI (Grok)</field>
+            <field name="route_key">xai</field>
+            <field name="api_protocol">openai-completions</field>
+            <field name="base_url">https://api.x.ai/v1</field>
+            <field name="sequence">80</field>
+        </record>
+
+        <record id="route_tpl_mistral" model="npei.agent.provider.route.template">
+            <field name="name">Mistral</field>
+            <field name="route_key">mistral</field>
+            <field name="api_protocol">openai-completions</field>
+            <field name="base_url">https://api.mistral.ai/v1</field>
+            <field name="sequence">90</field>
+        </record>
+    </data>
+</odoo>

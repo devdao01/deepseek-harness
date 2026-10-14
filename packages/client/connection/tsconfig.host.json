@@ -22,6 +22,9 @@
   ],
   "references": [
     {
+      "path": "../../util/user-ticket"
+    },
+    {
       "path": "../../../vendor/cordis"
     },
     {

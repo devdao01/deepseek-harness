@@ -29,6 +29,8 @@ kind: "package-reference"
 
 `settings.describe()` 返回部署信息，以及在 `redactSecrets: true` 下读取的所有 namespace。`settings.update`、`settings.replace` 与 `settings.mutate` 暴露 settings 服务的三种写入操作，并返回该 namespace 的新脱敏视图；陈旧写入使用 `settings-conflict`，其他提供方拒绝使用 `settings-rejected`。
 
+`settings.listAuthorizations()`、`beginAuthorization(key, method)`、`pollAuthorization(attemptId)`、`respondAuthorization(attemptId, promptId, answer)` 与 `cancelAuthorization(attemptId)` 把交互式 `ctx.authorization` 接缝桥接到请求/响应传输上。授权流程（例如 ChatGPT OAuth 这类提供方登录）是一段长时间的对话——它先打开一个 URL，再阻塞等待粘贴的代码——因此 `begin` 以分离方式运行流程并返回 attempt id；界面轮询已排出的通知（登录 URL）和待处理的提示，用粘贴的代码或所选选项调用 `respond`，再次轮询以获得最终结果。密钥从不跨越边界：授权结果在流程内部通过凭据存储提交。未挂载授权接缝时 `listAuthorizations` 为空。
+
 `settings.openSettingsDocument()` 准备提供方持有的文档，并用原生文本编辑器打开；该方法不接受浏览器提供的文件系统目标。
 
 -----

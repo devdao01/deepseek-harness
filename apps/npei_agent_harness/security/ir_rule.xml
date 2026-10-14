@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!--
+        Session mappings: a non-manager sees a mapping when it has no Allowed
+        Users (user_ids empty — public), or when they created it (create_uid),
+        or when they are listed among its allowed users. Managers see all. This
+        is the ORM half of the two-layer ACL; the proxy controller re-checks
+        npei.agent.session._user_can_access before forwarding.
+    -->
+    <record id="rule_npei_session_user" model="ir.rule">
+        <field name="name">NPEI Session: public, creator, or allowed user</field>
+        <field name="model_id" ref="model_npei_agent_session"/>
+        <field name="domain_force">['|', ('user_ids', '=', False), '|', ('create_uid', '=', user.id), ('user_ids', 'in', [user.id])]</field>
+        <field name="groups" eval="[(4, ref('npei_agent_harness.group_npei_agent_user'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="rule_npei_session_manager" model="ir.rule">
+        <field name="name">NPEI Session: all (manager)</field>
+        <field name="model_id" ref="model_npei_agent_session"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('npei_agent_harness.group_npei_agent_manager'))]"/>
+    </record>
+</odoo>

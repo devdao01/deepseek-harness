@@ -25,7 +25,12 @@ export function apply(ctx: Context): void {
   }
 
   ctx.effect(() => {
-    const source = new EventSource(EVENTS_ROUTE)
+    // A sub-path deployment (the MTIL SPA) publishes its absolute app base,
+    // since its document URL is a client route rather than the app root.
+    const appBase = (globalThis as { __DSH_APP_BASE__?: string }).__DSH_APP_BASE__
+    const source = new EventSource(appBase === undefined
+      ? EVENTS_ROUTE
+      : new URL(EVENTS_ROUTE, appBase.endsWith('/') ? appBase : `${appBase}/`).href)
     source.addEventListener('message', (event: MessageEvent<string>) => {
       let value: unknown
       try {
