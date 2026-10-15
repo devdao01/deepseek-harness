@@ -31,7 +31,8 @@ Internet ──https──► 192.168.9.56  nginx gateway (TLS cho mọi domain)
 |---|---|---|
 | `192.168.9.56` | Gateway: TLS, định tuyến domain, kiểm tra đăng nhập Odoo trước `/mtilai2/` | [`apps/mtil-deploy/nginx/gateway.conf`](../apps/mtil-deploy/nginx/gateway.conf), [`mtil-spa.locations`](../apps/mtil-deploy/nginx/mtil-spa.locations) |
 | `192.168.11.68` | Các harness instance + nginx cục bộ | [`harness-host.conf`](../apps/mtil-deploy/nginx/harness-host.conf), [`mtil-harness@.service`](../apps/mtil-deploy/systemd/mtil-harness@.service), [`add-company.sh`](../apps/mtil-deploy/add-company.sh), overlay mẫu [`harness-web-lan.patch.yml`](../apps/frontend/deploy/harness-web-lan.patch.yml) |
-| Máy Odoo của từng công ty | Odoo 17 + `npei_base` + `npei_agent_harness` | `addons_path` trỏ tới thư mục `apps/` của repo |
+| Máy Odoo của từng công ty | Odoo 17 + `npei_agent_harness` | `addons_path` trỏ tới thư mục `apps/` của repo |
+| Service `npei_api` của từng công ty | Flask (repo riêng `npei_api`), phục vụ `POST /api/mtil/get_config_v2`: cổng đăng nhập của SPA lấy vé người dùng tại đây | Cấu hình trong repo `npei_api` |
 
 ### Vì sao mỗi công ty một harness instance
 
@@ -52,7 +53,7 @@ Các instance dùng chung một checkout chỉ đọc (`/opt/mtil/deepseek-harne
 
 1. **Gateway** (`mtil-spa.locations`): trước mọi request `/mtilai2/`, nginx hỏi Odoo của chính domain đó `GET /api/mtil/auth_check` kèm cookie phiên Odoo. Odoo trả `204` cho user thuộc **MTIL User** (Manager bao gồm User), `401` khi chưa đăng nhập, `403` khi đã đăng nhập mà không có nhóm (kể cả user portal). Trang chưa đăng nhập được chuyển tới `/web/login` rồi quay lại; API và WebSocket nhận `401`/`403`. Kết quả `204` được nhớ 30 giây theo (domain, cookie phiên Odoo), nên đăng xuất hoặc gỡ nhóm có hiệu lực trong vòng 30 giây.
 2. **Harness**: mọi `/api` cần cookie `dsh-auth-*`, chỉ có được bằng launch token của đúng instance đó.
-3. **Vé người dùng**: SPA nhận `mtil-ticket` từ Odoo sau khi qua cổng đăng nhập; harness chỉ cho mỗi user thấy session của mình.
+3. **Vé người dùng**: trước khi hiện giao diện, SPA gọi `POST /api/mtil/get_config_v2` (service `npei_api`). `npei_api` xác thực phiên Odoo qua route Odoo `/api/check_session`, rồi gọi `npei.agent.harness.client.api_get_config_v2` qua XML-RPC bằng tài khoản dịch vụ để ký vé, và đặt vé vào cookie HttpOnly `mtil-ticket`. Harness chỉ cho mỗi user thấy session của mình. Thiếu vé, harness coi người gọi là ẩn danh: người đó thấy mọi session không giới hạn quyền, và session họ tạo không thuộc về ai.
 
 ### SPA: vẫn cần build, không cần server tĩnh riêng
 
@@ -64,7 +65,8 @@ Các instance dùng chung một checkout chỉ đọc (`/opt/mtil/deepseek-harne
 
 - `192.168.11.68`: Ubuntu, Node hệ thống tại `/usr/bin/node` (`^22.19` hoặc `>=24`, ví dụ từ NodeSource; không dùng nvm vì mỗi công ty là một user Linux khác), `git`, `nginx`, `openssl`, `ufw`, tối thiểu 8 GB RAM cho bước build. User triển khai (ví dụ `mit`) có `sudo`.
 - `192.168.9.56`: nginx có module `http_auth_request_module` (`nginx -V 2>&1 | grep -o http_auth_request_module`), chứng chỉ TLS cho domain Odoo và domain admin của từng công ty.
-- Odoo của từng công ty: Odoo 17, module `npei_base` (module nội bộ, không nằm trong repo này; cung cấp nhóm `npei_base.npei_group_lock`), module `npei_agent_harness` của repo này, và route `POST /api/mtil/get_config_v2` mà cổng đăng nhập của SPA gọi để lấy vé người dùng (route này không nằm trong repo; cài cùng chỗ với Odoo hiện có của MTIL).
+- Odoo của từng công ty: Odoo 17 và module `npei_agent_harness` của repo này (chỉ phụ thuộc `base`, `mail`, `web`). Odoo đó còn phải có route `/api/check_session` mà `npei_api` dùng để xác thực phiên; route này không nằm trong repo này.
+- Một service `npei_api` cho từng công ty. `npei_api` gắn với đúng một Odoo: host, database và tài khoản dịch vụ nằm trong `config/config.py` của nó. Tài khoản dịch vụ phải gọi được `npei.agent.harness.client` qua XML-RPC.
 
 ## Phần A — Cài nền trên `192.168.11.68` (một lần)
 
@@ -168,7 +170,16 @@ Script từ chối cổng hoặc domain đã thuộc công ty khác. Chạy lạ
 1. Cập nhật checkout trong `addons_path` lên nhánh `dev`, restart Odoo, rồi **Apps → MTIL Harness → Upgrade** (cài mới nếu chưa có). Phiên bản này thêm route `GET /api/mtil/auth_check` mà gateway cần.
 2. Với Odoo đã dùng bản cũ (MTIL): `Settings → MTIL` → **Clear Data** (quản trị hệ thống) để xóa bản ghi `npei.agent.*` cũ. Thao tác này không gọi sang harness.
 3. `Settings → MTIL`: điền **Base URL** (`https://<domain admin>`), **API Token**, **Ticket Secret** đúng như script đã in. Bấm **Test Connection**, rồi **Sync from Harness** cho Providers, Models, Presets, Skills.
-4. `Settings → Users`: gán nhóm **MTIL User** cho người được dùng chat, **MTIL Manager** cho người quản trị. User không có nhóm bị gateway trả `403` ở `/mtilai2/`.
+4. `Settings → Users`: gán nhóm **MTIL User** cho người được dùng chat, **MTIL Manager** cho người quản trị (Manager cũng là nhóm thấy nút Khóa/Mở khóa). User không có nhóm bị gateway trả `403` ở `/mtilai2/`.
+
+### C4b. `npei_api` của công ty
+
+Repo `npei_api` không thuộc repo này; phần dưới mô tả những gì bản hiện tại cần để làm việc với harness.
+
+1. Chạy một `npei_api` trỏ tới Odoo của công ty (`config/config.py`: host, database, tài khoản dịch vụ).
+2. Trên gateway, trong server block domain Odoo của công ty, chuyển `/api/mtil/get_config_v2` tới `npei_api` đó, giống cách `mtil.mtil.vn` đang làm. Route `GET /api/mtil/auth_check` không cần định tuyến: gateway gọi thẳng `$mtil_odoo`.
+3. Cookie vé: `npei_api` đặt `mtil-ticket` với `Domain` lấy từ biến môi trường `DSH_TICKET_COOKIE_DOMAIN`, mặc định `.mtil.vn`. Với domain không thuộc `.mtil.vn` (ví dụ `erp.congtyb.vn`), đặt `DSH_TICKET_COOKIE_DOMAIN=` (rỗng, cookie chỉ gắn với domain đang truy cập) hoặc domain gốc của công ty đó. Nếu để mặc định, trình duyệt bỏ cookie và mọi user của công ty đó thành ẩn danh với harness.
+4. Cookie mang cờ `Secure` mặc định; chỉ đặt `DSH_TICKET_COOKIE_SECURE=0` khi thử trên HTTP nội bộ.
 
 Trước khi điền, kiểm tra từ máy Odoo (trong container Odoo nếu chạy Docker): `curl -s -o /dev/null -w '%{http_code}\n' https://<domain admin>/api/boot.payload` phải in `401` (tới được harness, chưa đăng nhập).
 
@@ -219,7 +230,8 @@ Trên gateway, bỏ hai dòng `set`/`include` khỏi server block Odoo của cô
 | Không có câu trả lời chạy dần, kết nối liên tục đứt | Một chặng nginx thiếu `Upgrade`/`Connection`, `proxy_buffering off` hoặc `proxy_read_timeout` |
 | Odoo **Test Connection** báo `403` | IP máy Odoo không nằm trong allow-list của domain admin trên gateway |
 | Odoo báo lỗi DNS, timeout hoặc SSL | Máy Odoo không phân giải hoặc không quay vào được domain admin (NAT hairpin), hoặc chứng chỉ không hợp lệ |
-| SPA hiện trang từ chối truy cập | Odoo thiếu route `get_config_v2`, hoặc `Ticket Secret` hai bên không trùng |
+| SPA hiện trang từ chối truy cập | Gateway không chuyển `/api/mtil/get_config_v2` tới `npei_api` của công ty, `npei_api` trỏ sai Odoo, hoặc Odoo thiếu `/api/check_session` |
+| Vào được SPA nhưng thấy session của người khác, hoặc session mới không thuộc về ai | Cookie `mtil-ticket` không tới harness: `DSH_TICKET_COOKIE_DOMAIN` của `npei_api` không khớp domain, hoặc `Ticket Secret` trong Odoo khác `ticketSecret` của instance |
 | Mọi lệnh gọi báo `gateway/definition-unavailable` | Một package thiếu dependency trong bản build; xem `journalctl -u mtil-harness@<cty>` tìm `typert-loader` và `ERR_MODULE_NOT_FOUND`, rồi `pnpm install && pnpm run build` |
 
 Log: `journalctl -u mtil-harness@<cty> -n 200` cho harness, `/var/log/nginx/error.log` trên từng máy.
