@@ -11,6 +11,8 @@ Endpoints (all under ``/api/mtil``):
 
 * ``POST /api/mtil/get_config`` — auth probe; 401 when anonymous, 200 with the
   user identity otherwise. Never returns the harness token.
+* ``GET /api/mtil/auth_check`` — reverse-proxy ``auth_request`` verdict: 204
+  for an MTIL User, 401 anonymous, 403 signed in without the group.
 * ``POST /api/mtil/session_access`` — per-session ACL probe the SPA runs
   before opening ``/s/<id>``; 401 when anonymous, else ``{"allowed": bool}``.
 * ``POST /api/mtil/rpc/<method>`` — unary RPC proxy; enforces the ACL for
@@ -148,6 +150,25 @@ class MtilAgentController(http.Controller):
             },
             'harness': {'basePath': '/api'},
         }, status=200)
+
+    @http.route('/api/mtil/auth_check', type='http', auth='public',
+                methods=['GET'], csrf=False, save_session=False)
+    def auth_check(self, **kwargs):
+        """Body-less verdict for the reverse proxy's ``auth_request``.
+
+        nginx asks this before every ``/mtilai2/`` request, so the SPA and the
+        harness behind it stay unreachable without an MTIL login: 204 for a
+        member of MTIL User (Managers imply it), 401 for an anonymous caller,
+        403 for a signed-in user outside the group (portal users included).
+        """
+        user = self._current_user()
+        if user is None:
+            status = 401
+        elif user.has_group('npei_agent_harness.group_npei_agent_user'):
+            status = 204
+        else:
+            status = 403
+        return Response(status=status, headers=[('Cache-Control', 'no-store')])
 
     # ------------------------------------------------------------------
     # Per-session access probe

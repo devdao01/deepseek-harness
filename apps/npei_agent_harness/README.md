@@ -108,6 +108,7 @@ so these are `type='http'` with explicit status codes.
 | Method | Path | ACL | Status codes |
 |---|---|---|---|
 | `POST` | `/api/mtil/get_config` | logged-in Odoo user | `200` authenticated, `401` anonymous |
+| `GET`  | `/api/mtil/auth_check` | member of **MTIL User** | `204` admitted, `401` anonymous, `403` signed in without the group; nginx `auth_request` target guarding `/mtilai2/` (`docs/MTIL-DEPLOY.md`) |
 | `POST` | `/api/mtil/session_access` | logged-in Odoo user | `200` `{"allowed": bool}`, `401` anonymous |
 | `POST` | `/api/mtil/rpc/<path:method>` | session ACL if payload carries a session id | relayed harness status, `401` anonymous, `403` ACL denied, `502` harness unreachable/unconfigured |
 | `GET`  | `/api/mtil/download/<path:kind>` | session ACL (`sessionId` in query) | relayed harness status, `401`, `403`, `502` |
