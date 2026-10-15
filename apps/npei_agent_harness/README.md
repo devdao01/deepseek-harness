@@ -33,7 +33,7 @@ screens driven by `get_config`) and the realtime event proxy are later phases.
 
 1. Add the parent `apps/` directory to MTIL's `addons_path` (see above).
 2. Update the apps list and install **MTIL Harness**. Requires only
-   `base` and `web`. Python dependency: `requests` (bundled with MTIL).
+   `base`, `mail`, and `web`; no other NPEI module. Python dependency: `requests` (bundled with MTIL).
 3. Assign users to **MTIL User** (may use their own sessions) or
    **MTIL Manager** (full CRUD + harness sync) under `Settings → Users`.
 
