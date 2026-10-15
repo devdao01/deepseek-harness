@@ -256,7 +256,7 @@ class HarnessClient(models.AbstractModel):
                   .get_param(CONFIG_TICKET_SECRET) or '').strip()
         if len(secret) < MIN_TICKET_SECRET_LENGTH:
             return
-        ticket, _expires = self.mint_user_ticket('*')
+        ticket, _expires = self._mint_user_ticket('*')
         wire.http.cookies.set('mtil-ticket', ticket)
 
     @api.model
@@ -280,12 +280,16 @@ class HarnessClient(models.AbstractModel):
         return base64.urlsafe_b64encode(raw).rstrip(b'=').decode('ascii')
 
     @api.model
-    def mint_user_ticket(self, user_id, ttl_seconds=DEFAULT_TICKET_TTL_SECONDS):
+    def _mint_user_ticket(self, user_id, ttl_seconds=DEFAULT_TICKET_TTL_SECONDS):
         """Mint a ``v1`` harness user-ticket for ``user_id``.
 
         Signs ``{"u": str(user_id), "exp": <unix>}`` with HMAC-SHA256 over the
         shared secret in ``ir.config_parameter``. ``u`` MUST be the identifier
-        the session ACL is keyed by (a ``res.users`` id as a string).
+        the session ACL is keyed by (a ``res.users`` id as a string). Private
+        on purpose: a ticket for any ``user_id``, ``*`` included, is a harness
+        credential, so it must never be reachable over Odoo RPC; callers are
+        the ``get_config_v2`` route (the signed-in user's own id) and the
+        management wire (``*``).
 
         :returns: ``(ticket, expires_at)``.
         :raises UserError: when the secret is unset or below the minimum length.
@@ -302,16 +306,3 @@ class HarnessClient(models.AbstractModel):
         signing_input = '%s.%s' % (TICKET_VERSION, body)
         mac = hmac.new(secret.encode('utf-8'), signing_input.encode('ascii'), hashlib.sha256).digest()
         return '%s.%s' % (signing_input, self._b64url_nopad(mac)), expires_at
-
-    @api.model
-    def api_get_config_v2(self, user_id):
-        """Access-gate payload for the MTIL SPA: mint a ticket for ``user_id``.
-
-        :returns: ``{'status': True, 'message': '', 'datas': {'ticket', 'expires_at'}}``.
-        """
-        ticket, expires_at = self.mint_user_ticket(user_id)
-        return {
-            'status': True,
-            'message': '',
-            'datas': {'ticket': ticket, 'expires_at': expires_at},
-        }

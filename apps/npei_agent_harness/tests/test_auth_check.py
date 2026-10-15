@@ -111,3 +111,25 @@ class TestGetConfigV2(HttpCase):
         self.assertTrue(hmac.compare_digest(_b64url_decode(mac), expected_mac))
         claims = json.loads(_b64url_decode(payload))
         self.assertEqual(claims, {'u': str(self.mtil_user.id), 'exp': body['datas']['expires_at']})
+
+
+@tagged('post_install', '-at_install')
+class TestTicketMintingIsNotRpc(HttpCase):
+    """A ticket for any user id, ``*`` included, is a harness credential."""
+
+    def test_no_user_can_mint_a_ticket_over_rpc(self):
+        self.env['ir.config_parameter'].sudo().set_param('npei_agent_harness.ticket_secret', TICKET_SECRET)
+        new_test_user(self.env, login='rpc-plain', password='rpc-plain-pw', groups='base.group_user')
+        new_test_user(self.env, login='rpc-manager', password='rpc-manager-pw',
+                      groups='npei_agent_harness.group_npei_agent_manager')
+        for login in ('rpc-plain', 'rpc-manager'):
+            self.authenticate(login, '%s-pw' % login)
+            for method in ('_mint_user_ticket', 'mint_user_ticket', 'api_get_config_v2'):
+                response = self.url_open('/web/dataset/call_kw', data=json.dumps({
+                    'jsonrpc': '2.0', 'method': 'call', 'params': {
+                        'model': 'npei.agent.harness.client', 'method': method, 'args': ['*'], 'kwargs': {},
+                    },
+                }), headers={'Content-Type': 'application/json'})
+                body = response.json()
+                self.assertNotIn('result', body, (login, method))
+                self.assertIn('error', body, (login, method))

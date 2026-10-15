@@ -198,7 +198,7 @@ class MtilAgentController(http.Controller):
         if status == 403:
             return self._refuse_ticket(403, 'FORBIDDEN', 'The user is not in the MTIL User group.')
         try:
-            ticket, expires_at = request.env['npei.agent.harness.client'].mint_user_ticket(user.id)
+            ticket, expires_at = request.env['npei.agent.harness.client']._mint_user_ticket(user.id)
         except UserError as exc:
             _logger.warning("get_config_v2: cannot mint a ticket for user %s: %s", user.id, exc)
             return self._refuse_ticket(503, 'TICKET_SECRET_UNSET', str(exc))
