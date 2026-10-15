@@ -13,6 +13,11 @@ Endpoints (all under ``/api/mtil``):
   user identity otherwise. Never returns the harness token.
 * ``GET /api/mtil/auth_check`` — reverse-proxy ``auth_request`` verdict: 204
   for an MTIL User, 401 anonymous, 403 signed in without the group.
+* ``POST /api/mtil/get_config_v2`` — the SPA login gate: for an MTIL User,
+  mints the harness user ticket into the HttpOnly ``mtil-ticket`` cookie and
+  answers 200 ``{"status": true, "datas": {"expires_at": <unix>}}``; 401
+  anonymous (an expired Odoo session is anonymous), 403 without the group, 503
+  when the Ticket Secret is unusable. Every refusal clears the cookie.
 * ``POST /api/mtil/session_access`` — per-session ACL probe the SPA runs
   before opening ``/s/<id>``; 401 when anonymous, else ``{"allowed": bool}``.
 * ``POST /api/mtil/rpc/<method>`` — unary RPC proxy; enforces the ACL for
@@ -36,6 +41,7 @@ Design notes:
 """
 import json
 import logging
+import time
 
 import requests
 from werkzeug.wrappers import Response
@@ -57,6 +63,13 @@ PROXY_TIMEOUT = 60
 
 # Bytes per chunk when streaming a download back to the browser.
 DOWNLOAD_CHUNK_SIZE = 64 * 1024
+
+# Membership that admits a user to the chat SPA (MTIL Manager implies it).
+MTIL_USER_GROUP = 'npei_agent_harness.group_npei_agent_user'
+
+# Cookie the harness reads the signed user ticket from (dsh-user-ticket's
+# USER_TICKET_COOKIE).
+TICKET_COOKIE = 'mtil-ticket'
 
 
 class MtilAgentController(http.Controller):
@@ -161,14 +174,65 @@ class MtilAgentController(http.Controller):
         member of MTIL User (Managers imply it), 401 for an anonymous caller,
         403 for a signed-in user outside the group (portal users included).
         """
+        status, _user = self._mtil_user_verdict()
+        return Response(status=204 if status == 200 else status,
+                        headers=[('Cache-Control', 'no-store')])
+
+    @http.route('/api/mtil/get_config_v2', type='http', auth='public',
+                methods=['POST'], csrf=False, save_session=False)
+    def get_config_v2(self, **kwargs):
+        """SPA login gate: mint the harness user ticket for an MTIL User.
+
+        The ticket travels only as the ``mtil-ticket`` cookie: HttpOnly (page
+        scripts cannot read it), host-only (no ``Domain``, so it works on every
+        company's Odoo domain), ``Path=/`` (reaches ``/mtilai2/api``),
+        ``SameSite=Strict``, ``Secure`` on HTTPS, and valid as long as the
+        ticket. The body carries only ``expires_at``. Refusals answer with
+        ``status: false`` and an ``error_code`` (``UNAUTHORIZED``,
+        ``FORBIDDEN``, ``TICKET_SECRET_UNSET``) and clear the cookie, so a
+        refused browser keeps no older ticket.
+        """
+        status, user = self._mtil_user_verdict()
+        if status == 401:
+            return self._refuse_ticket(401, 'UNAUTHORIZED', 'Not signed in to Odoo.')
+        if status == 403:
+            return self._refuse_ticket(403, 'FORBIDDEN', 'The user is not in the MTIL User group.')
+        try:
+            ticket, expires_at = request.env['npei.agent.harness.client'].mint_user_ticket(user.id)
+        except UserError as exc:
+            _logger.warning("get_config_v2: cannot mint a ticket for user %s: %s", user.id, exc)
+            return self._refuse_ticket(503, 'TICKET_SECRET_UNSET', str(exc))
+        response = self._json({'status': True, 'message': '', 'datas': {'expires_at': expires_at}})
+        response.headers['Cache-Control'] = 'no-store'
+        response.set_cookie(
+            TICKET_COOKIE, ticket,
+            max_age=max(0, expires_at - int(time.time())),
+            path='/', httponly=True, samesite='Strict',
+            secure=request.httprequest.scheme == 'https',
+        )
+        return response
+
+    def _mtil_user_verdict(self):
+        """Classify the caller for the SPA gates.
+
+        :returns: ``(200, user)`` for a member of MTIL User, ``(401, None)``
+            for an anonymous caller, ``(403, user)`` for any other signed-in
+            user (portal users included).
+        """
         user = self._current_user()
         if user is None:
-            status = 401
-        elif user.has_group('npei_agent_harness.group_npei_agent_user'):
-            status = 204
-        else:
-            status = 403
-        return Response(status=status, headers=[('Cache-Control', 'no-store')])
+            return 401, None
+        if user.has_group(MTIL_USER_GROUP):
+            return 200, user
+        return 403, user
+
+    def _refuse_ticket(self, status, error_code, message):
+        """A ``get_config_v2`` refusal that also deletes any earlier ticket cookie."""
+        response = self._json({'status': False, 'error_code': error_code, 'message': message, 'datas': {}},
+                              status=status)
+        response.headers['Cache-Control'] = 'no-store'
+        response.delete_cookie(TICKET_COOKIE, path='/')
+        return response
 
     # ------------------------------------------------------------------
     # Per-session access probe
