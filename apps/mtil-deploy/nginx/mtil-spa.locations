@@ -1,0 +1,68 @@
+# MTIL AI — /mtilai2/ on a company's Odoo domain (gateway 192.168.9.56).
+# Include inside that company's Odoo server block, after
+#   set $mtil_odoo http://<the Odoo upstream that block proxies to>;
+# Needs gateway.conf (mtil_harness_host, mtil_auth cache, the two maps).
+#
+# Every /mtilai2/ request is admitted only when this company's Odoo answers
+# 2xx on GET /api/mtil/auth_check for the browser's Odoo session (member of
+# MTIL User). Anonymous page loads go to the Odoo login and come back; API,
+# plugin, and WebSocket requests get the bare 401/403. Verdicts are cached
+# 30 s per (domain, Odoo session cookie), so a logout or a removed group takes
+# effect within 30 s.
+
+location /mtilai2/ {
+    auth_request /_mtil_auth;
+    error_page 401 = @mtil_login;
+    proxy_pass http://mtil_harness_host;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    client_max_body_size 64m;
+}
+
+location /mtilai2/api/ {
+    auth_request /_mtil_auth;
+    proxy_pass http://mtil_harness_host;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_buffering off;
+    proxy_read_timeout 1h;
+    client_max_body_size 64m;
+}
+
+location /mtilai2/plugins/ {
+    auth_request /_mtil_auth;
+    proxy_pass http://mtil_harness_host;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_read_timeout 1h;
+}
+
+location = /_mtil_auth {
+    internal;
+    proxy_pass $mtil_odoo/api/mtil/auth_check;
+    proxy_pass_request_body off;
+    proxy_set_header Content-Length "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_ssl_server_name on;
+    proxy_cache mtil_auth;
+    proxy_cache_key "$host:$cookie_session_id";
+    proxy_cache_valid 204 30s;
+    proxy_ignore_headers Cache-Control Expires Set-Cookie Vary;
+    proxy_no_cache $mtil_auth_no_cache;
+    proxy_cache_bypass $mtil_auth_no_cache;
+}
+
+location @mtil_login {
+    # Relative Location: correct behind any number of TLS-terminating hops.
+    absolute_redirect off;
+    return 302 /web/login?redirect=$request_uri;
+}

@@ -1,0 +1,24 @@
+# MTIL AI — one harness instance per company: mtil-harness@<company>.
+# Installed to /etc/systemd/system/ by apps/mtil-deploy/add-company.sh, which
+# also creates the Linux user mtil-<company> (home /srv/mtil/<company>, holding
+# that company's ~/.dsh and ~/workspace) and /etc/mtil-harness/<company>.env.
+# The checkout /opt/mtil/deepseek-harness is shared read-only; the harness
+# writes only below the instance's home. Full procedure: docs/MTIL-DEPLOY.md.
+
+[Unit]
+Description=MTIL Harness for company %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=mtil-%i
+Group=mtil-%i
+WorkingDirectory=~
+EnvironmentFile=/etc/mtil-harness/%i.env
+ExecStart=/usr/bin/node /opt/mtil/deepseek-harness/apps/cli/lib/bin.js --profile web --no-open --port ${MTIL_PORT} --trusted-host ${MTIL_SPA_HOST} --trusted-host ${MTIL_ADMIN_HOST}
+Restart=on-failure
+RestartSec=5
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -2,7 +2,7 @@
 
 Every place this fork diverges from upstream DeepSeek Harness, grouped by how much an upstream merge will hurt. The `dev` branch carries the fork on base `dsh-v0.2.0-rc.2`; `main` keeps the previous generation on base `dsh-v0.1.5-rc.2`. Use this file as the checklist when syncing: resolve group 3 by hand first, groups 1–2 mostly self-merge. Keep it current — a fork change that touches a new upstream file adds a row here in the same PR.
 
-MTIL-only conventions: the deployment is Odoo 17 (module `apps/npei_agent_harness`) + this harness on one Ubuntu host + the standalone SPA (`apps/frontend` submodule) served by nginx under `/mtilai2/`. Per-user identity arrives as the HMAC `mtil-ticket` cookie minted by Odoo; `u='*'` is the management wildcard. Installation and topology (harness bound to loopback behind a same-host nginx, a TLS gateway in front): [MTIL-DEPLOY.md](MTIL-DEPLOY.md).
+MTIL-only conventions: the deployment is one or more companies' Odoo 17 (module `apps/npei_agent_harness`) + one harness instance per company on one Ubuntu host + the standalone SPA (`apps/frontend` submodule) served by nginx under `<company Odoo domain>/mtilai2/`. Per-user identity arrives as the HMAC `mtil-ticket` cookie minted by Odoo; `u='*'` is the management wildcard. Installation and topology (per-company instances bound to loopback behind a same-host nginx, a TLS gateway that admits `/mtilai2/` only for an MTIL User of that Odoo): [MTIL-DEPLOY.md](MTIL-DEPLOY.md).
 
 Upstream-file rule: a fork change keeps upstream lines verbatim and adds the smallest hook. Logic lives in fork-owned files — a fork package, or a `mtil-*.ts` module inside the upstream package it extends — and the upstream file only imports and calls it.
 
@@ -22,14 +22,14 @@ Upstream-file rule: a fork change keeps upstream lines verbatim and adds the sma
 | Path | What it is |
 |---|---|
 | `apps/frontend/` (submodule, repo `devdao01/frontend-deepseek-harness`) | The MTIL SPA: Odoo login gate, `__MTIL_UI__` flags, SPA-private client plugins (`public/mtil-*.js`), deploy overlay `deploy/harness-web-lan.patch.yml` + build script. A pnpm workspace member through `apps/*` |
-| `apps/npei_agent_harness/` | Odoo module: session ACL mirror, preset authoring over `mtilPresets/*`, provider sign-in wizard, tool/model mirrors, `i18n/vi_VN.po` + `tools/regenerate_i18n.py` |
+| `apps/npei_agent_harness/` | Odoo module: session ACL mirror, preset authoring over `mtilPresets/*`, provider sign-in wizard, tool/model mirrors, the gateway's `GET /api/mtil/auth_check`, `i18n/vi_VN.po` + `tools/regenerate_i18n.py` |
 | `apps/odoo-mcp/` | Dependency-free MCP stdio server for per-preset Odoo XML-RPC access |
 | `apps/multi-agent-setup/` | Department preset sources and their build scripts |
-| `apps/nginx/{gateway,harness-host}.conf` | nginx for the TLS gateway and for the harness host (SPA alias + loopback harness proxy) |
+| `apps/mtil-deploy/` | Per-company deployment: `add-company.sh`, the `mtil-harness@.service` template, nginx for the gateway (`gateway.conf`, `mtil-spa.locations` with the Odoo `auth_request`) and for the harness host (`harness-host.conf`, Host → instance port maps) |
 | `packages/util/user-ticket/` | `@deepseek-ai/dsh-user-ticket`: AsyncLocalStorage request context and `mtil-ticket` verification |
 | `packages/preset/mtil-presets/` | `@deepseek-ai/dsh-mtil-presets`: stored presets in `$DSH_HOME/.agent-presets` (the directory earlier fork releases used, so existing presets load unchanged) declared through `ctx.agentPresets.register()` |
 | `packages/client/ui-{workspace,sidebar,chat}/src/client/mtil-*.ts`, `packages/client/ui-conversation/src/client/skeleton/mtil-ui.ts` | Fork modules holding the `__MTIL_UI__` logic the upstream files call |
-| `~/.dsh/profiles/web/cordis.patch.yml` (server, from `apps/frontend/deploy/harness-web-lan.patch.yml`) | Deployment overlay: session-controller `ticketSecret`/`presetWorkspaceRoot`, the `mtil-presets` row (`ticketSecret`, `odooMcpServer`), optional fixed `launchToken`; the stock loopback bind is kept |
+| `/srv/mtil/<company>/.dsh/profiles/web/cordis.patch.yml` (server, rendered by `add-company.sh` from `apps/frontend/deploy/harness-web-lan.patch.yml`) | Per-instance overlay: fixed `launchToken`, session-controller `ticketSecret`/`presetWorkspaceRoot`, the `mtil-presets` row (`ticketSecret`, `odooMcpServer`); the stock loopback bind is kept |
 
 ## Group 2 — light conflicts (additive code in upstream files)
 
