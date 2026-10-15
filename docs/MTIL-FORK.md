@@ -2,7 +2,7 @@
 
 Every place this fork diverges from upstream DeepSeek Harness, grouped by how much an upstream merge will hurt. The `dev` branch carries the fork on base `dsh-v0.2.0-rc.2`; `main` keeps the previous generation on base `dsh-v0.1.5-rc.2`. Use this file as the checklist when syncing: resolve group 3 by hand first, groups 1–2 mostly self-merge. Keep it current — a fork change that touches a new upstream file adds a row here in the same PR.
 
-MTIL-only conventions: the deployment is Odoo 17 (module `apps/npei_agent_harness`) + this harness on one Ubuntu host + the standalone SPA (`apps/frontend` submodule) served by nginx under `/mtilai2/`. Per-user identity arrives as the HMAC `mtil-ticket` cookie minted by Odoo; `u='*'` is the management wildcard.
+MTIL-only conventions: the deployment is Odoo 17 (module `apps/npei_agent_harness`) + this harness on one Ubuntu host + the standalone SPA (`apps/frontend` submodule) served by nginx under `/mtilai2/`. Per-user identity arrives as the HMAC `mtil-ticket` cookie minted by Odoo; `u='*'` is the management wildcard. Installation and topology (harness bound to loopback behind a same-host nginx, a TLS gateway in front): [MTIL-DEPLOY.md](MTIL-DEPLOY.md).
 
 Upstream-file rule: a fork change keeps upstream lines verbatim and adds the smallest hook. Logic lives in fork-owned files — a fork package, or a `mtil-*.ts` module inside the upstream package it extends — and the upstream file only imports and calls it.
 
@@ -25,11 +25,11 @@ Upstream-file rule: a fork change keeps upstream lines verbatim and adds the sma
 | `apps/npei_agent_harness/` | Odoo module: session ACL mirror, preset authoring over `mtilPresets/*`, provider sign-in wizard, tool/model mirrors, `i18n/vi_VN.po` + `tools/regenerate_i18n.py` |
 | `apps/odoo-mcp/` | Dependency-free MCP stdio server for per-preset Odoo XML-RPC access |
 | `apps/multi-agent-setup/` | Department preset sources and their build scripts |
-| `apps/nginx.conf` | Two-frontend nginx deployment (SPA alias + harness proxy) |
+| `apps/nginx/{gateway,harness-host}.conf` | nginx for the TLS gateway and for the harness host (SPA alias + loopback harness proxy + Odoo-only port) |
 | `packages/util/user-ticket/` | `@deepseek-ai/dsh-user-ticket`: AsyncLocalStorage request context and `mtil-ticket` verification |
 | `packages/preset/mtil-presets/` | `@deepseek-ai/dsh-mtil-presets`: stored presets in `$DSH_HOME/.agent-presets` (the directory earlier fork releases used, so existing presets load unchanged) declared through `ctx.agentPresets.register()` |
 | `packages/client/ui-{workspace,sidebar,chat}/src/client/mtil-*.ts`, `packages/client/ui-conversation/src/client/skeleton/mtil-ui.ts` | Fork modules holding the `__MTIL_UI__` logic the upstream files call |
-| `~/.dsh/profiles/web/cordis.patch.yml` (server, from `apps/frontend/deploy/harness-web-lan.patch.yml`) | Deployment overlay: trustedHosts, session-controller `ticketSecret`/`presetWorkspaceRoot`, the `mtil-presets` row (`ticketSecret`, `odooMcpServer`), optional fixed `launchToken` |
+| `~/.dsh/profiles/web/cordis.patch.yml` (server, from `apps/frontend/deploy/harness-web-lan.patch.yml`) | Deployment overlay: session-controller `ticketSecret`/`presetWorkspaceRoot`, the `mtil-presets` row (`ticketSecret`, `odooMcpServer`), optional fixed `launchToken`; the stock loopback bind is kept |
 
 ## Group 2 — light conflicts (additive code in upstream files)
 

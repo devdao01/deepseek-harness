@@ -128,9 +128,11 @@ const NON_SOURCE_DIRECTORIES = new Set([
 /** Glob traversal exclusions corresponding to the non-source path predicate. */
 export const TRANSLATION_SCOPE_GLOB_EXCLUDES = [
   '.agents/notes/archived/**',
-  // MTIL fork: deployment-internal documentation for one team, never
+  // MTIL fork: deployment-internal documentation for one team (the
+  // deployment guide is Vietnamese), never
   // published from this repository, so it carries no Chinese counterpart.
   'docs/MTIL-FORK.md',
+  'docs/MTIL-DEPLOY.md',
   'apps/odoo-mcp/**',
   'apps/multi-agent-setup/**',
   'apps/npei_agent_harness/**',
