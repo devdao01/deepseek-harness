@@ -820,14 +820,11 @@ inspect( sessionId: SessionId, signal?: AbortSignal, ): Promise<SessionInspectio
 @Remote('create') async create(request: SessionCreateRequest): Promise<SessionCreateValue>
 
 /**
- * Replace one Session's allowed-users access list.
- *
- * With a configured `ticketSecret` only the `*` management wildcard may
- * write: an ordinary browser could otherwise grant itself access.
+ * Replace one Session's allowed-users access list (MTIL management plane).
  * @param request - Session identity and the complete new list.
  * @returns the list as stored (empty = unrestricted).
  */
-@Remote('setAccess') async setAccess(request: SessionSetAccessRequest): Promise<SessionSetAccessValue>
+@Remote('setAccess') setAccess(request: SessionSetAccessRequest): Promise<SessionSetAccessValue>
 
 /**
  * Select one Session-local model after explicitly resuming the Session; save the default in the background.
@@ -903,9 +900,9 @@ workspaceDesktop(): { name: string; available: boolean; fileManager: 'finder' | 
 @Remote('prompt') async prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue>
 
 /**
- * Read one durable image the Session log references.
+ * Read one image proven reachable from the addressed Session log.
  * @param request - Session and attachment identities used for authorization.
- * @returns the durable attachment reference and its base64-encoded bytes.
+ * @returns the durable attachment reference and base64-encoded bytes.
  */
 @Remote('attachment') async attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue>
 

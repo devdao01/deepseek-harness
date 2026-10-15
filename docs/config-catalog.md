@@ -230,17 +230,16 @@ export interface Config {
   /** Override platform desktop-opener detection. */
   readonly nativeOpen?: boolean
   /**
-   * Directory whose `<root>/<presetId>` subdirectory becomes the working
-   * directory of a session created with neither a Workspace nor a cwd
-   * (`~` expands). Unset keeps the process working directory.
+   * MTIL: directory whose `<root>/<presetId>` subdirectory becomes the
+   * working directory, grouped under the preset's Workspace, of a session
+   * created with neither a Workspace nor a cwd (`~` expands). Unset keeps
+   * the process working directory.
    */
   readonly presetWorkspaceRoot?: string
   /**
-   * Shared HMAC-SHA256 secret the deployment's identity provider signs user
-   * tickets with (the `mtil-ticket` cookie). Set, it makes `session/list`
-   * and `session/search` filter by each session's allowed-users record and
-   * tags sessions created by an identified caller. Unset, every caller is
-   * anonymous and only unrestricted sessions are listed.
+   * MTIL: shared HMAC-SHA256 secret of the `mtil-ticket` cookie. Set, Session
+   * reads and commands follow each Session's allowed-users record, a ticketed
+   * creator owns its Session, and `/api/file` is not mounted.
    */
   readonly ticketSecret?: string
 }
@@ -449,7 +448,7 @@ export type Config = LocalConfig
 ## `@deepseek-ai/dsh-client-connection`
 
 - `inject`: `credentials`
-- `source`: [`packages/client/connection/src/index.ts:98`](../packages/client/connection/src/index.ts)
+- `source`: [`packages/client/connection/src/index.ts:92`](../packages/client/connection/src/index.ts)
 
 ```ts config-catalog
 /** Browser authentication, request limits, and connection recovery configuration. */
@@ -2125,6 +2124,27 @@ export interface Config {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-message-feedback -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-mtil-presets -->
+<a id="deepseek-aidsh-mtil-presets"></a>
+
+## `@deepseek-ai/dsh-mtil-presets`
+
+- `inject`: `agentPresets` · `tools`
+- `source`: [`packages/preset/mtil-presets/src/index.ts:39`](../packages/preset/mtil-presets/src/index.ts)
+
+```ts config-catalog
+/** Deployment configuration. */
+export interface Config {
+  /** Storage root for authored presets (`~` expands); default `$DSH_HOME/.agent-presets`. */
+  root?: string
+  /** Shared ticket secret; set, `writeRaw` accepts only the `*` management wildcard. */
+  ticketSecret?: string
+  /** Absolute path of `apps/odoo-mcp/server.mjs`; unset, authoring an Odoo connection is refused. */
+  odooMcpServer?: string
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-mtil-presets -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-office-to-pdf -->
 <a id="deepseek-aidsh-office-to-pdf"></a>

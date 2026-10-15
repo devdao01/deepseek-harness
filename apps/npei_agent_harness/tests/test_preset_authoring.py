@@ -2,9 +2,9 @@
 """Preset authoring against the real harness wire.
 
 The harness client is mocked, so these assert the slug rule and the exact
-endpoints/args MTIL sends: ``agentPresets/copy {from, id, name}`` on authoring,
-``agentPresets/deletePreset {id}`` on user-preset unlink, and the
-``agentPresets/list`` mirror sync.
+endpoints/args MTIL sends: ``mtilPresets/copy {request: {from, id, name}}`` on authoring,
+``mtilPresets/deletePreset {id}`` on user-preset unlink, and the
+``mtilPresets/list`` mirror sync.
 """
 from unittest.mock import patch
 
@@ -25,18 +25,18 @@ class TestPresetAuthoring(TransactionCase):
 
         def fake_rpc(model, method, args=None):
             self._calls.append((method, args))
-            if method == 'agentPresets/list':
+            if method == 'mtilPresets/list':
                 return {'presets': [
                     {'id': 'base', 'isDefault': True, 'trust': 'system',
                      'name': 'Base', 'description': 'Default'},
                 ] + self._extra_presets}
-            if method == 'agentPresets/copy':
+            if method == 'mtilPresets/copy':
                 return None  # the harness copy endpoint is void
-            if method == 'agentPresets/author':
+            if method == 'mtilPresets/author':
                 return None  # void
-            if method == 'agentPresets/writeRaw':
+            if method == 'mtilPresets/writeRaw':
                 return None  # void
-            if method == 'agentPresets/toolCatalog':
+            if method == 'mtilPresets/toolCatalog':
                 return {'tools': [
                     {'name': 'bash', 'description': 'Run shell commands'},
                     {'name': 'read', 'description': 'Read files'},
@@ -44,7 +44,7 @@ class TestPresetAuthoring(TransactionCase):
             if method == 'agentPresets/read':
                 return {'agentPreset': (args or {}).get('agentPreset'),
                         'trust': 'user', 'content': '- id: alpha\n  name: x\n'}
-            if method == 'agentPresets/deletePreset':
+            if method == 'mtilPresets/deletePreset':
                 return None
             return {}
 
@@ -64,43 +64,43 @@ class TestPresetAuthoring(TransactionCase):
         record = self.Preset.create({'name': 'Hồ Sơ 1'})
         self.assertEqual(record.preset_id, 'ho-so-1')
         self.assertEqual(record.trust, 'user')
-        copies = self._calls_for('agentPresets/copy')
-        self.assertEqual(copies, [{'from': 'base', 'id': 'ho-so-1', 'name': 'Hồ Sơ 1'}])
+        copies = self._calls_for('mtilPresets/copy')
+        self.assertEqual(copies, [{'request': {'from': 'base', 'id': 'ho-so-1', 'name': 'Hồ Sơ 1'}}])
 
     def test_create_with_preset_id_mirrors_without_authoring(self):
         self.Preset.create({'name': 'Adopted', 'preset_id': 'adopted'})
-        self.assertFalse(self._calls_for('agentPresets/copy'))
+        self.assertFalse(self._calls_for('mtilPresets/copy'))
 
     def test_duplicate_slug_in_odoo_raises_before_authoring(self):
         self.Preset.create({'name': 'Kept', 'preset_id': 'kept'})
         with self.assertRaises(UserError):
             self.Preset.create({'name': 'Kept'})
-        self.assertFalse(self._calls_for('agentPresets/copy'))
+        self.assertFalse(self._calls_for('mtilPresets/copy'))
 
     def test_slug_already_on_harness_raises_before_copy(self):
         self._extra_presets.append({'id': 'ho-so-2', 'trust': 'user'})
         with self.assertRaises(UserError):
             self.Preset.create({'name': 'Hồ Sơ 2'})
-        self.assertFalse(self._calls_for('agentPresets/copy'))
+        self.assertFalse(self._calls_for('mtilPresets/copy'))
 
     def test_unlink_user_preset_deletes_on_harness(self):
         record = self.Preset.create({'name': 'Gone'})
         record.unlink()
-        self.assertEqual(self._calls_for('agentPresets/deletePreset'), [{'id': 'gone'}])
+        self.assertEqual(self._calls_for('mtilPresets/deletePreset'), [{'id': 'gone'}])
 
     def test_unlink_system_mirror_does_not_delete_on_harness(self):
         record = self.Preset.with_context(npei_syncing=True).create(
             {'name': 'Base', 'preset_id': 'base', 'trust': 'system'})
         record.with_context(npei_syncing=False).unlink()
-        self.assertFalse(self._calls_for('agentPresets/deletePreset'))
+        self.assertFalse(self._calls_for('mtilPresets/deletePreset'))
 
     def test_name_write_pushes_rename_for_user_presets_only(self):
         record = self.Preset.create({'name': 'Hồ Sơ 1'})
         self.assertEqual(record.workspace_path, '~/workspace/ho-so-1')
         self._calls.clear()
         record.name = 'Hồ Sơ Mới'
-        self.assertEqual(self._calls_for('agentPresets/rename'), [
-            {'agentPreset': 'ho-so-1', 'name': 'Hồ Sơ Mới'}])
+        self.assertEqual(self._calls_for('mtilPresets/rename'), [
+            {'request': {'agentPreset': 'ho-so-1', 'name': 'Hồ Sơ Mới'}}])
         # The id — and the id-derived workspace path — never changes.
         self.assertEqual(record.preset_id, 'ho-so-1')
         self.assertEqual(record.workspace_path, '~/workspace/ho-so-1')
@@ -112,7 +112,7 @@ class TestPresetAuthoring(TransactionCase):
         system = self.Preset.browse(system.id)
         self._calls.clear()
         system.name = 'Base đổi tên'
-        self.assertFalse(self._calls_for('agentPresets/rename'))
+        self.assertFalse(self._calls_for('mtilPresets/rename'))
 
     def test_odoo_connection_travels_with_author(self):
         record = self.Preset.create({
@@ -122,7 +122,7 @@ class TestPresetAuthoring(TransactionCase):
             'odoo_api_key': 'k', 'odoo_allow_write': True,
             'odoo_allowed_models': ' res.partner , account.move ',
         })
-        pushes = self._calls_for('agentPresets/author')
+        pushes = self._calls_for('mtilPresets/author')
         odoo = pushes[-1]['request']['odoo']
         self.assertEqual(odoo['url'], 'https://mtil.mtil.vn')
         self.assertEqual(odoo['db'], self.env.cr.dbname)
@@ -134,7 +134,7 @@ class TestPresetAuthoring(TransactionCase):
         # Toggling the connection off re-authors without the block.
         self._calls.clear()
         self.Preset.browse(record.id).write({'odoo_enable': False})
-        pushes = self._calls_for('agentPresets/author')
+        pushes = self._calls_for('mtilPresets/author')
         self.assertNotIn('odoo', pushes[-1]['request'])
 
     def test_odoo_url_and_db_prefill(self):
@@ -146,7 +146,7 @@ class TestPresetAuthoring(TransactionCase):
         })
         self.assertEqual(record.odoo_url, 'https://mtil.mtil.vn')
         self.assertEqual(record.odoo_db, self.env.cr.dbname)
-        odoo = self._calls_for('agentPresets/author')[-1]['request']['odoo']
+        odoo = self._calls_for('mtilPresets/author')[-1]['request']['odoo']
         self.assertEqual(odoo['url'], 'https://mtil.mtil.vn')
 
     def test_odoo_connection_requires_account_fields(self):
@@ -164,15 +164,15 @@ class TestPresetAuthoring(TransactionCase):
             'persona': 'Bạn là AGENT CS.', 'allow_web': True,
         })
         self.assertEqual(record.preset_id, 'ho-so-cs')
-        self.assertFalse(self._calls_for('agentPresets/copy'))
-        pushes = self._calls_for('agentPresets/author')
+        self.assertFalse(self._calls_for('mtilPresets/copy'))
+        pushes = self._calls_for('mtilPresets/author')
         self.assertEqual(pushes[-1]['request']['kind'], 'standalone')
         self.assertEqual(pushes[-1]['request']['agentPreset'], 'ho-so-cs')
         self.assertEqual(pushes[-1]['request']['persona'], 'Bạn là AGENT CS.')
         self.assertTrue(pushes[-1]['request']['allowWeb'])
         self._calls.clear()
         record.persona = 'Bạn là AGENT CS MỚI.'
-        pushes = self._calls_for('agentPresets/author')
+        pushes = self._calls_for('mtilPresets/author')
         self.assertEqual(pushes[-1]['request']['persona'], 'Bạn là AGENT CS MỚI.')
 
     def test_router_authors_with_subagent_lines(self):
@@ -184,7 +184,7 @@ class TestPresetAuthoring(TransactionCase):
                 (0, 0, {'tool_name': 'ke-toan', 'persona': 'KT.', 'allow_bash': True}),
             ],
         })
-        pushes = self._calls_for('agentPresets/author')
+        pushes = self._calls_for('mtilPresets/author')
         request = pushes[-1]['request']
         self.assertEqual(request['kind'], 'router')
         self.assertEqual(
@@ -193,11 +193,11 @@ class TestPresetAuthoring(TransactionCase):
         # Line edits re-generate the composition.
         self._calls.clear()
         record.subagent_ids[0].persona = 'MKT MỚI.'
-        pushes = self._calls_for('agentPresets/author')
+        pushes = self._calls_for('mtilPresets/author')
         self.assertEqual(pushes[-1]['request']['subagents'][0]['persona'], 'MKT MỚI.')
         self._calls.clear()
         record.subagent_ids[1].unlink()
-        pushes = self._calls_for('agentPresets/author')
+        pushes = self._calls_for('mtilPresets/author')
         self.assertEqual(len(pushes[-1]['request']['subagents']), 1)
 
     def test_router_without_lines_and_blank_persona_refused(self):
@@ -223,7 +223,7 @@ class TestPresetAuthoring(TransactionCase):
                 'tool_ids': [(6, 0, (bash | read).ids)],
             })],
         })
-        pushes = self._calls_for('agentPresets/author')
+        pushes = self._calls_for('mtilPresets/author')
         self.assertCountEqual(
             pushes[-1]['request']['subagents'][0]['tools'], ['bash', 'read'])
         self.assertTrue(record.preset_id)
@@ -254,22 +254,22 @@ class TestPresetAuthoring(TransactionCase):
         record.action_load_composition()
         self.assertIn('- id: alpha', record.composition)
         # Loading is mirror-only: no author/rename echo.
-        self.assertFalse(self._calls_for('agentPresets/author'))
+        self.assertFalse(self._calls_for('mtilPresets/author'))
         self._calls.clear()
         record.action_push_raw_composition()
-        pushes = self._calls_for('agentPresets/writeRaw')
+        pushes = self._calls_for('mtilPresets/writeRaw')
         self.assertEqual(pushes[-1]['request']['agentPreset'], 'adopted')
         self.assertIn('- id: alpha', pushes[-1]['request']['content'])
 
     def test_description_travels_with_copy_and_rename(self):
         record = self.Preset.create({'name': 'Hồ Sơ 9', 'description': 'Mô tả 9'})
-        copies = self._calls_for('agentPresets/copy')
-        self.assertEqual(copies[-1].get('description'), 'Mô tả 9')
+        copies = self._calls_for('mtilPresets/copy')
+        self.assertEqual(copies[-1]['request'].get('description'), 'Mô tả 9')
         self._calls.clear()
         record.description = 'Mô tả mới'
-        renames = self._calls_for('agentPresets/rename')
-        self.assertEqual(renames, [{
-            'agentPreset': 'ho-so-9', 'name': 'Hồ Sơ 9', 'description': 'Mô tả mới'}])
+        renames = self._calls_for('mtilPresets/rename')
+        self.assertEqual(renames, [{'request': {
+            'agentPreset': 'ho-so-9', 'name': 'Hồ Sơ 9', 'description': 'Mô tả mới'}}])
 
     def test_active_toggle_pushes_set_active(self):
         record = self.Preset.with_context(npei_syncing=True).create(
@@ -279,11 +279,11 @@ class TestPresetAuthoring(TransactionCase):
         record = self.Preset.browse(record.id)
         self._calls.clear()
         record.active = False
-        self.assertEqual(self._calls_for('agentPresets/setActive'), [
+        self.assertEqual(self._calls_for('mtilPresets/setActive'), [
             {'agentPreset': 'base', 'active': False}])
         self._calls.clear()
         record.active = True
-        self.assertEqual(self._calls_for('agentPresets/setActive'), [
+        self.assertEqual(self._calls_for('mtilPresets/setActive'), [
             {'agentPreset': 'base', 'active': True}])
 
     def test_sync_adopts_roster_active(self):
@@ -296,7 +296,7 @@ class TestPresetAuthoring(TransactionCase):
             [('preset_id', '=', 'dormant')])
         self.assertFalse(record.active)
         # The sync never echoes the state back.
-        self.assertFalse(self._calls_for('agentPresets/setActive'))
+        self.assertFalse(self._calls_for('mtilPresets/setActive'))
 
     def test_sync_upserts_roster(self):
         self.env.user.groups_id |= self.env.ref(

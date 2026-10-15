@@ -1,6 +1,5 @@
 /**
- * Session access: signed user tickets identify the caller, the
- * `session_access` domain stores each restricted session's allowed users,
+ * Session access: the `session_access` domain stores each restricted session's allowed users,
  * and `session/list` + `session/search` withhold restricted sessions from
  * callers the record does not name. Anonymous (no/invalid/expired ticket)
  * sees unrestricted sessions only.
@@ -15,7 +14,7 @@ import { runWithRpcRequest } from '@deepseek-ai/dsh-user-ticket'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionHeader } from '@deepseek-ai/dsh-session'
 import { describe, expect, it, vi } from 'vitest'
-import { currentUserId, SessionAccessStore, verifyUserTicket } from '../src/access.ts'
+import { addressedSession, SessionAccessGate, SessionAccessStore } from '../src/access.ts'
 import { SessionCommandController } from '../src/commands.ts'
 import { ApiSessionList } from '../src/list.ts'
 import { installSessionReadTestServices } from './test-remote.ts'
@@ -55,45 +54,6 @@ function fakeStorageDomain(): { records: Map<string, unknown> } {
 function header(id: string, createdAt = 1000, cwd: string | undefined = '/w'): SessionHeader {
   return { version: 4, id: SessionId(id), createdAt, isSeeded: false, ...cwd === undefined ? {} : { cwd } }
 }
-
-describe('verifyUserTicket', () => {
-  it('accepts a freshly minted ticket and returns its user id', () => {
-    expect(verifyUserTicket(mint('15', future()), SECRET)).toBe('15')
-  })
-
-  it('rejects a wrong signature, another secret, and tampered bodies', () => {
-    const ticket = mint('15', future())
-    expect(verifyUserTicket(ticket, 'another-secret')).toBeUndefined()
-    const [v, body] = ticket.split('.')
-    const forged = Buffer.from(JSON.stringify({ u: '1', exp: future() })).toString('base64url')
-    expect(verifyUserTicket(`${v}.${forged}.${ticket.split('.')[2]}`, SECRET)).toBeUndefined()
-    expect(verifyUserTicket(`${v}.${body}.AAAA`, SECRET)).toBeUndefined()
-  })
-
-  it('rejects expired, malformed, and wrong-version tickets', () => {
-    expect(verifyUserTicket(mint('15', Math.floor(Date.now() / 1000) - 1), SECRET)).toBeUndefined()
-    expect(verifyUserTicket('nonsense', SECRET)).toBeUndefined()
-    expect(verifyUserTicket('v2.a.b', SECRET)).toBeUndefined()
-    const body = Buffer.from('not json').toString('base64url')
-    const mac = createHmac('sha256', SECRET).update(`v1.${body}`).digest().toString('base64url')
-    expect(verifyUserTicket(`v1.${body}.${mac}`, SECRET)).toBeUndefined()
-  })
-})
-
-describe('currentUserId', () => {
-  it('reads the mtil-ticket cookie of the ambient RPC request', () => {
-    const headers = new Headers({ cookie: `other=1; mtil-ticket=${mint('15', future())}` })
-    const inside = runWithRpcRequest({ headers }, () => currentUserId(SECRET))
-    expect(inside).toBe('15')
-  })
-
-  it('is anonymous outside a request, without a secret, and without the cookie', () => {
-    expect(currentUserId(SECRET)).toBeUndefined()
-    const headers = new Headers({ cookie: `mtil-ticket=${mint('15', future())}` })
-    expect(runWithRpcRequest({ headers }, () => currentUserId(undefined))).toBeUndefined()
-    expect(runWithRpcRequest({ headers: new Headers() }, () => currentUserId(SECRET))).toBeUndefined()
-  })
-})
 
 describe('SessionAccessStore', () => {
   it('is inert without a storage domain: unrestricted reads, refused writes', async () => {
@@ -169,6 +129,12 @@ describe('session-addressed entry points', () => {
     await expect(runWithRpcRequest({ headers: headers632 }, () => controller.page(pageRequest, signal)))
       .resolves.toBeDefined()
 
+    // A hidden Session's projections read like an unknown Session's, and a
+    // subagent address is gated through its parent.
+    await expect(controller.projections({ sessionId: restricted.id }, signal)).resolves.toBeNull()
+    await expect(controller.page({ ...pageRequest, address: { kind: 'subagent', parentSessionId: restricted.id, agentId: 'child' } } as never, signal))
+      .rejects.toMatchObject({ code: 'session/not-found' })
+
     // follow captures the caller at CALL time: the WS carrier binds the
     // upgrade headers around the open, while iteration happens later in its
     // serve loop, outside any ambient scope — exactly what this simulates.
@@ -218,6 +184,10 @@ describe('session-addressed entry points', () => {
       { headers: headersStar },
       () => controller.setAccess({ sessionId: restricted.id, allowedUsers: ['1'] }),
     )).resolves.toEqual({ allowedUsers: ['1'] })
+    await expect(runWithRpcRequest(
+      { headers: headersStar },
+      () => controller.setAccess({ sessionId: SessionId('session-missing'), allowedUsers: [] }),
+    )).rejects.toMatchObject({ code: 'session/not-found' })
     expect(fakeCreate).toHaveBeenCalledTimes(2)
     fakeCreate.mockRestore()
     await ctx.fiber.dispose()
@@ -268,5 +238,76 @@ describe('session list filtering', () => {
       .toEqual(['15'])
     expect(owner.find(item => item.sessionId === SessionId('session-open'))?.allowedUsers)
       .toBeUndefined()
+  })
+})
+
+describe('SessionAccessGate', () => {
+  it('keeps an existing record, ignores unknown Sessions, and reports refused writes', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    installSessionReadTestServices(ctx)
+    const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
+    const inert = new SessionAccessGate(ctx, new SessionAccessStore(ctx), SECRET)
+    const live = ctx.sessions.create(SessionId('live'), { meta: { cwd: '/w' } })
+    const headers7 = new Headers({ cookie: `mtil-ticket=${mint('7', future())}` })
+    await runWithRpcRequest({ headers: headers7 }, () => inert.claimCreated(SessionId('unknown')))
+    expect(warn).not.toHaveBeenCalled()
+    await runWithRpcRequest({ headers: headers7 }, () => inert.claimCreated(live.id))
+    expect(warn).toHaveBeenCalledOnce()
+    const open = new SessionAccessGate(ctx, new SessionAccessStore(ctx), undefined)
+    expect(open.ticketed).toBe(false)
+    await expect(open.setAccess({ sessionId: live.id, allowedUsers: ['1'] })).rejects.toMatchObject({ code: 'gateway/internal' })
+
+    ctx.provide('storageDomain', fakeStorageDomain())
+    const store = new SessionAccessStore(ctx)
+    const gate = new SessionAccessGate(ctx, store, SECRET)
+    await store.setAllowedUsers(live.header, ['15'])
+    await runWithRpcRequest({ headers: headers7 }, () => gate.claimCreated(live.id))
+    expect(await store.allowedUsers(live.header)).toEqual(['15'])
+    await ctx.fiber.dispose()
+  })
+
+  it('binds records without a cwd and resolves subagent addresses to their parent', async () => {
+    const ctx = new Context()
+    ctx.provide('storageDomain', fakeStorageDomain())
+    const store = new SessionAccessStore(ctx)
+    const noCwd: SessionHeader = { version: 4, id: SessionId('no-cwd'), createdAt: 1, isSeeded: false }
+    await store.setAllowedUsers(noCwd, ['1'])
+    expect(await store.allowedUsers(noCwd)).toEqual(['1'])
+    expect(addressedSession({ kind: 'subagent', parentSessionId: SessionId('parent') } as never)).toBe('parent')
+  })
+})
+
+describe('session search filtering', () => {
+  it('returns nothing when every searchable Session is hidden from the caller', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    installSessionReadTestServices(ctx)
+    ctx.provide('storageDomain', fakeStorageDomain())
+    const store = new SessionAccessStore(ctx)
+    const restricted = header('session-hidden', 1000)
+    await store.setAllowedUsers(restricted, ['15'])
+    vi.spyOn(ctx.sessionQuery, 'listSessions').mockResolvedValue([{ header: restricted, live: false, persisted: true }] as never)
+    const search = vi.spyOn(ctx.sessionQuery, 'searchSessions')
+    await expect(new ApiSessionList(ctx, store).search('q', new AbortController().signal, undefined))
+      .resolves.toEqual({ items: [], hasMore: false })
+    expect(search).not.toHaveBeenCalled()
+    await ctx.fiber.dispose()
+  })
+})
+
+describe('preset workspace wiring', () => {
+  it('reconciles preset workspaces before the first listing', async () => {
+    const { createSessionTestController } = await import('./test-remote.ts')
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(AgentRegistry)
+    const controller = createSessionTestController(ctx, {
+      defaultModelSelection: () => ({ provider: 'fixture', model: 'fixture' }),
+      cwd: await mkdtemp(joinPath(tmpdir(), 'dsh-access-preset-')),
+      presetWorkspaceRoot: await mkdtemp(joinPath(tmpdir(), 'dsh-access-root-')),
+    })
+    await expect(controller.list({}, new AbortController().signal)).resolves.toEqual({ items: [] })
+    await ctx.fiber.dispose()
   })
 })

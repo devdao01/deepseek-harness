@@ -9,7 +9,7 @@ import type {} from '@deepseek-ai/dsh-session-projection-cache'
 import { SessionQueryError, type SessionSearchCursor } from '@deepseek-ai/dsh-session-query'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { z } from 'zod'
-import type { SessionAccessStore } from './access.ts'
+import { mayView, type SessionAccessStore } from './access.ts'
 import {
   SESSION_SEARCH_RESULT_LIMIT,
   SESSION_SEARCH_SNIPPET_MAX_CODE_POINTS,
@@ -142,13 +142,8 @@ export class ApiSessionList {
     const restricted = new Map<SessionId, readonly string[]>()
     for (const record of records) {
       const allowed = await this.access.allowedUsers(record.header)
-      if (allowed.length > 0) {
-        // '*' is the management wildcard: a server-side caller (the Odoo
-        // module) minting it over the shared secret sees every session,
-        // with the record attached, to administer access lists.
-        if (viewer !== '*' && (viewer === undefined || !allowed.includes(viewer))) continue
-        restricted.set(record.header.id, allowed)
-      }
+      if (!mayView(allowed, viewer)) continue
+      if (allowed.length > 0) restricted.set(record.header.id, allowed)
       const live = this.ctx.sessions.get(record.header.id)
       if (live !== undefined) {
         items.push(this.summaryFor(live))
@@ -201,13 +196,11 @@ export class ApiSessionList {
     try {
       const visible = await provider.listSessions(signal)
       signal.throwIfAborted()
-      const visibleIds = new Set<SessionId>()
+      const visibleIds = new Set(visible
+        .filter(record => record.header.cwd !== undefined)
+        .map(record => record.header.id))
       for (const record of visible) {
-        if (record.header.cwd === undefined) continue
-        const allowed = await this.access.allowedUsers(record.header)
-        if (allowed.length > 0 && viewer !== '*'
-          && (viewer === undefined || !allowed.includes(viewer))) continue
-        visibleIds.add(record.header.id)
+        if (!await this.access.visibleTo(record.header, viewer)) visibleIds.delete(record.header.id)
       }
       if (visibleIds.size === 0) return { items: [], hasMore: false }
       const authorized: SessionSearchItem[] = []

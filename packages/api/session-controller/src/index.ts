@@ -13,7 +13,8 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionInspection } from '@deepseek-ai/dsh-session-persistence'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
-import { currentUserId, SessionAccessStore } from './access.ts'
+import { addressedSession, SessionAccessGate, SessionAccessStore } from './access.ts'
+import { PresetWorkspaces } from './mtil-preset-workspaces.ts'
 import {
   ApiSessionAgentController,
   inspectApiSession,
@@ -67,7 +68,6 @@ import type {
 } from './types.ts'
 
 export type * from './types.ts'
-export { currentUserId, SessionAccessStore, USER_TICKET_COOKIE, verifyUserTicket } from './access.ts'
 export { ApiSessionNotFound } from './agent.ts'
 export { SessionFileReferences } from './file-references.ts'
 export { SessionSkillCatalog } from './skill-catalog.ts'
@@ -84,17 +84,16 @@ export interface Config {
   /** Override platform desktop-opener detection. */
   readonly nativeOpen?: boolean
   /**
-   * Directory whose `<root>/<presetId>` subdirectory becomes the working
-   * directory of a session created with neither a Workspace nor a cwd
-   * (`~` expands). Unset keeps the process working directory.
+   * MTIL: directory whose `<root>/<presetId>` subdirectory becomes the
+   * working directory, grouped under the preset's Workspace, of a session
+   * created with neither a Workspace nor a cwd (`~` expands). Unset keeps
+   * the process working directory.
    */
   readonly presetWorkspaceRoot?: string
   /**
-   * Shared HMAC-SHA256 secret the deployment's identity provider signs user
-   * tickets with (the `mtil-ticket` cookie). Set, it makes `session/list`
-   * and `session/search` filter by each session's allowed-users record and
-   * tags sessions created by an identified caller. Unset, every caller is
-   * anonymous and only unrestricted sessions are listed.
+   * MTIL: shared HMAC-SHA256 secret of the `mtil-ticket` cookie. Set, Session
+   * reads and commands follow each Session's allowed-users record, a ticketed
+   * creator owns its Session, and `/api/file` is not mounted.
    */
   readonly ticketSecret?: string
 }
@@ -136,8 +135,8 @@ export class SessionController extends TypertRemoteService {
   })
 
   private readonly agents: ApiSessionAgentController
-  private readonly access: SessionAccessStore
-  private readonly ticketSecret: string | undefined
+  private readonly access: SessionAccessGate
+  private readonly presetWorkspaces: PresetWorkspaces | undefined
   private readonly commands: SessionCommandController
   private readonly controlState: SessionControlController
   private readonly history: SessionHistoryController
@@ -157,10 +156,11 @@ export class SessionController extends TypertRemoteService {
   constructor(ctx: Context, config: Config, internals: SessionControllerInternals = {}) {
     super(ctx, 'sessionController', { namespace: 'session' })
     installModelSelectionProjection(ctx)
-    this.ticketSecret = config.ticketSecret
-    this.access = new SessionAccessStore(ctx)
+    const accessStore = new SessionAccessStore(ctx)
+    this.access = new SessionAccessGate(ctx, accessStore, config.ticketSecret)
+    this.presetWorkspaces = config.presetWorkspaceRoot === undefined ? undefined : new PresetWorkspaces(ctx, config.presetWorkspaceRoot)
     this.agents = new ApiSessionAgentController(ctx)
-    this.commands = new SessionCommandController(ctx, this.agents, process.cwd(), config.presetWorkspaceRoot)
+    this.commands = new SessionCommandController(ctx, this.agents, process.cwd())
     ctx.effect(() => ctx.fileUploads.registerAgentResolver(async (sessionId) => {
       const result = await this.agents.resolveAgent(sessionId)
       if ('error' in result) throw result.error
@@ -173,7 +173,7 @@ export class SessionController extends TypertRemoteService {
       await Promise.allSettled([...this.promotions])
     }, 'session-controller.promotions')
     this.history = new SessionHistoryController(ctx, (observation) => { this.promote(observation) })
-    this.listState = new ApiSessionList(ctx, this.access)
+    this.listState = new ApiSessionList(ctx, accessStore)
     this.fileApplications = internals.fileApplications ?? nativeFileApplications
     this.openFileApplication = internals.openFileApplication ?? openNativeFileApplication
     this.openPath = internals.openPath ?? openNativeAssociatedPath
@@ -181,13 +181,8 @@ export class SessionController extends TypertRemoteService {
     this.canOpenPath = internals.canOpenPath
       ?? (() => config.nativeOpen ?? (internals.openPath !== undefined || canOpenNativePath()))
     ctx.plugin(SessionFileReferences)
-    // `/api/file` takes an absolute path and names no Session, so no access
-    // record can gate it: a ticketed deployment would hand every signed-in
-    // user every file the Host process can read. It stays off there, and the
-    // Session-addressed `workspaceFiles` Remotes serve file content instead.
-    if (this.ticketSecret === undefined || this.ticketSecret === '') {
-      ctx.plugin(SessionMediaReferences)
-    }
+    // `/api/file` names no Session, so no access record can gate it.
+    if (!this.access.ticketed) ctx.plugin(SessionMediaReferences)
     ctx.plugin(SessionSkillCatalog)
     // An archived Session, or a subagent descendant of one, runs no model step
     // until it is restored; what it still runs is stopped by the owners that
@@ -280,10 +275,8 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('list')
   async list(_request: SessionListRequest, signal: AbortSignal): Promise<SessionListValue> {
-    // Lazy one-shot: adopt pre-existing preset directories and their stored
-    // sessions into preset Workspaces before the first grouped listing.
-    await this.commands.reconcilePresetWorkspaces()
-    return { items: await this.listState.list(signal, currentUserId(this.ticketSecret)) }
+    await this.presetWorkspaces?.reconcile()
+    return { items: await this.listState.list(signal, this.access.viewer()) }
   }
 
   /**
@@ -294,7 +287,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('search')
   search(request: SessionSearchRequest, signal: AbortSignal): Promise<SessionSearchValue> {
-    return this.listState.search(request.query, signal, currentUserId(this.ticketSecret))
+    return this.listState.search(request.query, signal, this.access.viewer())
   }
 
   /**
@@ -304,79 +297,19 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('create')
   async create(request: SessionCreateRequest): Promise<SessionCreateValue> {
-    const value = await this.commands.create(request)
-    // An identified caller owns the session it creates. Only an absent record
-    // is written: adopting an existing session must not shrink or replace an
-    // access list some other caller installed. The management wildcard is NOT
-    // an owner — it creates on behalf of others (the Odoo plane pushes the
-    // intended list through setAccess; none pushed = deliberately public).
-    const viewer = currentUserId(this.ticketSecret)
-    if (viewer !== undefined && viewer !== '*') {
-      const header = this.ctx.sessions.get(value.sessionId)?.header
-      if (header !== undefined && (await this.access.allowedUsers(header)).length === 0) {
-        try {
-          await this.access.setAllowedUsers(header, [viewer])
-        } catch (error) {
-          this.ctx.logger.warn(`session "${value.sessionId}" was created but its access record could not be written: ${String(error)}`)
-        }
-      }
-    }
+    const value = await this.commands.create(await this.presetWorkspaces?.target(request) ?? request)
+    await this.access.claimCreated(value.sessionId)
     return value
   }
 
   /**
-   * Refuse a session-addressed read or command from a caller its access
-   * record does not name. Answers `session-not-found` — the same refusal an
-   * unknown id gets — so a restricted id does not leak its existence.
-   * Unrestricted sessions (absent/empty record) pass for every caller, the
-   * `*` management wildcard passes always, and an unknown id passes so the
-   * addressed method reports its own not-found.
-   */
-  private async assertViewerMayRead(sessionId: SessionId): Promise<void> {
-    const viewer = currentUserId(this.ticketSecret)
-    if (viewer === '*') return
-    const header = this.ctx.sessions.get(sessionId)?.header
-      ?? (await this.ctx.sessionQuery.listSessions())
-        .find(record => record.header.id === sessionId)?.header
-    if (header === undefined) return
-    if (await this.access.visibleTo(header, viewer)) return
-    throw new RemoteError('session/not-found', `session "${sessionId}" not found`, { sessionId })
-  }
-
-  /** The session an address is read through (a subagent reads via its parent). */
-  private static addressedSession(address: SessionPageRequest['address']): SessionId {
-    return address.kind === 'session' ? address.sessionId : address.parentSessionId
-  }
-
-  /**
-   * Replace one Session's allowed-users access list.
-   *
-   * With a configured `ticketSecret` only the `*` management wildcard may
-   * write: an ordinary browser could otherwise grant itself access.
+   * Replace one Session's allowed-users access list (MTIL management plane).
    * @param request - Session identity and the complete new list.
    * @returns the list as stored (empty = unrestricted).
    */
   @Remote('setAccess')
-  async setAccess(request: SessionSetAccessRequest): Promise<SessionSetAccessValue> {
-    if (this.ticketSecret !== undefined && this.ticketSecret !== ''
-      && currentUserId(this.ticketSecret) !== '*') {
-      throw new RemoteError('gateway/internal',
-        'session access lists are administered by the management plane', {})
-    }
-    const header = this.ctx.sessions.get(request.sessionId)?.header
-      ?? (await this.ctx.sessionQuery.listSessions())
-        .find(record => record.header.id === request.sessionId)?.header
-    if (header === undefined) {
-      throw new RemoteError('session/not-found',
-        `session "${request.sessionId}" not found`, { sessionId: request.sessionId })
-    }
-    try {
-      await this.access.setAllowedUsers(header, request.allowedUsers)
-    } catch (error) {
-      throw new RemoteError('gateway/internal',
-        `failed to store the access list of session "${request.sessionId}": ${String(error)}`, {})
-    }
-    return { allowedUsers: await this.access.allowedUsers(header) }
+  setAccess(request: SessionSetAccessRequest): Promise<SessionSetAccessValue> {
+    return this.access.setAccess(request)
   }
 
   /**
@@ -386,7 +319,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('selectModel')
   async selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue> {
-    await this.assertViewerMayRead(request.sessionId)
+    await this.access.assertMayRead(request.sessionId)
     return this.commands.selectModel(request)
   }
 
@@ -507,7 +440,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('rename')
   async rename(request: SessionRenameRequest): Promise<SessionRenameValue> {
-    await this.assertViewerMayRead(request.sessionId)
+    await this.access.assertMayRead(request.sessionId)
     return this.commands.rename(request)
   }
 
@@ -520,7 +453,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('fork')
   async fork(request: SessionForkRequest): Promise<SessionForkValue> {
-    await this.assertViewerMayRead(request.sessionId)
+    await this.access.assertMayRead(request.sessionId)
     return this.commands.fork(request)
   }
 
@@ -533,18 +466,18 @@ export class SessionController extends TypertRemoteService {
   @Remote('prompt')
   async prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue> {
     signal.throwIfAborted()
-    await this.assertViewerMayRead(request.sessionId)
+    await this.access.assertMayRead(request.sessionId)
     return this.commands.prompt(request)
   }
 
   /**
-   * Read one durable image the Session log references.
+   * Read one image proven reachable from the addressed Session log.
    * @param request - Session and attachment identities used for authorization.
-   * @returns the durable attachment reference and its base64-encoded bytes.
+   * @returns the durable attachment reference and base64-encoded bytes.
    */
   @Remote('attachment')
   async attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue> {
-    await this.assertViewerMayRead(request.sessionId)
+    await this.access.assertMayRead(request.sessionId)
     return this.commands.attachment(request)
   }
 
@@ -555,7 +488,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('updateQueue')
   async updateQueue(request: SessionUpdateQueueRequest): Promise<SessionUpdateQueueValue> {
-    await this.assertViewerMayRead(request.sessionId)
+    await this.access.assertMayRead(request.sessionId)
     return this.commands.updateQueue(request)
   }
 
@@ -566,7 +499,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('cancel')
   async cancel(request: SessionCancelRequest): Promise<SessionCancelValue> {
-    await this.assertViewerMayRead(request.sessionId)
+    await this.access.assertMayRead(request.sessionId)
     return this.commands.cancel(request)
   }
 
@@ -578,7 +511,7 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('page')
   async page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage> {
-    await this.assertViewerMayRead(SessionController.addressedSession(request.address))
+    await this.access.assertMayRead(addressedSession(request.address))
     return this.history.page(request, signal)
   }
 
@@ -591,17 +524,16 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote({ mode: 'stream' })
   follow(request: SessionFollowRequest, signal: AbortSignal): AsyncIterable<SessionFollowFrame> {
-    // Started NOW, not on first iteration: the caller identity is ambient to
-    // this call (the stream carrier binds it around the open), while the
-    // iteration happens later in the carrier's serve loop, outside it.
-    const gate = this.assertViewerMayRead(SessionController.addressedSession(request.address))
+    // The gate starts now: the caller identity is ambient to this call, while
+    // iteration happens later in the carrier's serve loop.
+    const gate = this.access.assertMayRead(addressedSession(request.address))
     // A carrier that drops the stream before iterating must not surface the
-    // gate's refusal as an unhandled rejection; awaiting below still throws.
+    // refusal as an unhandled rejection; awaiting below still throws.
     gate.catch(() => {})
-    const open = (): AsyncIterable<SessionFollowFrame> => this.history.follow(request, signal)
+    const follow = (): AsyncIterable<SessionFollowFrame> => this.history.follow(request, signal)
     return (async function* gated() {
       await gate
-      yield* open()
+      yield* follow()
     })()
   }
 
@@ -618,12 +550,7 @@ export class SessionController extends TypertRemoteService {
       throw new RemoteError('gateway/bad-request', 'sessionId must not be empty', {})
     }
     // A Session hidden from the caller reads exactly like an unknown one.
-    try {
-      await this.assertViewerMayRead(sessionId)
-    } catch (error: unknown) {
-      if (error instanceof RemoteError && error.code === 'session/not-found') return null
-      throw error
-    }
+    if (!await this.access.mayRead(sessionId)) return null
     try {
       using observation = await this.ctx.sessionQuery.observeSession(sessionId, { signal })
       const projections = observation.projections

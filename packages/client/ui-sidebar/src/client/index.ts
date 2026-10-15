@@ -14,6 +14,7 @@ import type { SidebarPanelMetadata, SidebarRootInjected } from './contract/slots
 import { HeaderLeadingControls } from './HeaderLeadingControls.tsx'
 import { SidebarRoot } from './SidebarRoot.tsx'
 import { en, zh, type SidebarKey } from './locales.ts'
+import { mtilSidebarInjected } from './mtil-ui.ts'
 
 export type {
   SidebarBrandMarkOwnerProps, SidebarBrandNameOwnerProps, SidebarFooterActionOwnerProps,
@@ -63,30 +64,18 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.slots.subscribe('sidebar.panellist', syncPanels), 'ui-sidebar: panel entries')
   ctx.effect(() => ctx.locale.subscribe(syncPanels), 'ui-sidebar: panel labels')
 
-  const injectProps = (): SidebarRootInjected => {
-    // MTIL frontend-only flags: set by the standalone SPA bootstrap before
-    // boot; absent on the harness-served original, which keeps stock behavior.
-    const mtil = (globalThis as {
-      __MTIL_UI__?: { brandClearsSession?: boolean; hideNewSession?: boolean }
-    }).__MTIL_UI__
-    return {
-      // The shell's New Session button rides the Workspace UI's shared action
-      // (current Session Workspace, then recent Workspace).
-      startSession: (workspaceId) => { workspaceNavigation.startSession(workspaceId) },
-      toggleSidebar: () => { ctx.layout.toggleSidebar() },
-      selectPanel: (id) => {
-        if (id === 'plugins' || id === 'schedules') ctx.get('productAnalytics')?.track('sidebar_menu_click', { menu_name: id === 'plugins' ? 'plugin' : 'cron' })
-        ctx.layout.selectPanel(id)
-      },
-      hooks: { panels, shortcuts: ctx.shortcuts.catalog },
-      ...(mtil?.brandClearsSession === true
-        ? {
-          exitSession: () => { workspaceNavigation.clearSession() },
-        }
-        : {}),
-      ...(mtil?.hideNewSession === true ? { hideNewSession: true } : {}),
-    }
-  }
+  const injectProps = (): SidebarRootInjected => ({
+    // The shell's New Session button rides the Workspace UI's shared action
+    // (current Session Workspace, then recent Workspace).
+    startSession: (workspaceId) => { workspaceNavigation.startSession(workspaceId) },
+    toggleSidebar: () => { ctx.layout.toggleSidebar() },
+    selectPanel: (id) => {
+      if (id === 'plugins' || id === 'schedules') ctx.get('productAnalytics')?.track('sidebar_menu_click', { menu_name: id === 'plugins' ? 'plugin' : 'cron' })
+      ctx.layout.selectPanel(id)
+    },
+    hooks: { panels, shortcuts: ctx.shortcuts.catalog },
+    ...mtilSidebarInjected(() => { workspaceNavigation.clearSession() }),
+  })
   ctx.slots.inject('sidebar', () => ctx.slots.register({
     name: 'sidebar',
     locale: NS,

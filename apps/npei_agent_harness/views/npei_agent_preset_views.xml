@@ -94,7 +94,7 @@
                                         string="Load from Harness" class="btn-secondary"/>
                                 <!-- Ẩn chờ bật chỉnh sửa raw: bỏ invisible="1" (và readonly
                                      của field bên dưới) khi muốn dùng. Action đã nối sẵn
-                                     agentPresets/writeRaw (chỉ vé quản trị '*' được ghi). -->
+                                     mtilPresets/writeRaw (chỉ vé quản trị '*' được ghi). -->
                                 <button name="action_push_raw_composition" type="object"
                                         string="Push Raw (management only)" class="btn-secondary"
                                         invisible="1"

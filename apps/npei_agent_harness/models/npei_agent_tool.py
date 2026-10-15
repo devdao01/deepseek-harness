@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Grantable-tool catalog for structured preset authoring.
 
-Mirrors ``agentPresets/toolCatalog`` — the tools the harness's default
+Mirrors ``mtilPresets/toolCatalog`` — the tools the harness's default
 composition registers — so router sub-agent lines can grant tools by picking
 from a list instead of memorizing names. Sync is manager-gated; records are
 upserted by ``name`` and never deleted (a tool gone from the harness merely
@@ -45,11 +45,11 @@ class NpeiAgentTool(models.Model):
 
     @api.model
     def action_sync_from_harness(self):
-        """Upsert the catalog from ``agentPresets/toolCatalog``."""
+        """Upsert the catalog from ``mtilPresets/toolCatalog``."""
         if not self.env.user.has_group(MANAGER_GROUP):
             raise AccessError(
                 _("Only MTIL Managers can sync tools from the harness."))
-        value = self.env['npei.agent.harness.client']._rpc('agentPresets/toolCatalog', {})
+        value = self.env['npei.agent.harness.client']._rpc('mtilPresets/toolCatalog', {})
         entries = (value or {}).get('tools') or []
         synced = 0
         for entry in entries:

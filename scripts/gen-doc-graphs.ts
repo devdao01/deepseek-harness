@@ -548,6 +548,14 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Eagerly mounts YAML-declared preset revisions, binds Agents and cold readers to scoped contributions, and retains retired revisions until their last user releases them.',
   },
   {
+    // MTIL fork: management-plane preset authoring over agentPresets.
+    key: 'mtilPresets',
+    pkg: 'mtil-presets',
+    title: 'MTIL preset management',
+    mode: 'core',
+    note: 'Stores management-plane-authored presets on disk and declares them through agentPresets, adding copy, structured authoring, rename, delete, and a deactivation flag.',
+  },
+  {
     key: 'commands',
     pkg: 'commands',
     title: 'Human command registry',

@@ -761,6 +761,80 @@ roots(): Agent[]
 
 Source: [`packages/core/agent/src/index.ts`](../../packages/core/agent/src/index.ts)
 
+<a id="ctxmtilpresets--mtilpresets"></a>
+
+### `ctx.mtilPresets` — `MtilPresets`
+
+Authored preset storage and management Remote over `ctx.agentPresets`.
+
+```ts cordis-catalog
+/**
+ * Read every preset with its owner and activation state.
+ * @returns the registry roster plus stored presets that could not be declared.
+ */
+@Remote('list') async remoteExportList(): Promise<MtilPresetRoster>
+
+/**
+ * Copy one preset's composition into a new stored preset.
+ * @param request - source, new id, and display text.
+ * @returns once the copy is declared.
+ * @throws {RemoteError} `agent-preset/not-found` for an unknown source, `agent-preset/invalid` for a taken or unusable id.
+ */
+@Remote('copy') remoteExportCopy(request: CopyPresetRequest): Promise<void>
+
+/**
+ * Delete one stored preset. Sessions already bound to it keep their revision.
+ * @param id - the preset id.
+ * @returns once the declaration is retired and the files are gone.
+ * @throws {RemoteError} `agent-preset/invalid` for a preset this service does not store.
+ */
+@Remote('deletePreset') remoteExportDelete(id: string): Promise<void>
+
+/**
+ * Create or rewrite one structured preset generated from the default
+ * preset's rows; the caller supplies no plugin names.
+ * @param request - identity, display text, and the composition spec.
+ * @returns once the preset is declared.
+ * @throws {RemoteError} `gateway/bad-request` for an unusable spec, `agent-preset/invalid` for a deployment id.
+ */
+@Remote('author') remoteExportAuthor(request: AuthorPresetRequest): Promise<void>
+
+/**
+ * Replace one stored preset's plugin rows with caller-supplied YAML. The
+ * caller names arbitrary plugins, so with a configured `ticketSecret` only
+ * the `*` management wildcard may call.
+ * @param request - identity, display text, and the entry-list YAML.
+ * @returns once the preset is declared.
+ * @throws {RemoteError} `gateway/bad-request` for a refused caller or unusable YAML, `agent-preset/invalid` for a deployment id.
+ */
+@Remote('writeRaw') remoteExportWriteRaw(request: WriteRawPresetRequest): Promise<void>
+
+/**
+ * Rewrite one stored preset's display text; the id never changes.
+ * @param request - identity and the new display text.
+ * @returns once the redeclared preset is active.
+ * @throws {RemoteError} `agent-preset/invalid` for a preset this service does not store.
+ */
+@Remote('rename') remoteExportRename(request: RenamePresetRequest): Promise<void>
+
+/**
+ * Offer or withhold one preset for new sessions; covers deployment presets too.
+ * @param agentPreset - the preset id.
+ * @param active - whether the management plane offers it.
+ * @returns once the flag is stored.
+ * @throws {RemoteError} `agent-preset/not-found` for an unknown id.
+ */
+@Remote('setActive') remoteExportSetActive(agentPreset: string, active: boolean): Promise<void>
+
+/**
+ * The tools the default preset registers, for authoring pickers.
+ * @returns one entry per visible tool of the default preset's current revision.
+ */
+@Remote('toolCatalog') async remoteExportToolCatalog(): Promise<MtilPresetToolCatalog>
+```
+
+Source: [`packages/preset/mtil-presets/src/index.ts`](../../packages/preset/mtil-presets/src/index.ts)
+
 <a id="agent-events"></a>
 
 ### `agent/*` events

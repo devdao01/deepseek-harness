@@ -62,11 +62,8 @@ const PEER_REQUIRED_HOST_EXPORTS = {
   '@deepseek-ai/dsh-session': ['SESSION_FORMAT_VERSION'],
   '@deepseek-ai/dsh-session-persistence': ['SessionPersistenceNotFoundError'],
   // MTIL fork: one AsyncLocalStorage instance must carry the caller's headers
-  // from the transports to every reading service; the package resolves as one
-  // shared peer, so its pure ticket helpers follow it.
-  '@deepseek-ai/dsh-user-ticket': [
-    'USER_TICKET_COOKIE', 'currentRpcRequest', 'currentTicketUserId', 'runWithRpcRequest', 'verifyUserTicket',
-  ],
+  // from the transports to every reading service.
+  '@deepseek-ai/dsh-user-ticket': ['runWithRpcRequest'],
 } as const satisfies HostDependencyExports
 
 /** Exact import specifier to reviewed runtime exports. */

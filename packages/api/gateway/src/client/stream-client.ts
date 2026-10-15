@@ -472,13 +472,9 @@ export class ClientUplinkQueue implements AsyncIterable<unknown>, AsyncIterator<
 function remoteStreamUrl(): string {
   // The mux route is registered absolute; a page resolves its document-relative
   // form against its own document base. A shell-owned Host on another origin
-  // supplies that base through the transport. A sub-path deployment (the MTIL
-  // SPA) publishes its absolute app base first, since its document URL is a
-  // client route rather than the app root.
-  const globals = globalThis as { __DSH_APP_BASE__?: string; __DSH_TRANSPORT__?: { streamBaseUrl?: string } }
-  const appBase = globals.__DSH_APP_BASE__
-  const base = appBase === undefined ? undefined : appBase.endsWith('/') ? appBase : `${appBase}/`
-  const url = new URL(REMOTE_STREAM_MUX_PATH.slice(1), base ?? globals.__DSH_TRANSPORT__?.streamBaseUrl ?? document.baseURI)
+  // supplies that base through the transport.
+  const globals = globalThis as { __DSH_TRANSPORT__?: { streamBaseUrl?: string } }
+  const url = new URL(REMOTE_STREAM_MUX_PATH.slice(1), globals.__DSH_TRANSPORT__?.streamBaseUrl ?? document.baseURI)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   return url.href
 }

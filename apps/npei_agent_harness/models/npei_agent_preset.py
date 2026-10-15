@@ -3,24 +3,24 @@
 
 The harness stays the source of truth for the composition;
 :meth:`action_sync_from_harness` upserts the local mirror from
-``agentPresets/list``. Creating a record WITHOUT a ``preset_id`` authors a new
-preset on the harness (``agentPresets/copy`` from the default roster entry)
+``mtilPresets/list``. Creating a record WITHOUT a ``preset_id`` authors a new
+preset on the harness (``mtilPresets/copy`` from the default roster entry)
 under a name-derived id, and deleting a user-authored mirror deletes the
-harness preset (``agentPresets/deletePreset``). ``kind`` standalone/router
-records instead use structured authoring (``agentPresets/author``): the
+harness preset (``mtilPresets/deletePreset``). ``kind`` standalone/router
+records instead use structured authoring (``mtilPresets/author``): the
 harness GENERATES the composition from its default preset plus persona,
 bash/web capability flags, and (router) the department sub-agent lines —
 re-generated on every relevant edit.
 
 Harness capability notes: the roster carries
 ``id/name/description/trust/isDefault/active``. A ``name`` change on a
-``user``-trust mirror pushes ``agentPresets/rename`` (display text only —
+``user``-trust mirror pushes ``mtilPresets/rename`` (display text only —
 the harness preset id, and with it the per-preset workspace path, never
-changes); toggling ``active`` pushes ``agentPresets/setActive`` (covers
+changes); toggling ``active`` pushes ``mtilPresets/setActive`` (covers
 ``system`` presets too — the harness stores the flag in settings and
 withholds deactivated presets from pickers and new selection).
-``description`` travels with both calls (``agentPresets/copy`` takes it at
-authoring; ``agentPresets/rename`` replaces it on edit). ``workspace_id``
+``description`` travels with both calls (``mtilPresets/copy`` takes it at
+authoring; ``mtilPresets/rename`` replaces it on edit). ``workspace_id``
 is a manual annotation; ``workspace_path`` mirrors the harness's derived
 ``<presetWorkspaceRoot>/<preset_id>`` default.
 """
@@ -54,8 +54,8 @@ class NpeiAgentPreset(models.Model):
     name = fields.Char(string='Name*:', required=True, tracking=True)
     description = fields.Text(
         string='Description', tracking=True,
-        help="Harness roster description: sent with agentPresets/copy at "
-             "authoring and pushed via agentPresets/rename on edit "
+        help="Harness roster description: sent with mtilPresets/copy at "
+             "authoring and pushed via mtilPresets/rename on edit "
              "(user-trust presets only).",
     )
     kind = fields.Selection(
@@ -72,7 +72,7 @@ class NpeiAgentPreset(models.Model):
     persona = fields.Text(
         string='Persona', tracking=True,
         help="The agent's own persona (role, duties, owned skills). Required "
-             "for standalone/router kinds; pushed via agentPresets/author.",
+             "for standalone/router kinds; pushed via mtilPresets/author.",
     )
     allow_bash = fields.Boolean(
         string='Allow Bash', tracking=True,
@@ -138,7 +138,7 @@ class NpeiAgentPreset(models.Model):
         string='Composition (agent.cordis.yml)', copy=False,
         help="Snapshot of the harness composition, loaded on demand via "
              "agentPresets/read. The view keeps it read-only; the raw push "
-             "action (agentPresets/writeRaw, wildcard-gated) is wired for "
+             "action (mtilPresets/writeRaw, wildcard-gated) is wired for "
              "when editing is enabled later.",
     )
     is_default = fields.Boolean(
@@ -169,7 +169,7 @@ class NpeiAgentPreset(models.Model):
     active = fields.Boolean(
         default=True, tracking=True,
         help="Mirrors the harness roster's active state. Toggling pushes "
-             "agentPresets/setActive: an inactive preset is withheld from "
+             "mtilPresets/setActive: an inactive preset is withheld from "
              "pickers and new selection while its running sessions continue.",
     )
     session_ids = fields.One2many(
@@ -251,15 +251,15 @@ class NpeiAgentPreset(models.Model):
 
     @api.model
     def _harness_presets(self):
-        """Return the harness roster (``agentPresets/list`` entries)."""
-        value = self.env['npei.agent.harness.client'].sudo()._rpc('agentPresets/list', {})
+        """Return the harness roster (``mtilPresets/list`` entries)."""
+        value = self.env['npei.agent.harness.client'].sudo()._rpc('mtilPresets/list', {})
         return (value or {}).get('presets') or []
 
     def _author_on_harness(self, vals):
         """Create a preset on the harness and fill ``vals`` in place.
 
         Copies the default roster entry under ``_slugify(name)`` with the given
-        display name (``agentPresets/copy`` — void return; an authored copy is
+        display name (``mtilPresets/copy`` — void return; an authored copy is
         always ``user`` trust). Collisions are caught up front against BOTH the
         MTIL mirror and the harness roster.
 
@@ -291,7 +291,7 @@ class NpeiAgentPreset(models.Model):
         }
         if (vals.get('description') or '').strip():
             copy_args['description'] = vals['description'].strip()
-        self.env['npei.agent.harness.client'].sudo()._rpc('agentPresets/copy', copy_args)
+        self.env['npei.agent.harness.client'].sudo()._rpc('mtilPresets/copy', {'request': copy_args})
         vals['preset_id'] = slug
         vals.setdefault('trust', 'user')
         # Mirror the harness's preset-derived session cwd (~/workspace/<id>).
@@ -299,7 +299,7 @@ class NpeiAgentPreset(models.Model):
             vals['workspace_path'] = '~/workspace/%s' % slug
 
     def _author_request(self):
-        """Build the ``agentPresets/author`` request from this record."""
+        """Build the ``mtilPresets/author`` request from this record."""
         self.ensure_one()
         if not (self.persona or '').strip():
             raise UserError(_(
@@ -353,7 +353,7 @@ class NpeiAgentPreset(models.Model):
         return request
 
     def _push_author(self):
-        """(Re-)generate this preset on the harness (``agentPresets/author``).
+        """(Re-)generate this preset on the harness (``mtilPresets/author``).
 
         Fail-loud: a composition the harness refused must not look stored.
         Suppressed under ``npei_syncing``.
@@ -364,7 +364,7 @@ class NpeiAgentPreset(models.Model):
         for record in self:
             if record.kind == 'copy' or not record.preset_id or record.trust != 'user':
                 continue
-            client._rpc('agentPresets/author', {'request': record._author_request()})
+            client._rpc('mtilPresets/author', {'request': record._author_request()})
         # Keep the Composition tab current: the harness just re-generated the
         # file, so a stale snapshot would misrepresent what actually runs.
         self.filtered(
@@ -407,9 +407,9 @@ class NpeiAgentPreset(models.Model):
         """Write, then push renames and active toggles to the harness.
 
         ``name`` or ``description`` on a ``user``-trust mirror pushes
-        ``agentPresets/rename`` (system presets are read-only there; their
+        ``mtilPresets/rename`` (system presets are read-only there; their
         display edits stay local).
-        ``active`` pushes ``agentPresets/setActive`` for every trust.
+        ``active`` pushes ``mtilPresets/setActive`` for every trust.
         Fail-loud: a push the harness refused rolls the MTIL write back.
         Suppressed under ``npei_syncing`` (mirror refresh).
         """
@@ -433,11 +433,11 @@ class NpeiAgentPreset(models.Model):
                     }
                     if (record.description or '').strip():
                         rename_args['description'] = record.description.strip()
-                    client._rpc('agentPresets/rename', rename_args)
+                    client._rpc('mtilPresets/rename', {'request': rename_args})
         if 'active' in vals:
             for record in self.with_context(active_test=False):
                 if record.preset_id:
-                    client._rpc('agentPresets/setActive', {
+                    client._rpc('mtilPresets/setActive', {
                         'agentPreset': record.preset_id,
                         'active': bool(record.active),
                     })
@@ -448,19 +448,19 @@ class NpeiAgentPreset(models.Model):
 
         System presets ship with the deployment (the harness refuses their
         deletion), so only ``user`` rows with a ``preset_id`` push
-        ``agentPresets/deletePreset``. Fail-loud: an unreachable harness rolls
+        ``mtilPresets/deletePreset``. Fail-loud: an unreachable harness rolls
         the MTIL unlink back rather than orphaning the harness preset.
         """
         if not self.env.context.get('npei_syncing'):
             client = self.env['npei.agent.harness.client'].sudo()
             for record in self:
                 if record.preset_id and record.trust == 'user':
-                    client._rpc('agentPresets/deletePreset', {'id': record.preset_id})
+                    client._rpc('mtilPresets/deletePreset', {'id': record.preset_id})
         return super().unlink()
 
     @api.model
     def action_sync_from_harness(self):
-        """Upsert local presets from the harness ``agentPresets/list``.
+        """Upsert local presets from the harness ``mtilPresets/list``.
 
         Manager-gated. Returns a client notification action summarising the
         sync so it can back an ``ir.actions.server`` menu item.
@@ -514,7 +514,7 @@ class NpeiAgentPreset(models.Model):
     def action_push_raw_composition(self):
         """Replace the harness composition with the ``composition`` field.
 
-        ``agentPresets/writeRaw`` accepts only the management wildcard once a
+        ``mtilPresets/writeRaw`` accepts only the management wildcard once a
         ticket secret is configured; the form keeps the field read-only until
         raw editing is deliberately enabled.
         """
@@ -523,7 +523,7 @@ class NpeiAgentPreset(models.Model):
             if not record.preset_id or not (record.composition or '').strip():
                 raise UserError(_(
                     "Load (and edit) the composition before pushing it."))
-            client._rpc('agentPresets/writeRaw', {'request': {
+            client._rpc('mtilPresets/writeRaw', {'request': {
                 'agentPreset': record.preset_id,
                 'name': record.name,
                 **({'description': record.description.strip()}

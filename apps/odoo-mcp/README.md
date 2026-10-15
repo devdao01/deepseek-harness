@@ -34,10 +34,11 @@ A preset with no row has no Odoo tools at all.
 Two ways to get the row into a preset. The MTIL Odoo module's preset form
 has an **Odoo Connection** tab (URL, database, account, key, write switch,
 model allowlist) — saving the preset regenerates the composition with this
-row through `agentPresets/author`. The server path needs NO configuration on
-that route: the harness locates its own `apps/odoo-mcp/server.mjs` by walking
-up from the running plugin, so it is correct wherever the repo is checked
-out. Hand-written rows (below) suit presets managed outside Odoo — there the
+row through `mtilPresets/author`. That route writes the server path the
+deployment configures as `odooMcpServer` on the `mtil-presets` row (see
+`apps/frontend/deploy/harness-web-lan.patch.yml`); without it the harness
+refuses to author an Odoo connection. Hand-written rows (below) suit presets
+managed outside Odoo — there the
 `args` path must be the absolute repo path on the harness host (spawned
 without a shell, so `~` is NOT expanded). A later authored save from Odoo
 regenerates the composition, so pick one management plane per preset.

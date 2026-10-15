@@ -858,9 +858,9 @@ msgstr "ID Workspace Harness"
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__description
 msgid ""
-"Harness roster description: sent with agentPresets/copy at authoring and pushed via agentPresets/rename on edit (user-trust presets only)."
+"Harness roster description: sent with mtilPresets/copy at authoring and pushed via mtilPresets/rename on edit (user-trust presets only)."
 msgstr ""
-"Mô tả trong roster harness: gửi kèm agentPresets/copy khi đăng ký và đẩy qua agentPresets/rename khi chỉnh sửa (chỉ preset trust user)."
+"Mô tả trong roster harness: gửi kèm mtilPresets/copy khi đăng ký và đẩy qua mtilPresets/rename khi chỉnh sửa (chỉ preset trust user)."
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_setting__has_document
@@ -1201,9 +1201,9 @@ msgstr "Tối thiểu"
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__active
 msgid ""
-"Mirrors the harness roster's active state. Toggling pushes agentPresets/setActive: an inactive preset is withheld from pickers and new selection while its running sessions continue."
+"Mirrors the harness roster's active state. Toggling pushes mtilPresets/setActive: an inactive preset is withheld from pickers and new selection while its running sessions continue."
 msgstr ""
-"Phản chiếu trạng thái active trong roster harness. Thay đổi sẽ đẩy agentPresets/setActive: preset không active bị ẩn khỏi bộ chọn và lựa chọn mới trong khi các phiên đang chạy tiếp tục."
+"Phản chiếu trạng thái active trong roster harness. Thay đổi sẽ đẩy mtilPresets/setActive: preset không active bị ẩn khỏi bộ chọn và lựa chọn mới trong khi các phiên đang chạy tiếp tục."
 
 #. module: npei_agent_harness
 #: model_terms:ir.ui.view,arch_db:npei_agent_harness.view_npei_agent_model_form
@@ -2114,9 +2114,9 @@ msgstr "Đồng bộ kỹ năng thành công"
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__composition
 msgid ""
-"Snapshot of the harness composition, loaded on demand via agentPresets/read. The view keeps it read-only; the raw push action (agentPresets/writeRaw, wildcard-gated) is wired for when editing is enabled later."
+"Snapshot of the harness composition, loaded on demand via agentPresets/read. The view keeps it read-only; the raw push action (mtilPresets/writeRaw, wildcard-gated) is wired for when editing is enabled later."
 msgstr ""
-"Ảnh chụp nhanh cấu trúc harness, tải theo yêu cầu qua agentPresets/read. Giao diện giữ chỉ đọc; action đẩy thô (agentPresets/writeRaw, cần vé quản trị '*') đã nối sẵn cho khi bật chỉnh sửa."
+"Ảnh chụp nhanh cấu trúc harness, tải theo yêu cầu qua agentPresets/read. Giao diện giữ chỉ đọc; action đẩy thô (mtilPresets/writeRaw, cần vé quản trị '*') đã nối sẵn cho khi bật chỉnh sửa."
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_description:npei_agent_harness.field_npei_agent_credential__source
@@ -2258,9 +2258,9 @@ msgstr ""
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__persona
 msgid ""
-"The agent's own persona (role, duties, owned skills). Required for standalone/router kinds; pushed via agentPresets/author."
+"The agent's own persona (role, duties, owned skills). Required for standalone/router kinds; pushed via mtilPresets/author."
 msgstr ""
-"Persona riêng của agent (vai trò, nhiệm vụ, kỹ năng sở hữu). Bắt buộc cho loại standalone/router; đẩy qua agentPresets/author."
+"Persona riêng của agent (vai trò, nhiệm vụ, kỹ năng sở hữu). Bắt buộc cho loại standalone/router; đẩy qua mtilPresets/author."
 
 #. module: npei_agent_harness
 #: model:ir.model.fields,field_help:npei_agent_harness.field_npei_agent_preset__workspace_path

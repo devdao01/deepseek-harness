@@ -136,6 +136,7 @@ export const TRANSLATION_SCOPE_GLOB_EXCLUDES = [
   'apps/npei_agent_harness/**',
   'apps/frontend/**',
   'packages/util/user-ticket/**',
+  'packages/preset/mtil-presets/**',
   '.agents/notes/implemented/feature/2026-08-30-preset-activation-rename-and-preset-workspace-root.md',
   '.agents/notes/implemented/feature/2026-08-30-session-access-records-and-user-tickets.md',
   '**/node_modules/**',

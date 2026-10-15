@@ -1517,6 +1517,67 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'mtilPresets',
+    summary: 'Authored preset storage and management Remote over `ctx.agentPresets`.',
+    description: 'Authored preset storage and management Remote over `ctx.agentPresets`.',
+    methods: [
+      {
+        signature: '@Remote(\'list\') async remoteExportList(): Promise<MtilPresetRoster>',
+        description: 'Read every preset with its owner and activation state.',
+        parameters: [],
+        returns: 'the registry roster plus stored presets that could not be declared.',
+      },
+      {
+        signature: '@Remote(\'copy\') remoteExportCopy(request: CopyPresetRequest): Promise<void>',
+        description: 'Copy one preset\'s composition into a new stored preset.',
+        parameters: [{ name: 'request', description: 'source, new id, and display text.' }],
+        returns: 'once the copy is declared.',
+        throws: ['{RemoteError} `agent-preset/not-found` for an unknown source, `agent-preset/invalid` for a taken or unusable id.'],
+      },
+      {
+        signature: '@Remote(\'deletePreset\') remoteExportDelete(id: string): Promise<void>',
+        description: 'Delete one stored preset. Sessions already bound to it keep their revision.',
+        parameters: [{ name: 'id', description: 'the preset id.' }],
+        returns: 'once the declaration is retired and the files are gone.',
+        throws: ['{RemoteError} `agent-preset/invalid` for a preset this service does not store.'],
+      },
+      {
+        signature: '@Remote(\'author\') remoteExportAuthor(request: AuthorPresetRequest): Promise<void>',
+        description: 'Create or rewrite one structured preset generated from the default preset\'s rows; the caller supplies no plugin names.',
+        parameters: [{ name: 'request', description: 'identity, display text, and the composition spec.' }],
+        returns: 'once the preset is declared.',
+        throws: ['{RemoteError} `gateway/bad-request` for an unusable spec, `agent-preset/invalid` for a deployment id.'],
+      },
+      {
+        signature: '@Remote(\'writeRaw\') remoteExportWriteRaw(request: WriteRawPresetRequest): Promise<void>',
+        description: 'Replace one stored preset\'s plugin rows with caller-supplied YAML. The caller names arbitrary plugins, so with a configured `ticketSecret` only the `*` management wildcard may call.',
+        parameters: [{ name: 'request', description: 'identity, display text, and the entry-list YAML.' }],
+        returns: 'once the preset is declared.',
+        throws: ['{RemoteError} `gateway/bad-request` for a refused caller or unusable YAML, `agent-preset/invalid` for a deployment id.'],
+      },
+      {
+        signature: '@Remote(\'rename\') remoteExportRename(request: RenamePresetRequest): Promise<void>',
+        description: 'Rewrite one stored preset\'s display text; the id never changes.',
+        parameters: [{ name: 'request', description: 'identity and the new display text.' }],
+        returns: 'once the redeclared preset is active.',
+        throws: ['{RemoteError} `agent-preset/invalid` for a preset this service does not store.'],
+      },
+      {
+        signature: '@Remote(\'setActive\') remoteExportSetActive(agentPreset: string, active: boolean): Promise<void>',
+        description: 'Offer or withhold one preset for new sessions; covers deployment presets too.',
+        parameters: [{ name: 'agentPreset', description: 'the preset id.' }, { name: 'active', description: 'whether the management plane offers it.' }],
+        returns: 'once the flag is stored.',
+        throws: ['{RemoteError} `agent-preset/not-found` for an unknown id.'],
+      },
+      {
+        signature: '@Remote(\'toolCatalog\') async remoteExportToolCatalog(): Promise<MtilPresetToolCatalog>',
+        description: 'The tools the default preset registers, for authoring pickers.',
+        parameters: [],
+        returns: 'one entry per visible tool of the default preset\'s current revision.',
+      },
+    ],
+  },
+  {
     key: 'officeToPdf',
     summary: 'A provider lifetime owns all converters, queued calls, and temporary files.',
     description: 'A provider lifetime owns all converters, queued calls, and temporary files.',
@@ -1938,8 +1999,8 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the Session identity and resolved preset when configured.',
       },
       {
-        signature: '@Remote(\'setAccess\') async setAccess(request: SessionSetAccessRequest): Promise<SessionSetAccessValue>',
-        description: 'Replace one Session\'s allowed-users access list.\n\nWith a configured `ticketSecret` only the `*` management wildcard may write: an ordinary browser could otherwise grant itself access.',
+        signature: '@Remote(\'setAccess\') setAccess(request: SessionSetAccessRequest): Promise<SessionSetAccessValue>',
+        description: 'Replace one Session\'s allowed-users access list (MTIL management plane).',
         parameters: [{ name: 'request', description: 'Session identity and the complete new list.' }],
         returns: 'the list as stored (empty = unrestricted).',
       },
@@ -2007,9 +2068,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: '@Remote(\'attachment\') async attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue>',
-        description: 'Read one durable image the Session log references.',
+        description: 'Read one image proven reachable from the addressed Session log.',
         parameters: [{ name: 'request', description: 'Session and attachment identities used for authorization.' }],
-        returns: 'the durable attachment reference and its base64-encoded bytes.',
+        returns: 'the durable attachment reference and base64-encoded bytes.',
       },
       {
         signature: '@Remote(\'updateQueue\') async updateQueue(request: SessionUpdateQueueRequest): Promise<SessionUpdateQueueValue>',
@@ -4738,6 +4799,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type AuthorizationStatus = \'authorized\' | \'cancelled\';',
   },
   {
+    name: 'AuthorPresetOdoo',
+    declaration: 'export interface AuthorPresetOdoo {\n    readonly url: string;\n    readonly db: string;\n    readonly user: string;\n    readonly apiKey: string;\n    readonly allowWrite?: boolean;\n    readonly allowedModels?: readonly string[];\n    readonly maxRows?: number;\n    readonly toolPrefix?: string;\n}',
+  },
+  {
+    name: 'AuthorPresetRequest',
+    declaration: 'export interface AuthorPresetRequest {\n    readonly agentPreset: string;\n    readonly name: string;\n    readonly description?: string;\n    readonly kind: \'standalone\' | \'router\';\n    readonly persona: string;\n    readonly allowBash?: boolean;\n    readonly allowWeb?: boolean;\n    readonly subagents?: readonly AuthorPresetSubagent[];\n    readonly odoo?: AuthorPresetOdoo;\n}',
+  },
+  {
+    name: 'AuthorPresetSubagent',
+    declaration: 'export interface AuthorPresetSubagent {\n    readonly toolName: string;\n    readonly persona: string;\n    readonly allowBash?: boolean;\n    readonly allowWeb?: boolean;\n    readonly tools?: readonly string[];\n}',
+  },
+  {
     name: 'BackendRegistry',
     declaration: 'export class BackendRegistry {\n    register(name: string, backend: StorageBackend): () => void;\n    get(name: string): StorageBackend;\n    names(): string[];\n}',
   },
@@ -4940,6 +5013,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ContinuableSubagentDescriptorData',
     declaration: 'export interface ContinuableSubagentDescriptorData extends SubagentDescriptorBase {\n    readonly mode: \'continuable\';\n    readonly label: string;\n    readonly agentProvider?: string;\n    readonly agentModel?: string;\n    readonly agentReasoningEffort?: ReasoningEffortId;\n    readonly persona?: string;\n    readonly toolFilter?: ToolRestriction;\n}',
+  },
+  {
+    name: 'CopyPresetRequest',
+    declaration: 'export interface CopyPresetRequest {\n    readonly from: string;\n    readonly id: string;\n    readonly name?: string;\n    readonly description?: string;\n}',
   },
   {
     name: 'CordisDynamicPackageId',
@@ -5894,6 +5971,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ModelReasoningEffort {\n    readonly id: string;\n    readonly name: string;\n    readonly description?: string;\n}',
   },
   {
+    name: 'MtilPresetRoster',
+    declaration: 'export interface MtilPresetRoster {\n    readonly presets: readonly MtilPresetRow[];\n}',
+  },
+  {
+    name: 'MtilPresetRow',
+    declaration: 'export interface MtilPresetRow {\n    readonly id: string;\n    readonly trust: MtilPresetTrust;\n    readonly isDefault: boolean;\n    readonly active: boolean;\n    readonly name?: string;\n    readonly description?: string;\n    readonly broken?: string;\n}',
+  },
+  {
+    name: 'MtilPresetToolCatalog',
+    declaration: 'export interface MtilPresetToolCatalog {\n    readonly tools: readonly MtilPresetToolEntry[];\n}',
+  },
+  {
+    name: 'MtilPresetToolEntry',
+    declaration: 'export interface MtilPresetToolEntry {\n    readonly name: string;\n    readonly description: string;\n}',
+  },
+  {
+    name: 'MtilPresetTrust',
+    declaration: 'export type MtilPresetTrust = \'system\' | \'user\';',
+  },
+  {
     name: 'NativeFileApplication',
     declaration: 'export interface NativeFileApplication {\n    readonly id: string;\n    readonly name: string;\n    readonly default: boolean;\n    readonly icon: string | null;\n}',
   },
@@ -6252,6 +6349,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'RemoteEventHostInfo',
     declaration: 'export interface RemoteEventHostInfo {\n    readonly home: string;\n}',
+  },
+  {
+    name: 'RenamePresetRequest',
+    declaration: 'export interface RenamePresetRequest {\n    readonly agentPreset: string;\n    readonly name: string;\n    readonly description?: string;\n}',
   },
   {
     name: 'RenderedDocumentBytes',
@@ -8220,6 +8321,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'WorkspaceView',
     declaration: 'export interface WorkspaceView {\n    readonly workspaceId: WorkspaceId;\n    readonly path: string;\n    readonly title: string;\n    readonly sessionIds: readonly SessionId[];\n    readonly createdAt: string;\n    readonly updatedAt: string;\n}',
+  },
+  {
+    name: 'WriteRawPresetRequest',
+    declaration: 'export interface WriteRawPresetRequest {\n    readonly agentPreset: string;\n    readonly name: string;\n    readonly description?: string;\n    readonly content: string;\n}',
   },
 ]
 

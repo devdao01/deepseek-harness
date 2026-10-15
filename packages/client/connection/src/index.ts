@@ -48,12 +48,6 @@ export {
   serverResponseSchema,
 } from './rpc-schema.ts'
 export { HostConnectionService } from './rpc-host.ts'
-// Re-exported for Host consumers already holding this package; the identity
-// primitives themselves live in dsh-user-ticket, which carries no transport.
-export {
-  currentRpcRequest, currentTicketUserId, runWithRpcRequest,
-  USER_TICKET_COOKIE, verifyUserTicket, type RpcRequestContext,
-} from '@deepseek-ai/dsh-user-ticket'
 
 export { API_PATH } from './api-path.ts'
 

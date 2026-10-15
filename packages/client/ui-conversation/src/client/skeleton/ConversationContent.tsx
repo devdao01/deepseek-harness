@@ -5,6 +5,7 @@ import { workspaceDisplayTitle } from '@deepseek-ai/dsh-api-workspace-controller
 import type { ConversationContentProps, ConversationViewsProps, InputZone } from '../contract/slots.ts'
 import { HeroShell, WorkspaceChip, workspaceLabel } from './EmptyHero.tsx'
 import css from './ConversationRoot.module.css'
+import { mtilHidesNewSession } from './mtil-ui.ts'
 
 function ConversationSessionView({ renderSlot }: ConversationViewsProps) {
   return renderSlot('conversation.session', {})
@@ -13,14 +14,6 @@ function ConversationSessionView({ renderSlot }: ConversationViewsProps) {
 function NoConversationWidthControls() {
   return null
 }
-
-/**
- * MTIL frontend-only flag: the deployment creates every Session in Odoo, so
- * this frontend offers no way to start one. Absent on the harness-served
- * original, which keeps stock behavior.
- */
-const mtilHidesNewSession = (): boolean =>
-  (globalThis as { __MTIL_UI__?: { hideNewSession?: boolean } }).__MTIL_UI__?.hideNewSession === true
 
 /**
  * Render the shared Conversation body and its occurrence-selected local Components.
@@ -115,16 +108,10 @@ export function ConversationContent(props: ConversationContentProps) {
     ? undefined
     : workspaceDisplayTitle(storedChipTitle, t('workspace.defaultName'))
 
-  // Where Odoo owns Session lifecycle the chip row goes: its picker retargets
-  // a blank Session's Workspace, which mints a Session in the Workspace that
-  // has no blank one yet. Nothing selected drops the composer as well — with
-  // no picker there is no way out of its inert state, and a hero that only
-  // greets is the intended dead end: pick a Session in the sidebar. A blank
-  // Session that IS selected keeps the composer, because typing the first
-  // prompt into it is exactly what the deployment created it for.
+  // MTIL: the chip's picker mints a Session, so it goes; with nothing selected
+  // the inert composer goes too. A selected blank Session keeps its composer:
+  // typing the first prompt is what Odoo created it for.
   const mtilWithholdsStart = mtilHidesNewSession()
-  const mtilNothingToStart = sessionId === undefined && mtilWithholdsStart
-
   const heroWorkspaceRow = (
     <div className={css.heroWorkspaceRow}>
       <WorkspaceChip
@@ -183,7 +170,7 @@ export function ConversationContent(props: ConversationContentProps) {
       {hero && <HeroShell t={t} renderSlot={renderSlot} />}
       {hero && !mtilWithholdsStart && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
-      {!mtilNothingToStart && inputBar}
+      {!(mtilWithholdsStart && sessionId === undefined) && inputBar}
     </div>
   )
 

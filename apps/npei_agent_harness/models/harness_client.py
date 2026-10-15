@@ -226,7 +226,7 @@ class HarnessClient(models.AbstractModel):
     def _rpc(self, method, args=None):
         """Call one unary harness method and return ``result.value``.
 
-        :param str method: a Remote endpoint such as ``agentPresets/list``.
+        :param str method: a Remote endpoint such as ``mtilPresets/list``.
         :param dict args: named args matching the host method's parameter
             names (``session/list`` takes ``{'_request': {}}``).
         :returns: the ``result.value`` (dict, list, or scalar; ``None`` for void).

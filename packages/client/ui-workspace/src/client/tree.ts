@@ -13,6 +13,7 @@ import type {
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
+import { placeholderBlank } from './mtil-ui.ts'
 
 /** Group key for Sessions outside every Workspace. */
 export const UNGROUPED_KEY = ''
@@ -228,24 +229,6 @@ export function pinCurrentBlank(
  * search) to archived rows.
  */
 export type ArchivedFilter = 'default' | 'show' | 'only'
-
-/**
- * MTIL frontend flag: a blank session carrying a stored title was created
- * deliberately (from the Odoo management plane) and lists like an ordinary
- * row. Unset — every stock deployment — keeps blank rows provisional-only.
- */
-const mtilShowsTitledBlanks = (): boolean =>
-  (globalThis as { __MTIL_UI__?: { showTitledBlanks?: boolean } }).__MTIL_UI__?.showTitledBlanks === true
-
-/** Whether this blank row is a titled, deliberately created MTIL session. */
-function titledBlank(session: SessionSummary): boolean {
-  return mtilShowsTitledBlanks() && session.blank && (session.title?.trim() ?? '') !== ''
-}
-
-/** Whether a blank row is a provisional New Session placeholder rather than a titled MTIL session. */
-function placeholderBlank(session: SessionSummary): boolean {
-  return session.blank && !titledBlank(session)
-}
 
 /**
  * Ordinary sessions are visible; among blank sessions, only the current one

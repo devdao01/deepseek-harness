@@ -104,6 +104,7 @@ export interface TestSessionRemoteDefaults {
   readonly revealPath?: (path: string, signal: AbortSignal) => Promise<void>
   readonly canOpenPath?: () => boolean
   readonly ticketSecret?: string
+  readonly presetWorkspaceRoot?: string
 }
 
 const installed = new WeakMap<Context, SessionController>()
@@ -298,6 +299,7 @@ function installControllers(
       {
         ...defaults.nativeOpen === undefined ? {} : { nativeOpen: defaults.nativeOpen },
         ...defaults.ticketSecret === undefined ? {} : { ticketSecret: defaults.ticketSecret },
+        ...defaults.presetWorkspaceRoot === undefined ? {} : { presetWorkspaceRoot: defaults.presetWorkspaceRoot },
       },
       {
         ...defaults.openPath === undefined ? {} : { openPath: defaults.openPath },

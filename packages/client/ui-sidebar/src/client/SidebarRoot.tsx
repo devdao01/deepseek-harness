@@ -254,8 +254,6 @@ export function SidebarRoot({
               </button>
             )
         })()}
-        {/* Deployment header actions between the brand and the collapse
-            toggle; an empty slot renders nothing. */}
         {wide && renderSlot('sidebar.header.actions', {})}
         {!darwinDesktop && toggle}
       </div>
