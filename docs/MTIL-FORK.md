@@ -25,7 +25,7 @@ Upstream-file rule: a fork change keeps upstream lines verbatim and adds the sma
 | `apps/npei_agent_harness/` | Odoo module: session ACL mirror, preset authoring over `mtilPresets/*`, provider sign-in wizard, tool/model mirrors, `i18n/vi_VN.po` + `tools/regenerate_i18n.py` |
 | `apps/odoo-mcp/` | Dependency-free MCP stdio server for per-preset Odoo XML-RPC access |
 | `apps/multi-agent-setup/` | Department preset sources and their build scripts |
-| `apps/nginx/{gateway,harness-host}.conf` | nginx for the TLS gateway and for the harness host (SPA alias + loopback harness proxy + Odoo-only port) |
+| `apps/nginx/{gateway,harness-host}.conf` | nginx for the TLS gateway and for the harness host (SPA alias + loopback harness proxy) |
 | `packages/util/user-ticket/` | `@deepseek-ai/dsh-user-ticket`: AsyncLocalStorage request context and `mtil-ticket` verification |
 | `packages/preset/mtil-presets/` | `@deepseek-ai/dsh-mtil-presets`: stored presets in `$DSH_HOME/.agent-presets` (the directory earlier fork releases used, so existing presets load unchanged) declared through `ctx.agentPresets.register()` |
 | `packages/client/ui-{workspace,sidebar,chat}/src/client/mtil-*.ts`, `packages/client/ui-conversation/src/client/skeleton/mtil-ui.ts` | Fork modules holding the `__MTIL_UI__` logic the upstream files call |

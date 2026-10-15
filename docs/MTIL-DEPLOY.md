@@ -9,11 +9,11 @@ Internet ──https──► 192.168.9.56  nginx gateway (TLS, mọi domain c�
                        │  mtil.mtil.vn/mtilai2/  ─┐
                        │  mtilai.mtil.mtil.vn    ─┤ http, giữ nguyên Host
                        │  mtil.mtil.vn/  ────────►│──────────► Odoo 17
-                       ▼                          │
-                    192.168.11.68  nginx :80 ◄────┘
-                       │  /mtilai2/            → file tĩnh /var/www/mtilai2 (SPA)
-                       │  /mtilai2/api|plugins → 127.0.0.1:3080
-                       │  :8090 (chỉ Odoo)     → 127.0.0.1:3080
+                       ▼                          │              │ Base URL https://mtilai.mtil.mtil.vn
+                    192.168.11.68  nginx :80 ◄────┘   ◄──────────┘ (qua gateway)
+                       │  mtil.mtil.vn/mtilai2/       → file tĩnh /var/www/mtilai2 (SPA)
+                       │  mtil.mtil.vn/mtilai2/api|plugins → 127.0.0.1:3080
+                       │  mtilai.mtil.mtil.vn/        → 127.0.0.1:3080
                        ▼
                     harness `dsh --profile web` trên 127.0.0.1:3080
 ```
@@ -22,12 +22,12 @@ Internet ──https──► 192.168.9.56  nginx gateway (TLS, mọi domain c�
 |---|---|---|
 | `192.168.9.56` | nginx gateway: TLS, định tuyến domain ra từng server LAN | [`apps/nginx/gateway.conf`](../apps/nginx/gateway.conf) |
 | `192.168.11.68` | harness (`127.0.0.1:3080`) + nginx cục bộ: phục vụ SPA và proxy harness | [`apps/nginx/harness-host.conf`](../apps/nginx/harness-host.conf), overlay [`apps/frontend/deploy/harness-web-lan.patch.yml`](../apps/frontend/deploy/harness-web-lan.patch.yml) |
-| máy Odoo (`<ODOO_IP>`) | Odoo 17 + module `npei_agent_harness` | `addons_path` trỏ tới thư mục `apps/` của repo |
+| máy Odoo | Odoo 17 + module `npei_agent_harness`; gọi harness qua domain `https://mtilai.mtil.mtil.vn` | `addons_path` trỏ tới thư mục `apps/` của repo |
 
 ### Vì sao harness bind `127.0.0.1` và có nginx riêng trên `192.168.11.68`
 
 - `dsh --profile web` mặc định bind `127.0.0.1:3080`. CLI từ chối `--host 0.0.0.0`; bind ra mạng chỉ làm được bằng overlay, và khi đó mọi máy trong LAN chạm thẳng vào một API có quyền chạy lệnh trên server.
-- Đặt nginx cạnh harness thì harness không mở cổng nào ra mạng. Chỉ nginx nhận kết nối, và firewall giới hạn nguồn: cổng `80` chỉ từ gateway, cổng `8090` chỉ từ Odoo.
+- Đặt nginx cạnh harness thì harness không mở cổng nào ra mạng. Chỉ nginx nhận kết nối, và firewall chỉ mở cổng `80` cho gateway. Odoo cũng đi qua gateway bằng domain, nên không cần mở thêm cổng nào.
 - nginx cục bộ phục vụ luôn file tĩnh của SPA, nên không cần chép dist sang gateway và không cần tiến trình phục vụ file tĩnh riêng.
 - Gateway giữ đúng một vai trò như với các server khác: TLS và định tuyến theo domain.
 
@@ -127,7 +127,7 @@ Wants=network-online.target
 User=mit
 WorkingDirectory=/home/mit/deepseek-harness
 EnvironmentFile=/home/mit/.config/mtil-harness.env
-ExecStart=/bin/bash -lc 'exec pnpm dsh --profile web --no-open --trusted-host mtil.mtil.vn --trusted-host mtilai.mtil.mtil.vn --trusted-host 192.168.11.68'
+ExecStart=/bin/bash -lc 'exec pnpm dsh --profile web --no-open --trusted-host mtil.mtil.vn --trusted-host mtilai.mtil.mtil.vn'
 Restart=on-failure
 RestartSec=5
 
@@ -142,7 +142,7 @@ journalctl -u mtil-harness -f              # chờ dòng "dsh web: http://127.0.
 curl -sI http://127.0.0.1:3080/ | head -1  # harness trả lời trên loopback
 ```
 
-`bash -lc` nạp `PATH` của user `mit` (nvm hoặc corepack). Mỗi `--trusted-host` là một `Host` mà nginx chuyển tới: hai domain công khai và `192.168.11.68` cho cổng Odoo.
+`bash -lc` nạp `PATH` của user `mit` (nvm hoặc corepack). Mỗi `--trusted-host` là một `Host` mà nginx chuyển tới: `mtil.mtil.vn` cho SPA và `mtilai.mtil.mtil.vn` cho Odoo cùng giao diện gốc.
 
 ## Bước 6 — Build SPA thẳng vào thư mục nginx
 
@@ -159,23 +159,23 @@ Script build với `CONFIG_API_ODOO=mtil.mtil.vn BASE_PATH=/mtilai2/`, xóa nộ
 
 ```bash
 sudo cp /home/mit/deepseek-harness/apps/nginx/harness-host.conf /etc/nginx/conf.d/mtil-harness.conf
-sudo nano /etc/nginx/conf.d/mtil-harness.conf   # thay <ODOO_IP>; xóa khối map nếu đã có $connection_upgrade
+sudo nano /etc/nginx/conf.d/mtil-harness.conf   # xóa khối map nếu đã có $connection_upgrade
 sudo nginx -t && sudo systemctl reload nginx
 
 sudo ufw allow from 192.168.9.56 to any port 80 proto tcp
-sudo ufw allow from <ODOO_IP> to any port 8090 proto tcp
 sudo ufw status
 ```
 
 Kiểm tra cục bộ:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: mtil.mtil.vn' http://127.0.0.1/mtilai2/   # 200
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: mtil.mtil.vn' http://127.0.0.1/mtilai2/          # 200
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: mtilai.mtil.mtil.vn' http://127.0.0.1/api/boot.payload  # 401: tới harness, chưa đăng nhập
 ```
 
 ## Bước 8 — nginx gateway `192.168.9.56`
 
-Gộp khối `location /mtilai2/` trong [`apps/nginx/gateway.conf`](../apps/nginx/gateway.conf) vào server block `mtil.mtil.vn` đang có (giữ nguyên các location của Odoo). Thêm server block `mtilai.mtil.mtil.vn` nếu muốn công khai giao diện gốc của harness. Sau đó:
+Gộp khối `location /mtilai2/` trong [`apps/nginx/gateway.conf`](../apps/nginx/gateway.conf) vào server block `mtil.mtil.vn` đang có (giữ nguyên các location của Odoo). Thêm server block `mtilai.mtil.mtil.vn`; khối này bắt buộc, vì Odoo gọi harness qua domain đó. Sau đó:
 
 ```bash
 sudo nginx -t && sudo systemctl reload nginx
@@ -185,11 +185,21 @@ Nếu gateway trước đây proxy `/mtilai2/` tới `192.168.8.68:3080` hoặc 
 
 ## Bước 9 — Kết nối Odoo với harness
 
+Odoo gọi harness bằng domain, đi qua gateway như trình duyệt. Base URL phải là domain chuyển cả gốc `/` tới harness, vì module gọi `<Base URL>/?token=…` để lấy cookie và `<Base URL>/api/…` cho mọi RPC. `https://mtil.mtil.vn/mtilai2` không dùng được: `/mtilai2/?token=…` rơi vào file tĩnh của SPA.
+
+Trước khi điền, kiểm tra từ máy Odoo (trong container Odoo nếu chạy Docker):
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://mtilai.mtil.mtil.vn/api/boot.payload   # 401 là đúng
+```
+
+Lỗi DNS hoặc timeout thường là do router không hỗ trợ NAT hairpin, tức máy trong LAN gọi domain công khai mà không quay vào được. Khi đó trỏ domain về gateway trong DNS nội bộ, hoặc thêm `192.168.9.56 mtilai.mtil.mtil.vn` vào `/etc/hosts` (với Docker: `extra_hosts`) của máy Odoo. Chứng chỉ TLS phải hợp lệ cho domain này, vì module kiểm tra chứng chỉ.
+
 Vào `Settings → MTIL`:
 
 | Ô | Giá trị |
 |---|---|
-| **Base URL** | `http://192.168.11.68:8090` |
+| **Base URL** | `https://mtilai.mtil.mtil.vn` |
 | **API Token** | `launchToken` ở bước 4, hoặc token trong dòng `dsh web:` của journal |
 | **Ticket Secret** | Đúng chuỗi `ticketSecret` trong overlay |
 
@@ -226,8 +236,9 @@ Trên máy Odoo: pull cùng commit rồi **Upgrade** module khi `apps/npei_agent
 |---|---|
 | `/mtilai2/api/...` trả 403 | `Host` bị đổi ở một chặng nginx, hoặc thiếu `--trusted-host` cho domain đó |
 | Trang tải nhưng không có câu trả lời chạy dần, hoặc kết nối liên tục đứt | Một chặng nginx thiếu `Upgrade`/`Connection`, `proxy_buffering off` hoặc `proxy_read_timeout` |
-| Odoo **Test Connection** báo 403 | Thiếu `--trusted-host 192.168.11.68` |
-| Odoo **Test Connection** báo timeout hoặc kết nối bị từ chối | `allow <ODOO_IP>` hoặc luật `ufw` cổng `8090` sai IP |
+| Odoo **Test Connection** báo 403 | Thiếu `--trusted-host mtilai.mtil.mtil.vn`, hoặc gateway đổi `Host` |
+| Odoo **Test Connection** báo lỗi DNS, timeout hoặc kết nối bị từ chối | Máy Odoo không phân giải hoặc không quay vào được domain (xem NAT hairpin ở bước 9) |
+| Odoo báo lỗi SSL | Chứng chỉ của `mtilai.mtil.mtil.vn` trên gateway không hợp lệ hoặc thiếu chuỗi trung gian |
 | Odoo báo 502 | Base URL hoặc API Token chưa điền, hoặc token đã đổi sau restart (dùng `launchToken` để cố định) |
 | SPA hiện trang từ chối truy cập | Chưa đăng nhập Odoo ở `mtil.mtil.vn`, hoặc `Ticket Secret` hai bên không trùng |
 | Asset `404` sau khi build lại | Dist chưa được chép đúng vào `/var/www/mtilai2`, hoặc trình duyệt giữ `index.html` cũ |
