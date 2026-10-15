@@ -22,7 +22,7 @@ Upstream-file rule: a fork change keeps upstream lines verbatim and adds the sma
 | Path | What it is |
 |---|---|
 | `apps/frontend/` (submodule, repo `devdao01/frontend-deepseek-harness`) | The MTIL SPA: Odoo login gate, `__MTIL_UI__` flags, SPA-private client plugins (`public/mtil-*.js`), deploy overlay `deploy/harness-web-lan.patch.yml` + build script. A pnpm workspace member through `apps/*` |
-| `apps/npei_agent_harness/` | Odoo module: session ACL mirror, preset authoring over `mtilPresets/*`, provider sign-in wizard, tool/model mirrors, the gateway's `GET /api/mtil/auth_check`, `i18n/vi_VN.po` + `tools/regenerate_i18n.py` |
+| `apps/npei_agent_harness/` | Odoo module: session ACL mirror, preset authoring over `mtilPresets/*`, provider sign-in wizard, tool/model mirrors, the SPA login gate `POST /api/mtil/get_config_v2` (mints the `mtil-ticket` cookie) and the gateway's `GET /api/mtil/auth_check`, `i18n/vi_VN.po` + `tools/regenerate_i18n.py` |
 | `apps/odoo-mcp/` | Dependency-free MCP stdio server for per-preset Odoo XML-RPC access |
 | `apps/multi-agent-setup/` | Department preset sources and their build scripts |
 | `apps/mtil-deploy/` | Per-company deployment: `add-company.sh`, the `mtil-harness@.service` template, nginx for the gateway (`gateway.conf`, `mtil-spa.locations` with the Odoo `auth_request`) and for the harness host (`harness-host.conf`, Host → instance port maps) |

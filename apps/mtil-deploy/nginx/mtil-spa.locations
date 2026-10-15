@@ -8,7 +8,8 @@
 # MTIL User). Anonymous page loads go to the Odoo login and come back; API,
 # plugin, and WebSocket requests get the bare 401/403. Verdicts are cached
 # 30 s per (domain, Odoo session cookie), so a logout or a removed group takes
-# effect within 30 s.
+# effect within 30 s. The SPA's login gate, POST /api/mtil/get_config_v2, also
+# goes to this company's Odoo.
 
 location /mtilai2/ {
     auth_request /_mtil_auth;
@@ -41,6 +42,17 @@ location /mtilai2/plugins/ {
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_buffering off;
     proxy_read_timeout 1h;
+}
+
+# The SPA login gate is an Odoo route of npei_agent_harness: it sets the
+# harness user ticket cookie. This exact match outranks any `location /api/`
+# the block sends elsewhere.
+location = /api/mtil/get_config_v2 {
+    proxy_pass $mtil_odoo;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 }
 
 location = /_mtil_auth {
